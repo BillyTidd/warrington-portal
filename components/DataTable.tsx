@@ -1,0 +1,554 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { startOfWeek, format, isAfter, isBefore } from "date-fns";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Edit, Trash2, Download, Calendar, ArrowUpDown } from "lucide-react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import api from "@/lib/api";
+import { handleDownloadCSV } from "@/lib/excelGenerator";
+import LoadingModal from "./LoadingModal";
+import { toast } from "sonner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+export interface Entry {
+  _id: string;
+  date: string;
+  client: string;
+  description: string;
+  mileage: { miles: number; amount: number };
+  expenses: { description: string; amount: number };
+  overtime: { hours: number; amount: number };
+  sustenance: { description: string; amount: number };
+  totalAmount: number;
+  userId: string;
+  employeeName?: string;
+  userName?: any;
+}
+
+interface Client {
+  _id: string;
+  name: string;
+}
+
+interface Employee {
+  _id: string;
+  name: string;
+}
+
+interface DataTableProps {
+  data: Entry[];
+  onEdit: (entry: Entry) => void;
+  onDelete: (id: string) => void;
+}
+
+export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
+  const { data: session } = useSession();
+  const [isLoading, setIsLoading] = useState(false);
+  const [filter, setFilter] = useState({
+    employee: "",
+    client: "",
+    weekStart: null as Date | null,
+    startDate: null as Date | null,
+    endDate: null as Date | null,
+  });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc" | null>(
+    "asc"
+  );
+  const entriesPerPage = 10;
+
+  useEffect(() => {
+    fetchClients();
+    fetchEmployees();
+  }, []);
+
+  const fetchClients = async () => {
+    try {
+      const response = await api.get("/clients");
+      setClients(response.data);
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const response = await api.get("/admin/users");
+      setEmployees(
+        response.data.map((user: any) => ({
+          _id: user._id,
+          name: user.name || user.userName, // Fallback to userName if name is not available
+        }))
+      );
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+    }
+  };
+
+  const filteredData = data.filter((entry) => {
+    const clientMatch = filter.client
+      ? entry.client.toLowerCase().includes(filter.client.toLowerCase())
+      : true;
+    const employeeMatch = filter.employee
+      ? entry.userName?.toLowerCase().includes(filter.employee.toLowerCase())
+      : true;
+    const dateMatch =
+      session?.user?.role === "admin"
+        ? filter.startDate && filter.endDate
+          ? new Date(entry.date) >= filter.startDate &&
+            new Date(entry.date) <= filter.endDate
+          : true
+        : filter.weekStart
+        ? new Date(entry.date) >= filter.weekStart &&
+          new Date(entry.date) <
+            new Date(filter.weekStart.getTime() + 7 * 24 * 60 * 60 * 1000)
+        : true;
+
+    return clientMatch && employeeMatch && dateMatch;
+  });
+
+  const sortedData = [...filteredData].sort((a, b) => {
+    if (sortDirection === "asc") {
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    } else if (sortDirection === "desc") {
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    }
+    return 0;
+  });
+
+  const indexOfLastEntry = currentPage * entriesPerPage;
+  const indexOfFirstEntry = indexOfLastEntry - entriesPerPage;
+  const currentEntries = sortedData.slice(indexOfFirstEntry, indexOfLastEntry);
+
+  const handleWeekSelect = (date: Date | undefined) => {
+    if (date) {
+      const weekStart = startOfWeek(date, { weekStartsOn: 0 });
+      setFilter((prev) => ({ ...prev, weekStart }));
+    }
+  };
+
+  const handleDateChange = (
+    type: "startDate" | "endDate",
+    date: Date | null
+  ) => {
+    setFilter((prev) => {
+      if (type === "startDate") {
+        if (date && prev.endDate && isAfter(date, prev.endDate)) {
+          return { ...prev, startDate: date, endDate: null };
+        }
+        return { ...prev, startDate: date };
+      } else if (type === "endDate") {
+        if (date && prev.startDate && isBefore(date, prev.startDate)) {
+          return prev;
+        }
+        return { ...prev, endDate: date };
+      }
+      return prev;
+    });
+  };
+
+  const clearDateSelection = () => {
+    setFilter((prev) => ({
+      ...prev,
+      weekStart: null,
+      startDate: null,
+      endDate: null,
+      client: "",
+      employee: "",
+    }));
+  };
+
+  const handleExcelDownload = async () => {
+    await handleDownloadCSV(
+      {
+        filteredData: sortedData,
+        filter,
+        session,
+      },
+      handleUploadToDrive
+    );
+  };
+
+  const handleUploadToDrive = async (data: any) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/uploadToDrive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || "Failed to upload file to Google Drive"
+        );
+      }
+      const result = await response.json();
+      try {
+        const createInvoice = await fetch("/api/create-invoice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(result),
+        });
+      } catch (error) {
+        console.log(error);
+      }
+      toast.success("File uploaded successfully");
+    } catch (error) {
+      toast.error("Error uploading file to Google Drive");
+      console.error("Error uploading file to Google Drive:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSort = () => {
+    setSortDirection((prev) =>
+      prev === "asc" ? "desc" : prev === "desc" ? "asc" : "desc"
+    );
+  };
+
+  const tableHeaders = [
+    { label: "Date", key: "date" },
+    ...(session?.user?.role === "admin"
+      ? [{ label: "Employee", key: "userName" }]
+      : []),
+    { label: "Client", key: "client" },
+    { label: "Description", key: "description" },
+    { label: "Amount £", key: "totalAmount" },
+    {
+      label: "Mileage £",
+      subHeaders: ["Miles", "Amount £ (auto)"],
+      key: "mileage",
+    },
+    {
+      label: "Expenses £",
+      subHeaders: ["Description", "Amount £"],
+      key: "expenses",
+    },
+    {
+      label: "Overtime £",
+      subHeaders: ["Hours", "Amount £ (auto)"],
+      key: "overtime",
+    },
+    { label: "Actions", key: "actions" },
+  ];
+
+  const sliceDescription = (description: string) => {
+    return description.length > 50
+      ? `${description.slice(0, 50)}...`
+      : description;
+  };
+
+  return (
+    <Card>
+      <LoadingModal show={isLoading} />
+      <CardHeader>
+        <div className="flex flex-col space-y-4 md:space-y-0 md:flex-row md:justify-between md:items-center w-full">
+          <CardTitle>Work Entries</CardTitle>
+          <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
+            {session?.user?.role === "admin" ? (
+              <>
+                <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
+                  <Input
+                    type="date"
+                    value={
+                      filter.startDate
+                        ? format(filter.startDate, "yyyy-MM-dd")
+                        : ""
+                    }
+                    onChange={(e) =>
+                      handleDateChange("startDate", e.target.valueAsDate)
+                    }
+                    className="w-full sm:w-auto"
+                  />
+                  <Input
+                    type="date"
+                    value={
+                      filter.endDate ? format(filter.endDate, "yyyy-MM-dd") : ""
+                    }
+                    onChange={(e) =>
+                      handleDateChange("endDate", e.target.valueAsDate)
+                    }
+                    className="w-full sm:w-auto"
+                    min={
+                      filter.startDate
+                        ? format(filter.startDate, "yyyy-MM-dd")
+                        : undefined
+                    }
+                  />
+                </div>
+              </>
+            ) : (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto flex justify-center gap-2"
+                  >
+                    <Calendar className="h-4 w-4" />
+                    {filter.weekStart
+                      ? format(filter.weekStart, "PP")
+                      : "Select Week"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <CalendarComponent
+                    mode="single"
+                    selected={filter.weekStart || undefined}
+                    onSelect={handleWeekSelect}
+                    weekStartsOn={0}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
+            <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
+              <Button onClick={clearDateSelection} className="w-full sm:w-auto">
+                Clear Filter
+              </Button>
+              <Button
+                onClick={handleExcelDownload}
+                className="w-full sm:w-auto flex justify-center items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Download XLSX
+              </Button>
+            </div>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
+          {session?.user?.role === "admin" && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="client">Client</Label>
+                <Select
+                  name="client"
+                  value={filter.client}
+                  onValueChange={(value) =>
+                    setFilter((prev) => ({ ...prev, client: value }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map((client) => (
+                      <SelectItem key={client._id} value={client.name}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="employee">Employee</Label>
+                <Select
+                  name="employee"
+                  value={filter.employee}
+                  onValueChange={(value) =>
+                    setFilter((prev) => ({ ...prev, employee: value }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select an employee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.map((employee) => (
+                      <SelectItem key={employee._id} value={employee.name}>
+                        {employee.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {tableHeaders.map((header) => (
+                  <TableHead
+                    key={header.key}
+                    colSpan={header.subHeaders ? header.subHeaders.length : 1}
+                    className="whitespace-nowrap"
+                  >
+                    {header.key === "date" ? (
+                      <Button
+                        variant="ghost"
+                        onClick={handleSort}
+                        className="font-semibold flex items-center gap-1"
+                      >
+                        {header.label}
+                        <ArrowUpDown className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      header.label
+                    )}
+                  </TableHead>
+                ))}
+              </TableRow>
+              <TableRow>
+                {tableHeaders.map((header) =>
+                  header.subHeaders ? (
+                    header.subHeaders.map((subHeader, index) => (
+                      <TableHead
+                        key={`${header.key}-${index}`}
+                        className="whitespace-nowrap"
+                      >
+                        {subHeader}
+                      </TableHead>
+                    ))
+                  ) : (
+                    <TableHead
+                      key={`${header.key}-empty`}
+                      className="whitespace-nowrap"
+                    ></TableHead>
+                  )
+                )}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {currentEntries.map((entry) => (
+                <TableRow key={entry._id}>
+                  <TableCell>{entry.date}</TableCell>
+                  {session?.user?.role === "admin" && (
+                    <TableCell>{entry.userName}</TableCell>
+                  )}
+                  <TableCell>{entry.client}</TableCell>
+                  <TableCell>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          {sliceDescription(entry.description)}
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{entry.description}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableCell>
+                  <TableCell>£{entry.totalAmount.toFixed(2)}</TableCell>
+                  <TableCell>{entry.mileage.miles}</TableCell>
+                  <TableCell>£{entry.mileage.amount.toFixed(2)}</TableCell>
+                  <TableCell>{entry.expenses.description}</TableCell>
+                  <TableCell>£{entry.expenses.amount.toFixed(2)}</TableCell>
+                  <TableCell>{entry.overtime.hours}</TableCell>
+                  <TableCell>£{entry.overtime.amount.toFixed(2)}</TableCell>
+                  <TableCell>
+                    <div className="flex space-x-2">
+                      <Button
+                        onClick={() => onEdit(entry)}
+                        size="sm"
+                        variant="outline"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        onClick={() => onDelete(entry._id)}
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        <div className="mt-4 overflow-x-auto">
+          <Pagination>
+            <PaginationContent className="flex flex-wrap justify-center gap-2">
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={
+                    currentPage > 1
+                      ? () => setCurrentPage((prev) => prev - 1)
+                      : undefined
+                  }
+                  className={
+                    currentPage === 1 ? "pointer-events-none opacity-50" : ""
+                  }
+                />
+              </PaginationItem>
+              {Array.from({
+                length: Math.ceil(filteredData.length / entriesPerPage),
+              }).map((_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    onClick={() => setCurrentPage(i + 1)}
+                    isActive={currentPage === i + 1}
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={
+                    currentPage <
+                    Math.ceil(filteredData.length / entriesPerPage)
+                      ? () => setCurrentPage((prev) => prev + 1)
+                      : undefined
+                  }
+                  className={
+                    currentPage >=
+                    Math.ceil(filteredData.length / entriesPerPage)
+                      ? "pointer-events-none opacity-50"
+                      : ""
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
