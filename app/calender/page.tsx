@@ -477,6 +477,19 @@ export default function CalendarPage() {
                       required
                     />
                   </div>
+                  <div className="grid gap-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={currentTask.description || ""}
+                    onChange={(e) =>
+                      setCurrentTask({
+                        ...currentTask,
+                        description: e.target.value,
+                      })
+                    }
+                  />
+                </div>
                   {/* Remove or comment out these sections */}
                   {/* <div className="grid gap-2">
                     <Label htmlFor="deadline">Deadline</Label>
