@@ -15,15 +15,7 @@ import {
   getYear,
   setYear,
 } from "date-fns";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-  Edit,
-  Trash2,
-  CalendarIcon,
-  Loader2,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Edit, Trash2, CalendarIcon, Loader2, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -397,159 +389,161 @@ export default function CalendarPage() {
 
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogContent className="sm:max-w-[500px] sm:w-full">
-            <DialogHeader>
-              <DialogTitle>{isEditMode ? "Edit Task" : "Add Task"}</DialogTitle>
-            </DialogHeader>
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </button>
             <form onSubmit={handleSaveTask}>
-              <div className="grid gap-4 py-4 ">
-                <div className="grid gap-2">
-                  <Label htmlFor="ticketName">Ticket Name</Label>
-                  <Input
-                    id="ticketName"
-                    value={currentTask.ticketName || ""}
-                    onChange={(e) =>
-                      setCurrentTask({
-                        ...currentTask,
-                        ticketName: e.target.value,
-                      })
-                    }
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="userName">Assign To</Label>
-                  <Select
-                    value={currentTask.userName}
-                    onValueChange={(value) =>
-                      setCurrentTask({ ...currentTask, userName: value })
-                    }
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select user" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {users.map((user) => (
-                        <SelectItem key={user._id} value={user.name}>
-                          {user.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="clientName">Client</Label>
-                  <Select
-                    value={currentTask.clientName}
-                    onValueChange={(value) =>
-                      setCurrentTask({ ...currentTask, clientName: value })
-                    }
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select client" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clients.map((client) => (
-                        <SelectItem key={client._id} value={client.name}>
-                          {client.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="assignDate">Assign Date</Label>
-                  <Input
-                    id="assignDate"
-                    type="date"
-                    value={
-                      currentTask.assignDate
-                        ? format(parseISO(currentTask.assignDate), "yyyy-MM-dd")
-                        : ""
-                    }
-                    onChange={(e) =>
-                      setCurrentTask({
-                        ...currentTask,
-                        assignDate: e.target.value,
-                      })
-                    }
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="deadline">Deadline</Label>
-                  <Input
-                    id="deadline"
-                    type="date"
-                    value={
-                      currentTask.deadline
-                        ? format(parseISO(currentTask.deadline), "yyyy-MM-dd")
-                        : ""
-                    }
-                    onChange={(e) =>
-                      setCurrentTask({
-                        ...currentTask,
-                        deadline: e.target.value,
-                      })
-                    }
-                    required
-                    min={currentTask.assignDate}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={currentTask.description || ""}
-                    onChange={(e) =>
-                      setCurrentTask({
-                        ...currentTask,
-                        description: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="taskStatus">Task Status</Label>
-                  <Select
-                    value={currentTask.taskStatus}
-                    onValueChange={(value: "urgent" | "minor" | "normal") =>
-                      setCurrentTask({ ...currentTask, taskStatus: value })
-                    }
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="urgent">Urgent</SelectItem>
-                      <SelectItem value="minor">Minor</SelectItem>
-                      <SelectItem value="normal">Normal</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="taskProgress">Task Progress</Label>
-                  <Select
-                    value={currentTask.taskProgress}
-                    onValueChange={(
-                      value: "pending" | "inProgress" | "paused" | "done"
-                    ) =>
-                      setCurrentTask({ ...currentTask, taskProgress: value })
-                    }
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select progress" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="inProgress">In Progress</SelectItem>
-                      <SelectItem value="paused">Paused</SelectItem>
-                      <SelectItem value="done">Done</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <div className="max-h-[60vh] overflow-y-auto pr-6">
+                <div className="grid gap-4 py-4 ">
+                  <div className="grid gap-2">
+                    <Label htmlFor="ticketName">Ticket Name</Label>
+                    <Input
+                      id="ticketName"
+                      value={currentTask.ticketName || ""}
+                      onChange={(e) =>
+                        setCurrentTask({
+                          ...currentTask,
+                          ticketName: e.target.value,
+                        })
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="userName">Assign To</Label>
+                    <Select
+                      value={currentTask.userName}
+                      onValueChange={(value) =>
+                        setCurrentTask({ ...currentTask, userName: value })
+                      }
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select user" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {users.map((user) => (
+                          <SelectItem key={user._id} value={user.name}>
+                            {user.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="clientName">Client</Label>
+                    <Select
+                      value={currentTask.clientName}
+                      onValueChange={(value) =>
+                        setCurrentTask({ ...currentTask, clientName: value })
+                      }
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select client" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clients.map((client) => (
+                          <SelectItem key={client._id} value={client.name}>
+                            {client.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="assignDate">Assign Date</Label>
+                    <Input
+                      id="assignDate"
+                      type="date"
+                      value={
+                        currentTask.assignDate
+                          ? format(
+                              parseISO(currentTask.assignDate),
+                              "yyyy-MM-dd"
+                            )
+                          : ""
+                      }
+                      onChange={(e) =>
+                        setCurrentTask({
+                          ...currentTask,
+                          assignDate: e.target.value,
+                        })
+                      }
+                      required
+                    />
+                  </div>
+                  {/* Remove or comment out these sections */}
+                  {/* <div className="grid gap-2">
+                    <Label htmlFor="deadline">Deadline</Label>
+                    <Input
+                      id="deadline"
+                      type="date"
+                      value={
+                        currentTask.deadline
+                          ? format(
+                              parseISO(currentTask.deadline),
+                              "yyyy-MM-dd"
+                            )
+                          : ""
+                      }
+                      onChange={(e) =>
+                        setCurrentTask({
+                          ...currentTask,
+                          deadline: e.target.value,
+                        })
+                      }
+                      required
+                      min={currentTask.assignDate}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="taskStatus">Task Status</Label>
+                    <Select
+                      value={currentTask.taskStatus}
+                      onValueChange={(
+                        value: "urgent" | "minor" | "normal"
+                      ) =>
+                        setCurrentTask({ ...currentTask, taskStatus: value })
+                      }
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                        <SelectItem value="minor">Minor</SelectItem>
+                        <SelectItem value="normal">Normal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="taskProgress">Task Progress</Label>
+                    <Select
+                      value={currentTask.taskProgress}
+                      onValueChange={(
+                        value: "pending" | "inProgress" | "paused" | "done"
+                      ) =>
+                        setCurrentTask({ ...currentTask, taskProgress: value })
+                      }
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select progress" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="inProgress">In Progress</SelectItem>
+                        <SelectItem value="paused">Paused</SelectItem>
+                        <SelectItem value="done">Done</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div> */}
                 </div>
               </div>
               <DialogFooter>
