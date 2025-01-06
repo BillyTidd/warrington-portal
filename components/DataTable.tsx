@@ -37,16 +37,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import api from "@/lib/api";
-import { handleDownloadCSV } from "@/lib/excelGenerator";
-import LoadingModal from "./LoadingModal";
-import { toast } from "sonner";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import api from "@/lib/api";
+import { handleDownloadCSV } from "@/lib/excelGenerator";
+import LoadingModal from "./LoadingModal";
+import { toast } from "sonner";
 
 export interface Entry {
   _id: string;
@@ -60,7 +60,7 @@ export interface Entry {
   totalAmount: number;
   userId: string;
   employeeName?: string;
-  userName?: any;
+  userName?: string;
 }
 
 interface Client {
@@ -92,9 +92,7 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [clients, setClients] = useState<Client[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc" | null>(
-    "asc"
-  );
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const entriesPerPage = 10;
 
   useEffect(() => {
@@ -108,6 +106,7 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
       setClients(response.data);
     } catch (error) {
       console.error("Error fetching clients:", error);
+      toast.error("Failed to fetch clients");
     }
   };
 
@@ -117,17 +116,20 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
       setEmployees(
         response.data.map((user: any) => ({
           _id: user._id,
-          name: user.name || user.userName, // Fallback to userName if name is not available
+          name: user.name || user.userName,
         }))
       );
     } catch (error) {
       console.error("Error fetching employees:", error);
+      toast.error("Failed to fetch employees");
     }
   };
 
   const filteredData = data.filter((entry) => {
+    if (!entry) return false;
+
     const clientMatch = filter.client
-      ? entry.client.toLowerCase().includes(filter.client.toLowerCase())
+      ? entry.client?.toLowerCase().includes(filter.client.toLowerCase())
       : true;
     const employeeMatch = filter.employee
       ? entry.userName?.toLowerCase().includes(filter.employee.toLowerCase())
@@ -135,30 +137,64 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
     const dateMatch =
       session?.user?.role === "admin"
         ? filter.startDate && filter.endDate
-          ? new Date(entry.date) >= filter.startDate &&
-            new Date(entry.date) <= filter.endDate
+          ? isAfter(new Date(entry.date), filter.startDate) &&
+            isBefore(new Date(entry.date), filter.endDate)
           : true
         : filter.weekStart
-        ? new Date(entry.date) >= filter.weekStart &&
-          new Date(entry.date) <
+        ? isAfter(new Date(entry.date), filter.weekStart) &&
+          isBefore(
+            new Date(entry.date),
             new Date(filter.weekStart.getTime() + 7 * 24 * 60 * 60 * 1000)
+          )
         : true;
 
     return clientMatch && employeeMatch && dateMatch;
   });
 
   const sortedData = [...filteredData].sort((a, b) => {
-    if (sortDirection === "asc") {
-      return new Date(a.date).getTime() - new Date(b.date).getTime();
-    } else if (sortDirection === "desc") {
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
-    }
-    return 0;
+    if (!a || !b) return 0;
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    return sortDirection === "asc" ? dateA - dateB : dateB - dateA;
   });
 
+  const totalPages = Math.ceil(sortedData.length / entriesPerPage);
   const indexOfLastEntry = currentPage * entriesPerPage;
   const indexOfFirstEntry = indexOfLastEntry - entriesPerPage;
   const currentEntries = sortedData.slice(indexOfFirstEntry, indexOfLastEntry);
+
+  // Generate page numbers with ellipsis
+  const getPageNumbers = () => {
+    const delta = 2;
+    const range = [];
+    const rangeWithDots = [];
+    let l;
+
+    range.push(1);
+
+    if (totalPages <= 1) return range;
+
+    for (let i = currentPage - delta; i <= currentPage + delta; i++) {
+      if (i < totalPages && i > 1) {
+        range.push(i);
+      }
+    }
+    range.push(totalPages);
+
+    for (let i of range) {
+      if (l) {
+        if (i - l === 2) {
+          rangeWithDots.push(l + 1);
+        } else if (i - l !== 1) {
+          rangeWithDots.push("...");
+        }
+      }
+      rangeWithDots.push(i);
+      l = i;
+    }
+
+    return rangeWithDots;
+  };
 
   const handleWeekSelect = (date: Date | undefined) => {
     if (date) {
@@ -177,36 +213,43 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
           return { ...prev, startDate: date, endDate: null };
         }
         return { ...prev, startDate: date };
-      } else if (type === "endDate") {
+      } else {
         if (date && prev.startDate && isBefore(date, prev.startDate)) {
           return prev;
         }
         return { ...prev, endDate: date };
       }
-      return prev;
     });
   };
 
   const clearDateSelection = () => {
-    setFilter((prev) => ({
-      ...prev,
+    setFilter({
+      employee: "",
+      client: "",
       weekStart: null,
       startDate: null,
       endDate: null,
-      client: "",
-      employee: "",
-    }));
+    });
+    setCurrentPage(1);
   };
 
   const handleExcelDownload = async () => {
-    await handleDownloadCSV(
-      {
-        filteredData: sortedData,
-        filter,
-        session,
-      },
-      handleUploadToDrive
-    );
+    try {
+      setIsLoading(true);
+      await handleDownloadCSV(
+        {
+          filteredData: sortedData,
+          filter,
+          session,
+        },
+        handleUploadToDrive
+      );
+    } catch (error) {
+      console.error("Error downloading Excel:", error);
+      toast.error("Failed to download Excel file");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleUploadToDrive = async (data: any) => {
@@ -217,67 +260,93 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
+
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(
-          errorData.message || "Failed to upload file to Google Drive"
-        );
+        throw new Error(errorData.message || "Failed to upload file");
       }
+
       const result = await response.json();
+
       try {
-        const createInvoice = await fetch("/api/create-invoice", {
+        await fetch("/api/create-invoice", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(result),
         });
       } catch (error) {
-        console.log(error);
+        console.error("Error creating invoice:", error);
       }
+
       toast.success("File uploaded successfully");
     } catch (error) {
-      toast.error("Error uploading file to Google Drive");
-      console.error("Error uploading file to Google Drive:", error);
+      console.error("Error uploading to Drive:", error);
+      toast.error("Error uploading file");
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleSort = () => {
-    setSortDirection((prev) =>
-      prev === "asc" ? "desc" : prev === "desc" ? "asc" : "desc"
-    );
+    setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
   };
 
-  const tableHeaders = [
-    { label: "Date", key: "date" },
-    ...(session?.user?.role === "admin"
-      ? [{ label: "Employee", key: "userName" }]
-      : []),
-    { label: "Client", key: "client" },
-    { label: "Description", key: "description" },
-    { label: "Amount £", key: "totalAmount" },
-    {
-      label: "Mileage £",
-      subHeaders: ["Miles", "Amount £ (auto)"],
-      key: "mileage",
-    },
-    {
-      label: "Expenses £",
-      subHeaders: ["Description", "Amount £"],
-      key: "expenses",
-    },
-    {
-      label: "Overtime £",
-      subHeaders: ["Hours", "Amount £ (auto)"],
-      key: "overtime",
-    },
-    { label: "Actions", key: "actions" },
-  ];
-
   const sliceDescription = (description: string) => {
+    if (!description) return "";
     return description.length > 50
       ? `${description.slice(0, 50)}...`
       : description;
+  };
+
+  const renderTableCell = (entry: Entry, key: string) => {
+    if (!entry) return null;
+
+    switch (key) {
+      case "date":
+        return entry.date;
+      case "userName":
+        return session?.user?.role === "admin" ? entry.userName : null;
+      case "client":
+        return entry.client;
+      case "description":
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                {sliceDescription(entry.description)}
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{entry.description}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      case "totalAmount":
+        return `£${(entry.totalAmount || 0).toFixed(2)}`;
+      case "mileage":
+        return (
+          <>
+            <TableCell>{entry.mileage?.miles || 0}</TableCell>
+            <TableCell>£{(entry.mileage?.amount || 0).toFixed(2)}</TableCell>
+          </>
+        );
+      case "expenses":
+        return (
+          <>
+            <TableCell>{entry.expenses?.description || ""}</TableCell>
+            <TableCell>£{(entry.expenses?.amount || 0).toFixed(2)}</TableCell>
+          </>
+        );
+      case "overtime":
+        return (
+          <>
+            <TableCell>{entry.overtime?.hours || 0}</TableCell>
+            <TableCell>£{(entry.overtime?.amount || 0).toFixed(2)}</TableCell>
+          </>
+        );
+      default:
+        return null;
+    }
   };
 
   return (
@@ -288,37 +357,35 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
           <CardTitle>Work Entries</CardTitle>
           <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
             {session?.user?.role === "admin" ? (
-              <>
-                <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
-                  <Input
-                    type="date"
-                    value={
-                      filter.startDate
-                        ? format(filter.startDate, "yyyy-MM-dd")
-                        : ""
-                    }
-                    onChange={(e) =>
-                      handleDateChange("startDate", e.target.valueAsDate)
-                    }
-                    className="w-full sm:w-auto"
-                  />
-                  <Input
-                    type="date"
-                    value={
-                      filter.endDate ? format(filter.endDate, "yyyy-MM-dd") : ""
-                    }
-                    onChange={(e) =>
-                      handleDateChange("endDate", e.target.valueAsDate)
-                    }
-                    className="w-full sm:w-auto"
-                    min={
-                      filter.startDate
-                        ? format(filter.startDate, "yyyy-MM-dd")
-                        : undefined
-                    }
-                  />
-                </div>
-              </>
+              <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
+                <Input
+                  type="date"
+                  value={
+                    filter.startDate
+                      ? format(filter.startDate, "yyyy-MM-dd")
+                      : ""
+                  }
+                  onChange={(e) =>
+                    handleDateChange("startDate", e.target.valueAsDate)
+                  }
+                  className="w-full sm:w-auto"
+                />
+                <Input
+                  type="date"
+                  value={
+                    filter.endDate ? format(filter.endDate, "yyyy-MM-dd") : ""
+                  }
+                  onChange={(e) =>
+                    handleDateChange("endDate", e.target.valueAsDate)
+                  }
+                  className="w-full sm:w-auto"
+                  min={
+                    filter.startDate
+                      ? format(filter.startDate, "yyyy-MM-dd")
+                      : undefined
+                  }
+                />
+              </div>
             ) : (
               <Popover>
                 <PopoverTrigger asChild>
@@ -358,97 +425,89 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
-          {session?.user?.role === "admin" && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="client">Client</Label>
-                <Select
-                  name="client"
-                  value={filter.client}
-                  onValueChange={(value) =>
-                    setFilter((prev) => ({ ...prev, client: value }))
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a client" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.map((client) => (
-                      <SelectItem key={client._id} value={client.name}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="employee">Employee</Label>
-                <Select
-                  name="employee"
-                  value={filter.employee}
-                  onValueChange={(value) =>
-                    setFilter((prev) => ({ ...prev, employee: value }))
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select an employee" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map((employee) => (
-                      <SelectItem key={employee._id} value={employee.name}>
-                        {employee.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </>
-          )}
-        </div>
+        {session?.user?.role === "admin" && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
+            <div className="space-y-2">
+              <Label htmlFor="client">Client</Label>
+              <Select
+                value={filter.client}
+                onValueChange={(value) =>
+                  setFilter((prev) => ({ ...prev, client: value }))
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a client" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((client) => (
+                    <SelectItem key={client._id} value={client.name}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="employee">Employee</Label>
+              <Select
+                value={filter.employee}
+                onValueChange={(value) =>
+                  setFilter((prev) => ({ ...prev, employee: value }))
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select an employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((employee) => (
+                    <SelectItem key={employee._id} value={employee.name}>
+                      {employee.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                {tableHeaders.map((header) => (
-                  <TableHead
-                    key={header.key}
-                    colSpan={header.subHeaders ? header.subHeaders.length : 1}
-                    className="whitespace-nowrap"
+                <TableHead>
+                  <Button
+                    variant="ghost"
+                    onClick={handleSort}
+                    className="font-semibold flex items-center gap-1"
                   >
-                    {header.key === "date" ? (
-                      <Button
-                        variant="ghost"
-                        onClick={handleSort}
-                        className="font-semibold flex items-center gap-1"
-                      >
-                        {header.label}
-                        <ArrowUpDown className="h-4 w-4" />
-                      </Button>
-                    ) : (
-                      header.label
-                    )}
-                  </TableHead>
-                ))}
+                    Date
+                    <ArrowUpDown className="h-4 w-4" />
+                  </Button>
+                </TableHead>
+                {session?.user?.role === "admin" && (
+                  <TableHead>Employee</TableHead>
+                )}
+                <TableHead>Client</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Amount £</TableHead>
+                <TableHead colSpan={2}>Mileage</TableHead>
+                <TableHead colSpan={2}>Expenses</TableHead>
+                <TableHead colSpan={2}>Overtime</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
               <TableRow>
-                {tableHeaders.map((header) =>
-                  header.subHeaders ? (
-                    header.subHeaders.map((subHeader, index) => (
-                      <TableHead
-                        key={`${header.key}-${index}`}
-                        className="whitespace-nowrap"
-                      >
-                        {subHeader}
-                      </TableHead>
-                    ))
-                  ) : (
-                    <TableHead
-                      key={`${header.key}-empty`}
-                      className="whitespace-nowrap"
-                    ></TableHead>
-                  )
-                )}
+                <TableHead />
+                {session?.user?.role === "admin" && <TableHead />}
+                <TableHead />
+                <TableHead />
+                <TableHead />
+                <TableHead>Miles</TableHead>
+                <TableHead>Amount £</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Amount £</TableHead>
+                <TableHead>Hours</TableHead>
+                <TableHead>Amount £</TableHead>
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -471,13 +530,13 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
                       </Tooltip>
                     </TooltipProvider>
                   </TableCell>
-                  <TableCell>£{entry.totalAmount.toFixed(2)}</TableCell>
-                  <TableCell>{entry.mileage.miles}</TableCell>
-                  <TableCell>£{entry.mileage.amount.toFixed(2)}</TableCell>
-                  <TableCell>{entry.expenses.description}</TableCell>
-                  <TableCell>£{entry.expenses.amount.toFixed(2)}</TableCell>
-                  <TableCell>{entry.overtime.hours}</TableCell>
-                  <TableCell>£{entry.overtime.amount.toFixed(2)}</TableCell>
+                  <TableCell>£{entry.totalAmount || 0}</TableCell>
+                  <TableCell>{entry.mileage?.miles || 0}</TableCell>
+                  <TableCell>£{entry.mileage?.amount || 0}</TableCell>
+                  <TableCell>{entry.expenses?.description || ""}</TableCell>
+                  <TableCell>£{entry.expenses?.amount || 0}</TableCell>
+                  <TableCell>{entry.overtime?.hours || 0}</TableCell>
+                  <TableCell>£{entry.overtime?.amount || 0}</TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
                       <Button
@@ -502,44 +561,49 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
             </TableBody>
           </Table>
         </div>
-        <div className="mt-4 overflow-x-auto">
+
+        {/* Pagination with limited page numbers */}
+        <div className="mt-4 flex justify-center">
           <Pagination>
-            <PaginationContent className="flex flex-wrap justify-center gap-2">
+            <PaginationContent>
               <PaginationItem>
                 <PaginationPrevious
-                  onClick={
-                    currentPage > 1
-                      ? () => setCurrentPage((prev) => prev - 1)
-                      : undefined
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.max(prev - 1, 1))
                   }
                   className={
                     currentPage === 1 ? "pointer-events-none opacity-50" : ""
                   }
                 />
               </PaginationItem>
-              {Array.from({
-                length: Math.ceil(filteredData.length / entriesPerPage),
-              }).map((_, i) => (
+
+              {getPageNumbers().map((pageNum, i) => (
                 <PaginationItem key={i}>
-                  <PaginationLink
-                    onClick={() => setCurrentPage(i + 1)}
-                    isActive={currentPage === i + 1}
-                  >
-                    {i + 1}
-                  </PaginationLink>
+                  {pageNum === "..." ? (
+                    <span className="px-4 py-2">...</span>
+                  ) : (
+                    <PaginationLink
+                      onClick={() => setCurrentPage(Number(pageNum))}
+                      isActive={currentPage === pageNum}
+                    >
+                      {pageNum}
+                    </PaginationLink>
+                  )}
                 </PaginationItem>
               ))}
+
               <PaginationItem>
                 <PaginationNext
-                  onClick={
-                    currentPage <
-                    Math.ceil(filteredData.length / entriesPerPage)
-                      ? () => setCurrentPage((prev) => prev + 1)
-                      : undefined
+                  onClick={() =>
+                    setCurrentPage((prev) =>
+                      Math.min(
+                        prev + 1,
+                        Math.ceil(sortedData.length / entriesPerPage)
+                      )
+                    )
                   }
                   className={
-                    currentPage >=
-                    Math.ceil(filteredData.length / entriesPerPage)
+                    currentPage >= Math.ceil(sortedData.length / entriesPerPage)
                       ? "pointer-events-none opacity-50"
                       : ""
                   }
