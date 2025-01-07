@@ -14,6 +14,7 @@ import {
 import { DialogFooter } from "@/components/ui/dialog";
 import { Task } from "@/types/task";
 import { format, parseISO } from "date-fns";
+import { useSession } from "next-auth/react";
 
 interface TaskFormProps {
   currentTask: Partial<Task>;
@@ -36,6 +37,16 @@ export function TaskForm({
   isSaving,
   setCurrentTask,
 }: TaskFormProps) {
+  const { data: session } = useSession();
+
+  const selectedUser = users.find((user) => user.name === currentTask.userName);
+
+  // Check if the current logged-in user is an admin
+  const isAdmin = session?.user?.role === "admin";
+
+  // Only allow admins to see the delete button
+  const canDelete = isAdmin; // Only admins can delete tasks
+
   return (
     <form onSubmit={onSubmit}>
       <div className="grid gap-4 py-4">
@@ -132,7 +143,8 @@ export function TaskForm({
       </div>
 
       <DialogFooter>
-        {isEditMode && onDelete && (
+        {/* Only show delete button if the user is an admin */}
+        {isEditMode && canDelete && onDelete && (
           <Button type="button" variant="destructive" onClick={onDelete}>
             Delete
           </Button>
