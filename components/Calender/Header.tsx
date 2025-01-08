@@ -1,5 +1,13 @@
-import React from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Loader2, // Add Loader2 for loader animation
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -19,8 +27,9 @@ import {
   endOfWeek,
   isSameDay,
   setYear,
-  isWithinInterval, // Added for checking if a task date falls within a specific interval
+  isWithinInterval,
 } from "date-fns";
+import { toast } from "sonner";
 
 type ViewType = "day" | "week" | "month";
 
@@ -43,50 +52,91 @@ export function Header({
   onNewTask,
   tasks,
 }: HeaderProps) {
-  const handleGenerateReport = () => {
-    if (currentView === "day") {
-      console.log("Day Report:", format(currentDate, "MMMM d, yyyy"));
+  const { data: session } = useSession();
 
-      const dayTasks = tasks.filter((task) =>
-        isSameDay(parseISO(task.assignDate), currentDate)
-      );
-      console.log("Tasks for this day:", dayTasks);
-    } else if (currentView === "week") {
-      const startOfWeekDate = startOfWeek(currentDate);
-      const endOfWeekDate = endOfWeek(currentDate);
-      console.log(
-        "Week Report:",
-        `${format(startOfWeekDate, "MMMM d, yyyy")} - ${format(
-          endOfWeekDate,
-          "MMMM d, yyyy"
-        )}`
-      );
+  // Loader state for report generation
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
-      const weekTasks = tasks.filter((task) => {
-        const taskDate = parseISO(task.assignDate);
-        return isWithinInterval(taskDate, {
-          start: startOfWeekDate,
-          end: endOfWeekDate,
+  const handleGenerateReport = async () => {
+    setIsGeneratingReport(true); // Start loading
+  
+    let filteredTasks = [];
+  
+    try {
+      if (currentView === "day") {
+        console.log("Day Report:", format(currentDate, "MMMM d, yyyy"));
+  
+        filteredTasks = tasks.filter((task) =>
+          isSameDay(parseISO(task.assignDate), currentDate)
+        );
+        console.log("Tasks for this day:", filteredTasks);
+      } else if (currentView === "week") {
+        const startOfWeekDate = startOfWeek(currentDate);
+        const endOfWeekDate = endOfWeek(currentDate);
+        console.log(
+          "Week Report:",
+          `${format(startOfWeekDate, "MMMM d, yyyy")} - ${format(
+            endOfWeekDate,
+            "MMMM d, yyyy"
+          )}`
+        );
+  
+        filteredTasks = tasks.filter((task) => {
+          const taskDate = parseISO(task.assignDate);
+          return isWithinInterval(taskDate, {
+            start: startOfWeekDate,
+            end: endOfWeekDate,
+          });
         });
-      });
-      console.log("Tasks for this week:", weekTasks);
-    } else if (currentView === "month") {
-      console.log("Month Report:", format(currentDate, "MMMM yyyy"));
-
-      const startOfMonthDate = startOfMonth(currentDate);
-      const endOfMonthDate = endOfMonth(currentDate);
-      const monthTasks = tasks.filter((task) => {
-        const taskDate = parseISO(task.assignDate);
-        return isWithinInterval(taskDate, {
-          start: startOfMonthDate,
-          end: endOfMonthDate,
+        console.log("Tasks for this week:", filteredTasks);
+      } else if (currentView === "month") {
+        console.log("Month Report:", format(currentDate, "MMMM yyyy"));
+  
+        const startOfMonthDate = startOfMonth(currentDate);
+        const endOfMonthDate = endOfMonth(currentDate);
+        filteredTasks = tasks.filter((task) => {
+          const taskDate = parseISO(task.assignDate);
+          return isWithinInterval(taskDate, {
+            start: startOfMonthDate,
+            end: endOfMonthDate,
+          });
         });
+        console.log("Tasks for this month:", filteredTasks);
+      }
+  
+      // POST request to generate the report
+      const response = await fetch("/api/create-report", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          currentDate,
+          currentView,
+          tasks: filteredTasks, // Send the filtered tasks to the API
+          userId: session?.user.id,
+        }),
       });
-      console.log("Tasks for this month:", monthTasks);
+  
+      if (!response.ok) {
+        throw new Error("Failed to generate report");
+      }
+  
+      const data = await response.json();
+      // Assuming the response contains the sheet URL and ID
+      console.log("Report URL:", data.sheetUrl);
+      console.log("Report ID:", data.reportId);
+  
+      toast.success("Report generated successfully");
+    } catch (error) {
+      console.error("Error generating report:", error);
+      toast.error("Failed to generate report");
+    } finally {
+      setIsGeneratingReport(false); // Reset loading state
     }
   };
+  
 
-  // Handle year change
   const handleYearChange = (value: string) => {
     const newYear = parseInt(value);
     const updatedDate = setYear(currentDate, newYear); // Update the year while keeping the month and day intact
@@ -113,7 +163,7 @@ export function Header({
         </h2>
         <Select
           value={getYear(currentDate).toString()}
-          onValueChange={handleYearChange} // Trigger year change
+          onValueChange={handleYearChange}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select year" />
@@ -169,7 +219,14 @@ export function Header({
           onClick={handleGenerateReport}
           className="bg-white text-violet-600 hover:bg-violet-50 w-full sm:w-auto mt-4 sm:mt-0"
         >
-          <span>Generate Report</span>
+          {isGeneratingReport ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Generating Report...
+            </>
+          ) : (
+            <span>Generate Report</span>
+          )}
         </Button>
       </div>
     </div>
