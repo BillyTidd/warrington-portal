@@ -40,6 +40,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       ? [{ href: "/invoice", label: "Invoice", icon: FileText }]
       : []),
     { href: "/calender", label: "Calender", icon: Calendar },
+
+    ...(status === "authenticated" && session?.user?.role === "admin"
+      ? [{ href: "/task-reports", label: "Tasks Reports", icon: FileText }]
+      : []),
   ];
 
   const SidebarContent = () => (
