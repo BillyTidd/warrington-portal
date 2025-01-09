@@ -15,17 +15,17 @@ export async function GET() {
 
     const client = await clientPromise;
     const db = client.db();
-    const clients = await db
+    const invoices = await db
       .collection("invoice")
       .find({})
       .sort({ createdAt: -1 })
       .toArray();
 
-    return NextResponse.json(clients);
+    return NextResponse.json(invoices);
   } catch (error) {
     console.error("Error in GET /api/invoice:", error);
     return NextResponse.json(
-      { message: "An error occurred while fetching clients" },
+      { message: "An error occurred while fetching invoices" },
       { status: 500 }
     );
   }
@@ -47,16 +47,19 @@ export async function POST(req: Request) {
       role: session.user.role,
       paymentStatus: false,
       createdAt: new Date(),
+      fileType:data.fileType,
+      webViewLink: data.webViewLink,
+      invoiceNumber: data.invoiceNumber, // Add this line to store the invoice number
     });
 
-    const newClient = await db
+    const newInvoice = await db
       .collection("invoice")
       .findOne({ _id: result.insertedId });
-    return NextResponse.json(newClient, { status: 201 });
+    return NextResponse.json(newInvoice, { status: 201 });
   } catch (error) {
-    console.error("Error in POST /api/clients:", error);
+    console.error("Error in POST /api/create-invoice:", error);
     return NextResponse.json(
-      { message: "An error occurred while creating the client" },
+      { message: "An error occurred while creating the invoice" },
       { status: 500 }
     );
   }
