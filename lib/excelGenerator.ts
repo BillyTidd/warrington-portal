@@ -621,6 +621,8 @@ export const handleDownloadCSV = async (
     folderPath,
     mimeType,
     userRole: session?.user?.role,
+    filteredData:params.filteredData
+
   };
 
   await handleUploadToDrive(obj);
