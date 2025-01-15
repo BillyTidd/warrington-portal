@@ -45,6 +45,15 @@ export const generateExcelWorkbook = async ({
 }: ExcelGeneratorParams): Promise<ExcelJS.Workbook> => {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Entries");
+  // worksheet.views = [
+  //   {
+  //     state: "frozen",
+  //     xSplit: 0,
+  //     ySplit: 2, // This will freeze only the header and subheader rows
+  //     topLeftCell: "A16", // Position right after the frozen rows
+  //     activeCell: "A14", // Position at the header row
+  //   },
+  // ];
   // Set print options
   worksheet.pageSetup.paperSize = 9; // A4
   worksheet.pageSetup.orientation = "landscape";
@@ -60,7 +69,7 @@ export const generateExcelWorkbook = async ({
 
   worksheet.columns = [
     { header: "DATE", key: "date", width: 15 },
-    { header: "CLIENT", key: "client", width: 30 },
+    { header: "EMPLOYEE", key: "userName", width: 25 },
     { header: "DESCRIPTION", key: "description", width: 40 },
     { header: "AMOUNT £", key: "amount", width: 15 },
     { header: "MILEAGE £", key: "mileageMiles", width: 15 },
@@ -68,7 +77,7 @@ export const generateExcelWorkbook = async ({
     { header: "EXPENSES £", key: "expensesAmount", width: 15 },
     { header: "OVERTIME £", key: "overtimeHours", width: 15 },
     { header: "", key: "overtimeAmount", width: 15 },
-    { header: "Employee", key: "userName", width: 25 },
+    { header: "CLIENT", key: "client", width: 30 },
   ];
 
   let currentRow = 1;
@@ -197,7 +206,7 @@ export const generateExcelWorkbook = async ({
   const headerRow = worksheet.getRow(currentRow);
   headerRow.values = [
     "DATE",
-    "CLIENT",
+    session?.user?.role === "admin" ? "EMPLOYEE" : "",
     "DESCRIPTION",
     "AMOUNT £",
     "MILEAGE £",
@@ -205,7 +214,7 @@ export const generateExcelWorkbook = async ({
     "EXPENSES £",
     "OVERTIME £",
     "",
-    session?.user?.role === "admin" ? "EMPLOYEE" : "",
+    "CLIENT",
   ];
 
   // Enhanced header styling
@@ -301,7 +310,7 @@ export const generateExcelWorkbook = async ({
   filteredData.forEach((entry, index) => {
     const row = worksheet.addRow([
       format(new Date(entry.date), "dd-MMM-yyyy"),
-      entry.client,
+      session?.user?.role === "admin" ? entry.userName : "",
       entry.description,
       entry.totalAmount,
       entry.mileage.miles,
@@ -309,7 +318,7 @@ export const generateExcelWorkbook = async ({
       entry.expenses.amount,
       entry.overtime.hours,
       entry.overtime.amount,
-      session?.user?.role === "admin" ? entry.userName : "",
+      entry.client,
     ]);
 
     row.height = 25;
@@ -350,32 +359,37 @@ export const generateExcelWorkbook = async ({
   currentRow++;
 
   // Calculate totals and add totals row
-  // const totalsRow = worksheet.addRow([
-  //   "TOTAL",
-  //   "",
-  //   "",
-  //   dataToDisplay.reduce((sum, entry) => sum + entry.totalAmount, 0),
-  //   "",
-  //   dataToDisplay.reduce((sum, entry) => sum + entry.mileage.amount, 0),
-  //   dataToDisplay.reduce((sum, entry) => sum + entry.expenses.amount, 0),
-  //   "",
-  //   dataToDisplay.reduce((sum, entry) => sum + entry.overtime.amount, 0),
-  //   "",
-  // ]);
   const safeGetNumber = (obj: any, path: string): number => {
-    const value = path.split('.').reduce((o, key) => (o && o[key] !== undefined) ? o[key] : undefined, obj);
-    return typeof value === 'number' ? value : 0;
+    const value = path
+      .split(".")
+      .reduce(
+        (o, key) => (o && o[key] !== undefined ? o[key] : undefined),
+        obj
+      );
+    return typeof value === "number" ? value : 0;
   };
   const totalsRow = worksheet.addRow([
     "TOTAL",
     "",
     "",
-    filteredData.reduce((sum, entry) => sum + safeGetNumber(entry, 'totalAmount'), 0),
+    filteredData.reduce(
+      (sum, entry) => sum + safeGetNumber(entry, "totalAmount"),
+      0
+    ),
     "",
-    filteredData.reduce((sum, entry) => sum + safeGetNumber(entry, 'mileage.amount'), 0),
-    filteredData.reduce((sum, entry) => sum + safeGetNumber(entry, 'expenses.amount'), 0),
+    filteredData.reduce(
+      (sum, entry) => sum + safeGetNumber(entry, "mileage.amount"),
+      0
+    ),
+    filteredData.reduce(
+      (sum, entry) => sum + safeGetNumber(entry, "expenses.amount"),
+      0
+    ),
     "",
-    filteredData.reduce((sum, entry) => sum + safeGetNumber(entry, 'overtime.amount'), 0),
+    filteredData.reduce(
+      (sum, entry) => sum + safeGetNumber(entry, "overtime.amount"),
+      0
+    ),
     "",
   ]);
   // Style totals row
@@ -472,26 +486,22 @@ export const generateExcelWorkbook = async ({
   };
 
   // Calculate all totals
-  // const amountTotal = dataToDisplay.reduce(
-  //   (sum, entry) => sum + entry.totalAmount,
-  //   0
-  // );
-  // const mileageTotal = dataToDisplay.reduce(
-  //   (sum, entry) => sum + entry.mileage.amount,
-  //   0
-  // );
-  // const expensesTotal = dataToDisplay.reduce(
-  //   (sum, entry) => sum + entry.expenses.amount,
-  //   0
-  // );
-  // const overtimeTotal = dataToDisplay.reduce(
-  //   (sum, entry) => sum + entry.overtime.amount,
-  //   0
-  // );
-  const amountTotal = filteredData.reduce((sum, entry) => sum + safeGetNumber(entry, 'totalAmount'), 0);
-  const mileageTotal = filteredData.reduce((sum, entry) => sum + safeGetNumber(entry, 'mileage.amount'), 0);
-  const expensesTotal = filteredData.reduce((sum, entry) => sum + safeGetNumber(entry, 'expenses.amount'), 0);
-  const overtimeTotal = filteredData.reduce((sum, entry) => sum + safeGetNumber(entry, 'overtime.amount'), 0);
+  const amountTotal = filteredData.reduce(
+    (sum, entry) => sum + safeGetNumber(entry, "totalAmount"),
+    0
+  );
+  const mileageTotal = filteredData.reduce(
+    (sum, entry) => sum + safeGetNumber(entry, "mileage.amount"),
+    0
+  );
+  const expensesTotal = filteredData.reduce(
+    (sum, entry) => sum + safeGetNumber(entry, "expenses.amount"),
+    0
+  );
+  const overtimeTotal = filteredData.reduce(
+    (sum, entry) => sum + safeGetNumber(entry, "overtime.amount"),
+    0
+  );
 
   // Add individual totals
   addCalculationRow("Amount Total", amountTotal);
@@ -621,6 +631,7 @@ export const handleDownloadCSV = async (
     folderPath,
     mimeType,
     userRole: session?.user?.role,
+    filteredData: params.filteredData,
   };
 
   await handleUploadToDrive(obj);
@@ -693,9 +704,9 @@ export const generatePDF = async (
     const totalAmount =
       entry.totalAmount +
       (entry.mileage?.amount || 0) +
-      (entry.expenses?.amount || 0)+
+      (entry.expenses?.amount || 0) +
       (entry.overtime?.amount || 0);
-      // Changed to include expenses instead of overtime
+    // Changed to include expenses instead of overtime
 
     return [
       format(new Date(entry.date), "dd-MMM-yyyy"),
