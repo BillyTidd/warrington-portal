@@ -338,6 +338,39 @@ export const generateInvoiceGoogleSheet = async ({
   let currentRow = 1;
   const requests: sheets_v4.Schema$Request[] = [];
 
+  // Set print options
+  requests.push({
+    updateSheetProperties: {
+      properties: {
+        sheetId: sheetId,
+        gridProperties: {
+          rowCount: 1000,
+          columnCount: 10,
+        },
+      },
+      fields: "gridProperties",
+    },
+  });
+
+  // Set column widths
+  const columnWidths = [15, 30, 40, 15, 15, 15, 15, 15, 15, 25];
+  columnWidths.forEach((width, index) => {
+    requests.push({
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: "COLUMNS",
+          startIndex: index,
+          endIndex: index + 1,
+        },
+        properties: {
+          pixelSize: width * 7, // Approximate conversion from Excel width to pixels
+        },
+        fields: "pixelSize",
+      },
+    });
+  });
+
   // Company Header Section (only for admin users)
   if (session?.user?.role === "admin") {
     requests.push(
@@ -362,7 +395,11 @@ export const generateInvoiceGoogleSheet = async ({
                 {
                   userEnteredValue: { stringValue: "WARRINGTON\nINSTALLS" },
                   userEnteredFormat: {
-                    textFormat: { fontSize: 36, bold: true },
+                    textFormat: {
+                      fontSize: 36,
+                      bold: true,
+                      fontFamily: "Arial",
+                    },
                     verticalAlignment: "MIDDLE",
                     horizontalAlignment: "LEFT",
                   },
@@ -404,7 +441,11 @@ export const generateInvoiceGoogleSheet = async ({
                     stringValue: `INVOICE # ${invoiceNumber}`,
                   },
                   userEnteredFormat: {
-                    textFormat: { fontSize: 36, bold: true },
+                    textFormat: {
+                      fontSize: 36,
+                      bold: true,
+                      fontFamily: "Arial",
+                    },
                     verticalAlignment: "MIDDLE",
                     horizontalAlignment: "RIGHT",
                   },
@@ -452,7 +493,7 @@ export const generateInvoiceGoogleSheet = async ({
                       "165 Harborough Road\nKingsthorpe\nNorthampton\nNN2 8DL",
                   },
                   userEnteredFormat: {
-                    textFormat: { fontSize: 14 },
+                    textFormat: { fontSize: 14, fontFamily: "Arial" },
                     verticalAlignment: "TOP",
                     horizontalAlignment: "LEFT",
                     wrapStrategy: "WRAP",
@@ -498,7 +539,7 @@ export const generateInvoiceGoogleSheet = async ({
                     )}\nCompany UTR: 42683 25579\nCompany No: 13607313`,
                   },
                   userEnteredFormat: {
-                    textFormat: { fontSize: 14 },
+                    textFormat: { fontSize: 14, fontFamily: "Arial" },
                     verticalAlignment: "TOP",
                     horizontalAlignment: "RIGHT",
                     wrapStrategy: "WRAP",
@@ -561,7 +602,7 @@ export const generateInvoiceGoogleSheet = async ({
               {
                 userEnteredValue: { stringValue: "WORK ENTRIES SUMMARY" },
                 userEnteredFormat: {
-                  textFormat: { fontSize: 18, bold: true },
+                  textFormat: { fontSize: 18, bold: true, fontFamily: "Arial" },
                   verticalAlignment: "MIDDLE",
                   horizontalAlignment: "CENTER",
                   backgroundColor: { red: 1, green: 0.95, blue: 0.8 },
@@ -609,7 +650,7 @@ export const generateInvoiceGoogleSheet = async ({
                   stringValue: `${session?.user?.name?.toUpperCase() || ""}`,
                 },
                 userEnteredFormat: {
-                  textFormat: { fontSize: 14, bold: true },
+                  textFormat: { fontSize: 14, bold: true, fontFamily: "Arial" },
                   verticalAlignment: "MIDDLE",
                   horizontalAlignment: "CENTER",
                   backgroundColor: { red: 0.96, green: 0.96, blue: 0.96 },
@@ -664,7 +705,7 @@ export const generateInvoiceGoogleSheet = async ({
                   stringValue: `Period: ${startDate} - ${endDate}`,
                 },
                 userEnteredFormat: {
-                  textFormat: { fontSize: 12 },
+                  textFormat: { fontSize: 12, fontFamily: "Arial" },
                   verticalAlignment: "MIDDLE",
                   horizontalAlignment: "CENTER",
                 },
@@ -690,7 +731,7 @@ export const generateInvoiceGoogleSheet = async ({
   // Style headers
   const headerValues = [
     "DATE",
-    "CLIENT",
+    session?.user?.role === "admin" ? "EMPLOYEE" : "",
     "DESCRIPTION",
     "AMOUNT £",
     "MILEAGE £",
@@ -698,7 +739,7 @@ export const generateInvoiceGoogleSheet = async ({
     "EXPENSES £",
     "OVERTIME £",
     "",
-    session?.user?.role === "admin" ? "EMPLOYEE" : "",
+    "CLIENT",
   ];
 
   requests.push({
@@ -711,6 +752,7 @@ export const generateInvoiceGoogleSheet = async ({
               textFormat: {
                 fontSize: 11,
                 bold: true,
+                fontFamily: "Arial",
                 foregroundColor: { red: 1, green: 1, blue: 1 },
               },
               verticalAlignment: "MIDDLE",
@@ -761,7 +803,7 @@ export const generateInvoiceGoogleSheet = async ({
           values: subHeaderValues.map((header) => ({
             userEnteredValue: { stringValue: header },
             userEnteredFormat: {
-              textFormat: { fontSize: 10, bold: true },
+              textFormat: { fontSize: 10, bold: true, fontFamily: "Arial" },
               verticalAlignment: "MIDDLE",
               horizontalAlignment: "CENTER",
               backgroundColor: { red: 0.95, green: 0.95, blue: 0.95 },
@@ -821,7 +863,7 @@ export const generateInvoiceGoogleSheet = async ({
   filteredData.forEach((entry, index) => {
     const rowData = [
       format(new Date(entry.date), "dd-MMM-yyyy"),
-      entry.client,
+      session?.user?.role === "admin" ? entry.userName : "",
       entry.description,
       entry.totalAmount,
       entry.mileage.miles,
@@ -829,7 +871,7 @@ export const generateInvoiceGoogleSheet = async ({
       entry.expenses.amount,
       entry.overtime.hours,
       entry.overtime.amount,
-      session?.user?.role === "admin" ? entry.userName : "",
+      entry.client,
     ];
 
     requests.push({
@@ -851,6 +893,7 @@ export const generateInvoiceGoogleSheet = async ({
                   ? "CENTER"
                   : "LEFT",
                 verticalAlignment: "MIDDLE",
+                textFormat: { fontFamily: "Arial", fontSize: 11 },
                 backgroundColor:
                   index % 2 === 1
                     ? { red: 0.96, green: 0.96, blue: 0.96 }
@@ -866,7 +909,7 @@ export const generateInvoiceGoogleSheet = async ({
           },
         ],
         fields:
-          "userEnteredValue,userEnteredFormat(numberFormat,horizontalAlignment,verticalAlignment,backgroundColor,borders)",
+          "userEnteredValue,userEnteredFormat(numberFormat,horizontalAlignment,verticalAlignment,textFormat,backgroundColor,borders)",
         range: {
           sheetId,
           startRowIndex: currentRow,
@@ -936,7 +979,7 @@ export const generateInvoiceGoogleSheet = async ({
                 ? { numberValue: value }
                 : { stringValue: value },
             userEnteredFormat: {
-              textFormat: { bold: true },
+              textFormat: { bold: true, fontFamily: "Arial", fontSize: 11 },
               numberFormat: [3, 5, 6, 8].includes(colIndex)
                 ? { type: "CURRENCY", pattern: "£#,##0.00" }
                 : undefined,
@@ -995,6 +1038,7 @@ export const generateInvoiceGoogleSheet = async ({
                     fontSize: 14,
                     bold: true,
                     foregroundColor: { red: 1, green: 1, blue: 1 },
+                    fontFamily: "Arial",
                   },
                   verticalAlignment: "MIDDLE",
                   horizontalAlignment: "CENTER",
@@ -1039,7 +1083,7 @@ export const generateInvoiceGoogleSheet = async ({
               {
                 userEnteredValue: { stringValue: label },
                 userEnteredFormat: {
-                  textFormat: { fontSize: 11, bold: true },
+                  textFormat: { fontSize: 11, bold: true, fontFamily: "Arial" },
                   horizontalAlignment: "RIGHT",
                   verticalAlignment: "MIDDLE",
                   borders: {
@@ -1055,7 +1099,7 @@ export const generateInvoiceGoogleSheet = async ({
                 userEnteredValue: { numberValue: amount },
                 userEnteredFormat: {
                   numberFormat: { type: "CURRENCY", pattern: "£#,##0.00" },
-                  textFormat: { fontSize: 11, bold: true },
+                  textFormat: { fontSize: 11, bold: true, fontFamily: "Arial" },
                   horizontalAlignment: "RIGHT",
                   verticalAlignment: "MIDDLE",
                   borders: {
