@@ -108,13 +108,11 @@ export async function POST(request: Request) {
         invoiceNumber, // Pass the invoice number to the sheet generation function
       });
 
-      // Move the spreadsheet to the correct folder
       await drive.files.update({
         fileId: spreadsheet.spreadsheetId,
-        requestBody: {
-          addParents: parentId,
-          removeParents: "root",
-        },
+        addParents: parentId,
+        removeParents: "root",
+        fields: "id, parents",
       });
 
       fileId = spreadsheet.spreadsheetId;
