@@ -12,6 +12,7 @@ const auth = new google.auth.GoogleAuth({
   scopes: [
     "https://www.googleapis.com/auth/drive.file",
     "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive", // Added full drive scope
   ],
 });
 
@@ -19,7 +20,50 @@ const drive = google.drive({ version: "v3", auth });
 const sheets = google.sheets({ version: "v4", auth });
 
 // Define the ID for the root "invoice" folder
-const invoiceFolderId = "1v4R12k0AW68-3oVdrWd2nMPvgHZODyCD";
+const invoiceFolderId = "1OqueH2fhqzWhRQ-J2-QOeA0OnB-JfEVf";
+
+// Function to transfer ownership to service account
+async function transferOwnership(fileId: string) {
+  try {
+    const serviceAccountEmail = serviceAccount.client_email;
+
+    // Create a new permission for the service account
+    await drive.permissions.create({
+      fileId: fileId,
+      requestBody: {
+        role: "owner",
+        type: "user",
+        emailAddress: serviceAccountEmail,
+      },
+      transferOwnership: true,
+      fields: "id",
+    });
+
+    console.log(
+      `Ownership transferred to service account: ${serviceAccountEmail}`
+    );
+  } catch (error) {
+    console.error("Error transferring ownership:", error);
+  }
+}
+
+// Function to share the spreadsheet with the user
+async function shareSpreadsheet(fileId: string, userEmail: string) {
+  try {
+    await drive.permissions.create({
+      fileId: fileId,
+      requestBody: {
+        type: "user",
+        role: "writer",
+        emailAddress: "billwtidd@gmail.com",
+      },
+      supportsAllDrives: true,
+    });
+    console.log(`Spreadsheet shared with ${"billwtidd@gmail.com"}`);
+  } catch (error) {
+    console.error("Error sharing spreadsheet:", error);
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -50,6 +94,7 @@ export async function POST(request: Request) {
       const folderResponse = await drive.files.list({
         q: `mimeType='application/vnd.google-apps.folder' and name='${folder}' and '${parentId}' in parents and trashed=false`,
         fields: "files(id, name)",
+        supportsAllDrives: true,
       });
 
       if (folderResponse.data.files && folderResponse.data.files.length > 0) {
@@ -63,8 +108,12 @@ export async function POST(request: Request) {
         const newFolder = await drive.files.create({
           requestBody: folderMetadata,
           fields: "id",
+          supportsAllDrives: true,
         });
         parentId = newFolder.data.id!;
+
+        // Transfer folder ownership to service account
+        await transferOwnership(newFolder.data.id!);
       }
       fullPath += `/${folder}`;
     }
@@ -92,10 +141,14 @@ export async function POST(request: Request) {
         requestBody: fileMetadata,
         media: media,
         fields: "id, webViewLink",
+        supportsAllDrives: true,
       });
 
       fileId = file.data.id!;
       webViewLink = file.data.webViewLink!;
+
+      // Transfer PDF ownership to service account
+      await transferOwnership(fileId);
     } else {
       // Generate Google Sheet
       const spreadsheet = await generateInvoiceGoogleSheet({
@@ -105,27 +158,36 @@ export async function POST(request: Request) {
         session,
         currentView: "monthly",
         userId: session.user.id,
-        invoiceNumber, // Pass the invoice number to the sheet generation function
+        invoiceNumber,
       });
 
+      // Move the spreadsheet to the correct folder
       await drive.files.update({
         fileId: spreadsheet.spreadsheetId,
         addParents: parentId,
         removeParents: "root",
         fields: "id, parents",
+        supportsAllDrives: true,
       });
 
       fileId = spreadsheet.spreadsheetId;
       webViewLink = spreadsheet.spreadsheetUrl;
+
+      // Transfer spreadsheet ownership to service account
+      await transferOwnership(fileId);
+
+      // Then share with the user
+      await shareSpreadsheet(fileId, session.user.email!);
     }
 
-    // Set file permissions to anyone with the link can view
+    // Set file permissions for link sharing
     await drive.permissions.create({
       fileId: fileId,
       requestBody: {
         role: "reader",
         type: "anyone",
       },
+      supportsAllDrives: true,
     });
 
     return NextResponse.json({
@@ -136,7 +198,7 @@ export async function POST(request: Request) {
       webViewLink: webViewLink,
       userRole: session.user.role,
       fileType: mimeType === "application/pdf" ? "PDF" : "Sheet",
-      invoiceNumber, // Include the invoice number in the response
+      invoiceNumber,
     });
   } catch (error) {
     console.error("Error uploading file:", error);

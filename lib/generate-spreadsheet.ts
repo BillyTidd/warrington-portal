@@ -297,8 +297,20 @@ export const generateGoogleSheet = async ({
   };
 };
 
+import { google } from "googleapis";
+import serviceAccount from "@/config/service-account.json";
+
+const auth = new google.auth.GoogleAuth({
+  credentials: serviceAccount,
+  scopes: [
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/spreadsheets",
+  ],
+});
+
+const sheets = google.sheets({ version: "v4", auth });
+
 export const generateInvoiceGoogleSheet = async ({
-  sheets,
   filteredData,
   filter,
   session,
@@ -1073,7 +1085,7 @@ export const generateInvoiceGoogleSheet = async ({
   const addCalculationRow = (
     label: string,
     amount: number,
-    isTotal: boolean = false
+    isTotal = false
   ) => {
     requests.push({
       updateCells: {
