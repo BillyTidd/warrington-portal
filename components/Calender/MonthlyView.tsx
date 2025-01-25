@@ -10,7 +10,7 @@ import {
   parseISO,
 } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Task } from "@/types/task";
+import type { Task } from "@/types/task";
 
 interface MonthlyViewProps {
   currentDate: Date;
@@ -42,11 +42,14 @@ export function MonthlyView({
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-7 gap-px bg-gray-800">
+      <div className="grid grid-cols-7 gap-px bg-muted p-4">
+        <div className="col-span-7 text-center text-muted-foreground font-medium mb-4">
+          Loading calendar...
+        </div>
         {Array.from({ length: 35 }).map((_, i) => (
           <div
             key={i}
-            className="bg-gray-900 p-1 sm:p-2 h-24 sm:h-32 animate-pulse"
+            className="bg-background p-1 sm:p-2 h-24 sm:h-32 animate-pulse border border-border rounded-md"
           />
         ))}
       </div>
@@ -54,19 +57,19 @@ export function MonthlyView({
   }
 
   return (
-    <div className="bg-gray-950">
-      <div className="grid grid-cols-7 bg-gray-900">
+    <div className="bg-background">
+      <div className="grid grid-cols-7 bg-muted">
         {weekDays.map((day) => (
           <div
             key={day}
-            className="py-3 text-center text-xs font-medium text-gray-400"
+            className="py-3 text-center text-xs font-medium text-muted-foreground"
           >
             {day}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-px bg-gray-800">
+      <div className="grid grid-cols-7 gap-px bg-muted">
         {Array.from({
           length: new Date(
             currentDate.getFullYear(),
@@ -76,7 +79,7 @@ export function MonthlyView({
         }).map((_, i) => (
           <div
             key={`empty-start-${i}`}
-            className="bg-gray-900 p-1 sm:p-2 h-24 sm:h-32"
+            className="bg-background p-1 sm:p-2 h-24 sm:h-32"
           />
         ))}
 
@@ -87,17 +90,17 @@ export function MonthlyView({
               key={day.toISOString()}
               onClick={() => onDateClick(day)}
               className={cn(
-                "bg-gray-900 p-2 sm:h-32 h-24",
-                "hover:bg-gray-800 transition-colors cursor-pointer group",
-                !isSameMonth(day, currentDate) && "bg-gray-900/50",
-                isToday(day) && "ring-2 ring-violet-500 ring-inset"
+                "bg-background p-2 sm:h-32 h-24",
+                "hover:bg-muted/50 transition-colors cursor-pointer group",
+                !isSameMonth(day, currentDate) && "bg-muted/50",
+                isToday(day) && "ring-2 ring-primary ring-inset"
               )}
             >
               <div className="flex items-center justify-between mb-1">
                 <span
                   className={cn(
                     "text-sm font-medium",
-                    isToday(day) ? "text-violet-400" : "text-gray-300"
+                    isToday(day) ? "text-primary" : "text-foreground"
                   )}
                 >
                   {format(day, "d")}
@@ -113,9 +116,9 @@ export function MonthlyView({
                     }}
                     className={cn(
                       "text-xs p-1.5 rounded-md cursor-pointer",
-                      "bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20",
+                      "bg-primary/10 hover:bg-primary/20 border border-primary/20",
                       "transition-all duration-200 ease-in-out transform hover:scale-[1.02]",
-                      "text-violet-100 truncate"
+                      "text-primary truncate"
                     )}
                   >
                     {task.ticketName}
@@ -127,7 +130,7 @@ export function MonthlyView({
                       e.stopPropagation();
                       onShowMoreClick(day, dayTasks);
                     }}
-                    className="text-xs text-gray-400 hover:text-violet-400 transition-colors"
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
                   >
                     +{dayTasks.length - 2} more
                   </button>
@@ -151,7 +154,7 @@ export function MonthlyView({
         }).map((_, i) => (
           <div
             key={`empty-end-${i}`}
-            className="bg-gray-900 p-1 sm:p-2 h-24 sm:h-32"
+            className="bg-background p-1 sm:p-2 h-24 sm:h-32"
           />
         ))}
       </div>
