@@ -137,15 +137,13 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
     const dateMatch =
       session?.user?.role === "admin"
         ? filter.startDate && filter.endDate
-          ? isAfter(new Date(entry.date), filter.startDate) &&
-            isBefore(new Date(entry.date), filter.endDate)
+          ? new Date(entry.date) >= filter.startDate &&
+            new Date(entry.date) <= filter.endDate
           : true
         : filter.weekStart
-        ? isAfter(new Date(entry.date), filter.weekStart) &&
-          isBefore(
-            new Date(entry.date),
+        ? new Date(entry.date) >= filter.weekStart &&
+          new Date(entry.date) <
             new Date(filter.weekStart.getTime() + 7 * 24 * 60 * 60 * 1000)
-          )
         : true;
 
     return clientMatch && employeeMatch && dateMatch;
