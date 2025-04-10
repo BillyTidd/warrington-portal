@@ -28,7 +28,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const isActive = (path: string) => pathname === path;
 
   const navItems = [
-    { href: "/dashboard", label: "Create Entry", icon: FileText },
+    ...(status === "authenticated" && session?.user?.role === "admin"
+      ? [{ href: "/dashboard", label: "Dashboard", icon: Users }]
+      : []),
+    { href: "/create-entry", label: "Create Entry", icon: FileText },
     { href: "/entries", label: "Entries", icon: FileText },
     ...(status === "authenticated" && session?.user?.role === "admin"
       ? [{ href: "/clients", label: "Clients", icon: Users }]
