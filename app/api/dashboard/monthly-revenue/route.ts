@@ -23,8 +23,8 @@ export async function GET(request: Request) {
     const timeframe = searchParams.get("timeframe") || "month";
     const year =
       searchParams.get("year") || new Date().getFullYear().toString();
-    const startDateParam = searchParams.get("startDate");
-    const endDateParam = searchParams.get("endDate");
+    const startDateParam: any = searchParams.get("startDate");
+    const endDateParam: any = searchParams.get("endDate");
 
     // Create a cache key based on the request parameters
     const cacheKey = `monthly-revenue:${timeframe}:${year}:${

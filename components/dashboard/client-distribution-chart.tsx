@@ -9,15 +9,7 @@ import {
   ResponsiveContainer,
   Tooltip,
   Legend,
-  Line,
-  LineChart,
-  XAxis,
-  YAxis,
-  CartesianGrid,
   Sector,
-  Brush,
-  Bar,
-  BarChart,
 } from "recharts";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,14 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import {
-  Download,
-  Eye,
-  EyeOff,
-  PieChartIcon,
-  BarChart3,
-  LineChartIcon,
-} from "lucide-react";
+import { Download, Eye, EyeOff, PieChartIcon } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface ClientDistributionChartProps {
@@ -51,7 +36,7 @@ export function ClientDistributionChart({
   const [chartType, setChartType] = useState<"pie" | "line" | "bar">("pie");
   const [activeIndex, setActiveIndex] = useState(0);
   const [hiddenClients, setHiddenClients] = useState<string[]>([]);
-  const chartRef = useRef(null);
+  const chartRef = useRef<HTMLDivElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -163,8 +148,8 @@ export function ClientDistributionChart({
   const filteredLineChartData = useMemo(() => {
     if (hiddenClients.length === 0) return lineChartData;
 
-    return lineChartData.map((dataPoint) => {
-      const newDataPoint = { name: dataPoint.name };
+    return lineChartData.map((dataPoint: any) => {
+      const newDataPoint: any = { name: dataPoint.name };
       Object.keys(dataPoint).forEach((key) => {
         if (key === "name" || !hiddenClients.includes(key)) {
           newDataPoint[key] = dataPoint[key];
@@ -177,13 +162,15 @@ export function ClientDistributionChart({
   // Filter pie chart data based on hidden clients
   const filteredPieChartData = useMemo(() => {
     if (hiddenClients.length === 0) return pieChartData;
-    return pieChartData.filter((item) => !hiddenClients.includes(item.name));
+    return pieChartData.filter(
+      (item: any) => !hiddenClients.includes(item.name)
+    );
   }, [pieChartData, hiddenClients]);
 
   // Calculate max value for y-axis
   const maxValue = useMemo(() => {
     let max = 0;
-    filteredLineChartData.forEach((item) => {
+    filteredLineChartData.forEach((item: any) => {
       clientNames.forEach((name) => {
         if (!hiddenClients.includes(name) && item[name] > max) {
           max = item[name];
@@ -213,12 +200,12 @@ export function ClientDistributionChart({
     setHiddenClients([]);
   }, [timeframe]);
 
-  const onPieEnter = useCallback((_, index) => {
+  const onPieEnter = useCallback((_: any, index: any) => {
     setActiveIndex(index);
   }, []);
 
   // Handle legend click to toggle visibility
-  const handleLegendClick = useCallback((dataKey) => {
+  const handleLegendClick = useCallback((dataKey: any) => {
     setHiddenClients((prev) => {
       if (prev.includes(dataKey)) {
         return prev.filter((item) => item !== dataKey);
@@ -229,21 +216,24 @@ export function ClientDistributionChart({
   }, []);
 
   // Handle client visibility checkbox change
-  const handleClientVisibilityChange = useCallback((client, checked) => {
-    setHiddenClients((prev) => {
-      if (checked) {
-        // Show client
-        return prev.filter((item) => item !== client);
-      } else {
-        // Hide client
-        return [...prev, client];
-      }
-    });
-  }, []);
+  const handleClientVisibilityChange = useCallback(
+    (client: any, checked: any) => {
+      setHiddenClients((prev) => {
+        if (checked) {
+          // Show client
+          return prev.filter((item) => item !== client);
+        } else {
+          // Hide client
+          return [...prev, client];
+        }
+      });
+    },
+    []
+  );
 
   // Toggle all clients
   const toggleAllClients = useCallback(
-    (show) => {
+    (show: any) => {
       if (show) {
         // Show all clients
         setHiddenClients([]);
@@ -251,7 +241,7 @@ export function ClientDistributionChart({
         // Hide all clients
         setHiddenClients(
           chartType === "pie"
-            ? pieChartData.map((item) => item.name)
+            ? pieChartData.map((item: any) => item.name)
             : clientNames
         );
       }
@@ -361,12 +351,12 @@ export function ClientDistributionChart({
 
   // Custom legend renderer with clickable items
   const renderLegend = useCallback(
-    (props) => {
+    (props: any) => {
       const { payload } = props;
 
       return (
         <div className="flex flex-wrap justify-center gap-2 mt-2">
-          {payload.map((entry, index) => (
+          {payload.map((entry: any, index: any) => (
             <div
               key={`legend-${index}`}
               className={`flex items-center gap-1 px-2 py-1 rounded-md cursor-pointer transition-all ${
@@ -400,7 +390,7 @@ export function ClientDistributionChart({
   );
 
   const renderActiveShape = useCallback(
-    (props) => {
+    (props: any) => {
       const RADIAN = Math.PI / 180;
       const {
         cx,
@@ -488,7 +478,7 @@ export function ClientDistributionChart({
 
   // Format x-axis ticks based on timeframe
   const formatXAxisTick = useCallback(
-    (value) => {
+    (value: any) => {
       if (timeframe === "week" || timeframe === "last7") {
         // For weekly view, show day of week
         return value;
@@ -505,11 +495,11 @@ export function ClientDistributionChart({
   );
 
   // Enhanced tooltip for line chart
-  const renderLineTooltip = useCallback(({ active, payload, label }) => {
+  const renderLineTooltip = useCallback(({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       // Calculate total for this date point
       const dateTotal = payload.reduce(
-        (sum, entry) => sum + (entry.value || 0),
+        (sum: any, entry: any) => sum + (entry.value || 0),
         0
       );
 
@@ -556,7 +546,7 @@ export function ClientDistributionChart({
   // Get client names based on chart type
   const displayedClients = useMemo(() => {
     if (chartType === "pie") {
-      return pieChartData.map((item) => item.name);
+      return pieChartData.map((item: any) => item.name);
     } else {
       return clientNames;
     }
@@ -571,7 +561,7 @@ export function ClientDistributionChart({
             setChartType(value as "pie" | "line" | "bar")
           }
         >
-          <TabsList className="grid w-[300px] grid-cols-1">
+          <TabsList className="grid w-[300px] grid-cols-">
             <TabsTrigger value="pie" className="flex items-center gap-1">
               <PieChartIcon className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Pie</span>
@@ -625,7 +615,7 @@ export function ClientDistributionChart({
           </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-          {displayedClients.map((client, index) => {
+          {displayedClients.map((client: any, index: any) => {
             const isVisible = !hiddenClients.includes(client);
             return (
               <div key={client} className="flex items-center gap-2">
@@ -672,7 +662,7 @@ export function ClientDistributionChart({
                 dataKey="value"
                 onMouseEnter={onPieEnter}
               >
-                {filteredPieChartData.map((entry, index) => (
+                {filteredPieChartData.map((entry: any, index: any) => (
                   <Cell
                     key={`cell-${index}`}
                     fill={COLORS[index % COLORS.length]}

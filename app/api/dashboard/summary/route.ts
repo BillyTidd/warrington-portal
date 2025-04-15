@@ -21,8 +21,8 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const timeframe = searchParams.get("timeframe") || "month";
-    const startDateParam = searchParams.get("startDate");
-    const endDateParam = searchParams.get("endDate");
+    const startDateParam: any = searchParams.get("startDate");
+    const endDateParam: any = searchParams.get("endDate");
 
     // Create a cache key based on the request parameters
     const cacheKey = `summary:${timeframe}:${startDateParam || ""}:${

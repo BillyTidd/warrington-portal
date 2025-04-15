@@ -47,7 +47,7 @@ export function MonthlyRevenueChart({
   const [chartType, setChartType] = useState<
     "bar" | "line" | "area" | "composed"
   >("bar");
-  const chartRef = useRef(null);
+  const chartRef = useRef<any>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
   // If no data is provided, use sample data
@@ -71,16 +71,23 @@ export function MonthlyRevenueChart({
 
   // Get statistics
   const statistics = data.statistics || {
-    totalRevenue: chartData.reduce((sum, item) => sum + item.total, 0),
+    totalRevenue: chartData.reduce(
+      (sum: any, item: any) => sum + item.total,
+      0
+    ),
     averageRevenue:
-      chartData.reduce((sum, item) => sum + item.total, 0) / chartData.length,
+      chartData.reduce((sum: any, item: any) => sum + item.total, 0) /
+      chartData.length,
     growthRate: 12,
-    entriesCount: chartData.reduce((sum, item) => sum + (item.count || 0), 0),
+    entriesCount: chartData.reduce(
+      (sum: any, item: any) => sum + (item.count || 0),
+      0
+    ),
   };
 
   // Calculate moving average
   const movingAverageData = useMemo(() => {
-    return chartData.map((item, index, array) => {
+    return chartData.map((item: any, index: any, array: any) => {
       if (index < 2) return { ...item, average: item.total };
 
       const avg =
@@ -99,7 +106,7 @@ export function MonthlyRevenueChart({
   // Calculate max value for y-axis
   const maxValue = useMemo(() => {
     let max = 0;
-    chartData.forEach((item) => {
+    chartData.forEach((item: any) => {
       if (item.total > max) max = item.total;
     });
     // Round up to nearest 1000
@@ -108,7 +115,7 @@ export function MonthlyRevenueChart({
 
   // Format x-axis ticks based on timeframe
   const formatXAxisTick = useCallback(
-    (value) => {
+    (value: any) => {
       if (timeframe === "week" || timeframe === "last7") {
         // For weekly view, show day of week
         return value;
@@ -225,7 +232,7 @@ export function MonthlyRevenueChart({
   }, [isDark, chartType]);
 
   // Render tooltip for bar, line, and area charts
-  const renderSimpleTooltip = useCallback(({ active, payload, label }) => {
+  const renderSimpleTooltip = useCallback(({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
         <Card className="border shadow-sm">
@@ -252,35 +259,38 @@ export function MonthlyRevenueChart({
   }, []);
 
   // Render tooltip for composed chart
-  const renderComposedTooltip = useCallback(({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <Card className="border shadow-sm">
-          <CardContent className="p-2">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="font-medium">{label}</div>
-              <div className="font-medium">Amount</div>
-              {payload.map((entry) => (
-                <div key={entry.dataKey} className="flex items-center gap-2">
-                  <div
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: entry.color }}
-                  />
-                  <span>{entry.name}</span>
-                </div>
-              ))}
-              {payload.map((entry) => (
-                <div key={entry.dataKey} className="text-right font-medium">
-                  £{entry.value.toLocaleString()}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      );
-    }
-    return null;
-  }, []);
+  const renderComposedTooltip = useCallback(
+    ({ active, payload, label }: any) => {
+      if (active && payload && payload.length) {
+        return (
+          <Card className="border shadow-sm">
+            <CardContent className="p-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="font-medium">{label}</div>
+                <div className="font-medium">Amount</div>
+                {payload.map((entry: any) => (
+                  <div key={entry.dataKey} className="flex items-center gap-2">
+                    <div
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: entry.color }}
+                    />
+                    <span>{entry.name}</span>
+                  </div>
+                ))}
+                {payload.map((entry: any) => (
+                  <div key={entry.dataKey} className="text-right font-medium">
+                    £{entry.value.toLocaleString()}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      }
+      return null;
+    },
+    []
+  );
 
   return (
     <div className="h-full">
@@ -367,7 +377,7 @@ export function MonthlyRevenueChart({
                     axisLine={false}
                     tickFormatter={formatXAxisTick}
                     height={50}
-                    tick={{ angle: -45, textAnchor: "end", dy: 20 }}
+                    // tick={{ angle: -45, textAnchor: "end", dy: 20 }}
                   />
                   <YAxis
                     stroke={isDark ? "#888888" : "#888888"}

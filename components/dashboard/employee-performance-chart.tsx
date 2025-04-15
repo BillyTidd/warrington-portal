@@ -18,18 +18,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
-import {
-  BarChart3,
-  LineChartIcon,
-  Eye,
-  EyeOff,
-  TrendingUp,
-  Download,
-} from "lucide-react";
+import { BarChart3, LineChartIcon, Eye, EyeOff, Download } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 
 interface EmployeePerformanceChartProps {
@@ -46,7 +38,7 @@ export function EmployeePerformanceChart({
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const [chartType, setChartType] = useState<"line" | "bar">("line");
-  const chartRef = useRef(null);
+  const chartRef = useRef<HTMLDivElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -127,7 +119,10 @@ export function EmployeePerformanceChart({
       ? data.employeeTotals
       : employeeNames.map((name, index) => ({
           name,
-          total: chartData.reduce((sum, item) => sum + (item[name] || 0), 0),
+          total: chartData.reduce(
+            (sum: any, item: any) => sum + (item[name] || 0),
+            0
+          ),
           count: chartData.length,
         }));
   }, [data.employeeTotals, employeeNames, chartData]);
@@ -136,11 +131,11 @@ export function EmployeePerformanceChart({
   const trendData = useMemo(() => {
     if (!showTrends) return [];
 
-    return employeeNames.reduce((acc, name) => {
+    return employeeNames.reduce((acc: any, name: any) => {
       if (hiddenEmployees.includes(name)) return acc;
 
       // Simple linear regression
-      const points = chartData.map((item, index) => ({
+      const points = chartData.map((item: any, index: any) => ({
         x: index,
         y: item[name] || 0,
       }));
@@ -148,15 +143,15 @@ export function EmployeePerformanceChart({
 
       if (n < 2) return acc;
 
-      const sumX = points.reduce((sum, p) => sum + p.x, 0);
-      const sumY = points.reduce((sum, p) => sum + p.y, 0);
-      const sumXY = points.reduce((sum, p) => sum + p.x * p.y, 0);
-      const sumXX = points.reduce((sum, p) => sum + p.x * p.x, 0);
+      const sumX = points.reduce((sum: any, p: any) => sum + p.x, 0);
+      const sumY = points.reduce((sum: any, p: any) => sum + p.y, 0);
+      const sumXY = points.reduce((sum: any, p: any) => sum + p.x * p.y, 0);
+      const sumXX = points.reduce((sum: any, p: any) => sum + p.x * p.x, 0);
 
       const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
       const intercept = (sumY - slope * sumX) / n;
 
-      const trendPoints = chartData.map((item, index) => ({
+      const trendPoints = chartData.map((item: any, index: any) => ({
         name: item.name,
         [`${name}_trend`]: Math.max(0, Math.round(intercept + slope * index)),
       }));
@@ -169,8 +164,8 @@ export function EmployeePerformanceChart({
   const filteredChartData = useMemo(() => {
     if (hiddenEmployees.length === 0) return chartData;
 
-    return chartData.map((dataPoint) => {
-      const newDataPoint = { name: dataPoint.name };
+    return chartData.map((dataPoint: any) => {
+      const newDataPoint: any = { name: dataPoint.name };
       Object.keys(dataPoint).forEach((key) => {
         if (key === "name" || !hiddenEmployees.includes(key)) {
           newDataPoint[key] = dataPoint[key];
@@ -186,7 +181,7 @@ export function EmployeePerformanceChart({
   // Calculate max value for y-axis
   const maxValue = useMemo(() => {
     let max = 0;
-    displayData.forEach((item) => {
+    displayData.forEach((item: any) => {
       employeeNames.forEach((name) => {
         if (!hiddenEmployees.includes(name) && item[name] > max) {
           max = item[name];
@@ -210,7 +205,7 @@ export function EmployeePerformanceChart({
   }, [displayData.length, containerWidth]);
 
   // Handle legend click to toggle visibility
-  const handleLegendClick = useCallback((dataKey) => {
+  const handleLegendClick = useCallback((dataKey: any) => {
     setHiddenEmployees((prev) => {
       if (prev.includes(dataKey)) {
         return prev.filter((item) => item !== dataKey);
@@ -221,21 +216,24 @@ export function EmployeePerformanceChart({
   }, []);
 
   // Handle employee visibility checkbox change
-  const handleEmployeeVisibilityChange = useCallback((employee, checked) => {
-    setHiddenEmployees((prev) => {
-      if (checked) {
-        // Show employee
-        return prev.filter((item) => item !== employee);
-      } else {
-        // Hide employee
-        return [...prev, employee];
-      }
-    });
-  }, []);
+  const handleEmployeeVisibilityChange = useCallback(
+    (employee: any, checked: any) => {
+      setHiddenEmployees((prev) => {
+        if (checked) {
+          // Show employee
+          return prev.filter((item) => item !== employee);
+        } else {
+          // Hide employee
+          return [...prev, employee];
+        }
+      });
+    },
+    []
+  );
 
   // Toggle all employees
   const toggleAllEmployees = useCallback(
-    (show) => {
+    (show: any) => {
       if (show) {
         // Show all employees
         setHiddenEmployees([]);
@@ -349,12 +347,12 @@ export function EmployeePerformanceChart({
 
   // Custom legend renderer with clickable items
   const renderLegend = useCallback(
-    (props) => {
+    (props: any) => {
       const { payload } = props;
 
       return (
         <div className="flex flex-wrap justify-center gap-2 mt-2">
-          {payload.map((entry, index) => (
+          {payload.map((entry: any, index: any) => (
             <div
               key={`legend-${index}`}
               className={`flex items-center gap-1 px-2 py-1 rounded-md cursor-pointer transition-all ${
@@ -384,7 +382,7 @@ export function EmployeePerformanceChart({
   );
 
   // Zoom functionality
-  const handleMouseDown = useCallback((e) => {
+  const handleMouseDown = useCallback((e: any) => {
     if (!e) return;
     setZoomState((prev) => ({
       ...prev,
@@ -394,7 +392,7 @@ export function EmployeePerformanceChart({
   }, []);
 
   const handleMouseMove = useCallback(
-    (e) => {
+    (e: any) => {
       if (!e || !zoomState.isZooming) return;
       setZoomState((prev) => ({
         ...prev,
@@ -417,10 +415,10 @@ export function EmployeePerformanceChart({
 
     // Ensure left is always less than right
     let left = chartData.findIndex(
-      (item) => item.name === zoomState.refAreaLeft
+      (item: any) => item.name === zoomState.refAreaLeft
     );
     let right = chartData.findIndex(
-      (item) => item.name === zoomState.refAreaRight
+      (item: any) => item.name === zoomState.refAreaRight
     );
 
     if (left > right) {
@@ -449,16 +447,16 @@ export function EmployeePerformanceChart({
   }, [timeframe]);
 
   // Enhanced tooltip with more details
-  const renderTooltip = useCallback(({ active, payload, label }) => {
+  const renderTooltip = useCallback(({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       // Filter out trend lines from tooltip
       const filteredPayload = payload.filter(
-        (entry) => !entry.dataKey.includes("_trend")
+        (entry: any) => !entry.dataKey.includes("_trend")
       );
 
       // Calculate total for this date point
       const dateTotal = filteredPayload.reduce(
-        (sum, entry) => sum + (entry.value || 0),
+        (sum: any, entry: any) => sum + (entry.value || 0),
         0
       );
 
@@ -502,7 +500,7 @@ export function EmployeePerformanceChart({
 
   // Format x-axis ticks based on timeframe
   const formatXAxisTick = useCallback(
-    (value) => {
+    (value: any) => {
       if (timeframe === "week" || timeframe === "last7") {
         // For weekly view, show day of week
         return value;
@@ -519,7 +517,7 @@ export function EmployeePerformanceChart({
   );
 
   // Format y-axis ticks
-  const formatYAxisTick = useCallback((value) => {
+  const formatYAxisTick = useCallback((value: any) => {
     return `£${value}`;
   }, []);
 
@@ -551,7 +549,7 @@ export function EmployeePerformanceChart({
           allowDataOverflow
           tickFormatter={formatXAxisTick}
           height={50}
-          tick={{ angle: -45, textAnchor: "end", dy: 20 }}
+          // tick={{ angle: -45, textAnchor: "end", dy: 20 }}
         />
         <YAxis
           stroke={isDark ? "#888888" : "#888888"}
@@ -656,7 +654,7 @@ export function EmployeePerformanceChart({
           allowDataOverflow
           tickFormatter={formatXAxisTick}
           height={50}
-          tick={{ angle: -45, textAnchor: "end", dy: 20 }}
+          // tick={{ angle: -45, textAnchor: "end", dy: 20 }}
         />
         <YAxis
           stroke={isDark ? "#888888" : "#888888"}
@@ -829,7 +827,7 @@ export function EmployeePerformanceChart({
       </Card>
 
       <div className="flex flex-wrap gap-2 justify-start mb-2">
-        {employeeTotals.slice(0, 3).map((employee, index) => (
+        {employeeTotals.slice(0, 3).map((employee: any, index: any) => (
           <Badge
             key={employee.name}
             variant="outline"
@@ -850,8 +848,7 @@ export function EmployeePerformanceChart({
       >
         <div style={{ minWidth: minChartWidth, height: "400px" }}>
           <ResponsiveContainer width="100%" height={400}>
-            {chartType === "line" && renderLineChart}
-            {chartType === "bar" && renderBarChart}
+            {chartType === "line" ? renderLineChart : renderBarChart}
           </ResponsiveContainer>
         </div>
       </div>

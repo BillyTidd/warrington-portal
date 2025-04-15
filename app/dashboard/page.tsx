@@ -169,7 +169,7 @@ export default function Dashboard() {
       if (summaryResponse.ok) {
         const rawData = await summaryResponse.json();
         // Process summary data on the frontend
-        const processedData = processSummaryData(
+        const processedData: any = processSummaryData(
           rawData.currentEntries,
           rawData.currentInvoices,
           rawData.previousEntries,
@@ -185,14 +185,16 @@ export default function Dashboard() {
       if (employeeResponse.ok) {
         const rawData = await employeeResponse.json();
         // Process employee performance data on the frontend
-        const processedData = processEmployeePerformanceData(rawData.entries);
+        const processedData: any = processEmployeePerformanceData(
+          rawData.entries
+        );
         setEmployeeData(processedData);
       }
 
       if (clientPieResponse.ok) {
         const rawData = await clientPieResponse.json();
         // Process client distribution data on the frontend
-        const processedData = processClientDistributionData(
+        const processedData: any = processClientDistributionData(
           rawData.entries,
           "pie"
         );
@@ -202,10 +204,10 @@ export default function Dashboard() {
       if (revenueResponse.ok) {
         const rawData = await revenueResponse.json();
         // Process monthly revenue data on the frontend
-        const processedData = processMonthlyRevenueData(rawData.entries);
+        const processedData: any = processMonthlyRevenueData(rawData.entries);
         setRevenueData(processedData);
       }
-    } catch (error) {
+    } catch (error: any) {
       // Only log errors that aren't from aborting the fetch
       if (error.name !== "AbortError") {
         console.error("Error fetching dashboard data:", error);
