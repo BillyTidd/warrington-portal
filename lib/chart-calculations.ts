@@ -15,8 +15,8 @@ export function processEmployeePerformanceData(entries: any[]) {
   }
 
   // Process entries to group by date and employee
-  const dateData = {};
-  const employees = new Set();
+  const dateData: any = {};
+  const employees: any = new Set();
 
   // First, identify all employees
   entries.forEach((entry) => {
@@ -33,7 +33,7 @@ export function processEmployeePerformanceData(entries: any[]) {
 
       if (!dateData[formattedDate]) {
         dateData[formattedDate] = {};
-        employees.forEach((employee) => {
+        employees.forEach((employee: any) => {
           dateData[formattedDate][employee] = 0;
         });
       }
@@ -44,9 +44,9 @@ export function processEmployeePerformanceData(entries: any[]) {
 
   // Convert to chart format
   const chartData = Object.keys(dateData).map((date) => {
-    const dataPoint = { name: date };
+    const dataPoint: any = { name: date };
 
-    employees.forEach((employee) => {
+    employees.forEach((employee: any) => {
       dataPoint[employee] = dateData[date][employee] || 0;
     });
 
@@ -95,7 +95,7 @@ export function processClientDistributionData(
 
   if (chartType === "line") {
     // For line chart: Group by date and client
-    const dateData = {};
+    const dateData: any = {};
     const clients = new Set();
 
     // First, identify all clients
@@ -113,7 +113,7 @@ export function processClientDistributionData(
 
         if (!dateData[formattedDate]) {
           dateData[formattedDate] = {};
-          clients.forEach((client) => {
+          clients.forEach((client: any) => {
             dateData[formattedDate][client] = 0;
           });
         }
@@ -124,9 +124,9 @@ export function processClientDistributionData(
 
     // Convert to chart format
     const chartData = Object.keys(dateData).map((date) => {
-      const dataPoint = { name: date };
+      const dataPoint: any = { name: date };
 
-      clients.forEach((client) => {
+      clients.forEach((client: any) => {
         dataPoint[client] = dateData[date][client] || 0;
       });
 
@@ -162,7 +162,7 @@ export function processClientDistributionData(
     };
   } else {
     // For pie chart: Group by client
-    const clientData = {};
+    const clientData: any = {};
 
     entries.forEach((entry) => {
       const client = entry.client;
@@ -224,7 +224,7 @@ export function processMonthlyRevenueData(entries: any[], groupBy = "month") {
   }
 
   // Group by selected interval
-  const revenueData = {};
+  const revenueData: any = {};
 
   // Format function based on groupBy
   let formatString = "MMM dd";
