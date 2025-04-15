@@ -52,22 +52,7 @@ export function MonthlyRevenueChart({
 
   // If no data is provided, use sample data
   const chartData =
-    data.chartData && data.chartData.length > 0
-      ? data.chartData
-      : [
-          { name: "Jan", total: 1500, count: 15 },
-          { name: "Feb", total: 2300, count: 23 },
-          { name: "Mar", total: 3200, count: 32 },
-          { name: "Apr", total: 2800, count: 28 },
-          { name: "May", total: 3800, count: 38 },
-          { name: "Jun", total: 4300, count: 43 },
-          { name: "Jul", total: 3900, count: 39 },
-          { name: "Aug", total: 4800, count: 48 },
-          { name: "Sep", total: 5200, count: 52 },
-          { name: "Oct", total: 4700, count: 47 },
-          { name: "Nov", total: 5900, count: 59 },
-          { name: "Dec", total: 6500, count: 65 },
-        ];
+    data.chartData && data.chartData.length > 0 ? data.chartData : [];
 
   // Get statistics
   const statistics = data.statistics || {

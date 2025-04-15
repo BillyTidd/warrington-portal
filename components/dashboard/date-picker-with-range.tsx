@@ -211,14 +211,14 @@ export function DatePickerWithRange({
           >
             This year
           </DropdownMenuItem>
-          <DropdownMenuItem
+          {/* <DropdownMenuItem
             onClick={() => handleTimeframeChange("lastYear")}
             className={
               timeframe === "lastYear" ? "bg-primary/10 font-medium" : ""
             }
           >
             Last year
-          </DropdownMenuItem>
+          </DropdownMenuItem> */}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

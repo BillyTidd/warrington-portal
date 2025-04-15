@@ -60,40 +60,7 @@ export function EmployeePerformanceChart({
 
   // If no data is provided, use sample data
   const chartData =
-    data.chartData && data.chartData.length > 0
-      ? data.chartData
-      : [
-          {
-            name: "Jan 01",
-            "Ewan Fitzgerald": 400,
-            "Sarah Johnson": 240,
-            "Michael Brown": 320,
-          },
-          {
-            name: "Jan 08",
-            "Ewan Fitzgerald": 300,
-            "Sarah Johnson": 290,
-            "Michael Brown": 380,
-          },
-          {
-            name: "Jan 15",
-            "Ewan Fitzgerald": 500,
-            "Sarah Johnson": 400,
-            "Michael Brown": 420,
-          },
-          {
-            name: "Jan 22",
-            "Ewan Fitzgerald": 280,
-            "Sarah Johnson": 380,
-            "Michael Brown": 310,
-          },
-          {
-            name: "Jan 29",
-            "Ewan Fitzgerald": 590,
-            "Sarah Johnson": 420,
-            "Michael Brown": 450,
-          },
-        ];
+    data.chartData && data.chartData.length > 0 ? data.chartData : [];
 
   // Get all employee names from the data
   const employeeNames = useMemo(() => {
