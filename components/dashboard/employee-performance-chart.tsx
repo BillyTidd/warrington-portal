@@ -758,20 +758,6 @@ export function EmployeePerformanceChart({
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Switch
-              id="show-trends"
-              checked={showTrends}
-              onCheckedChange={setShowTrends}
-            />
-            <Label
-              htmlFor="show-trends"
-              className="flex items-center gap-1 cursor-pointer text-xs"
-            >
-              <TrendingUp className="h-3.5 w-3.5" />
-              <span>Show Trends</span>
-            </Label>
-          </div>
           <Button
             variant="outline"
             size="sm"

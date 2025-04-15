@@ -291,22 +291,10 @@ export function MonthlyRevenueChart({
             setChartType(value as "bar" | "line" | "area" | "composed")
           }
         >
-          <TabsList className="grid w-full sm:w-[400px] grid-cols-4">
+          <TabsList className="grid w-full sm:w-[400px] grid-cols-1">
             <TabsTrigger value="bar" className="flex items-center gap-1">
               <BarChart3 className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Bar</span>
-            </TabsTrigger>
-            <TabsTrigger value="line" className="flex items-center gap-1">
-              <LineChartIcon className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Line</span>
-            </TabsTrigger>
-            <TabsTrigger value="area" className="flex items-center gap-1">
-              <TrendingUp className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Area</span>
-            </TabsTrigger>
-            <TabsTrigger value="composed" className="flex items-center gap-1">
-              <LayoutPanelTop className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Composed</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -391,13 +379,7 @@ export function MonthlyRevenueChart({
                   />
                   <Tooltip content={renderSimpleTooltip} />
                   <Legend />
-                  <Brush
-                    dataKey="name"
-                    height={30}
-                    stroke={isDark ? "#666" : "#8884d8"}
-                    fill={isDark ? "#333" : "#f5f5f5"}
-                    tickFormatter={formatXAxisTick}
-                  />
+
                   <Bar
                     dataKey="total"
                     fill="#06b6d4"
@@ -405,187 +387,6 @@ export function MonthlyRevenueChart({
                     name="Revenue"
                   />
                 </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {chartType === "line" && (
-            <div style={{ minWidth: minChartWidth, height: "400px" }}>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart
-                  data={chartData}
-                  margin={{
-                    top: 20,
-                    right: 30,
-                    left: 20,
-                    bottom: 60,
-                  }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke={
-                      isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"
-                    }
-                  />
-                  <XAxis
-                    dataKey="name"
-                    stroke={isDark ? "#888888" : "#888888"}
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={formatXAxisTick}
-                    height={50}
-                    tick={{ angle: -45, textAnchor: "end", dy: 20 }}
-                  />
-                  <YAxis
-                    stroke={isDark ? "#888888" : "#888888"}
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) => `£${value}`}
-                    domain={[0, maxValue]}
-                  />
-                  <Tooltip content={renderSimpleTooltip} />
-                  <Legend />
-                  <Brush
-                    dataKey="name"
-                    height={30}
-                    stroke={isDark ? "#666" : "#8884d8"}
-                    fill={isDark ? "#333" : "#f5f5f5"}
-                    tickFormatter={formatXAxisTick}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="total"
-                    stroke="#06b6d4"
-                    strokeWidth={2}
-                    activeDot={{ r: 8 }}
-                    name="Revenue"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {chartType === "area" && (
-            <div style={{ minWidth: minChartWidth, height: "400px" }}>
-              <ResponsiveContainer width="100%" height={400}>
-                <AreaChart
-                  data={chartData}
-                  margin={{
-                    top: 20,
-                    right: 30,
-                    left: 20,
-                    bottom: 60,
-                  }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke={
-                      isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"
-                    }
-                  />
-                  <XAxis
-                    dataKey="name"
-                    stroke={isDark ? "#888888" : "#888888"}
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={formatXAxisTick}
-                    height={50}
-                    tick={{ angle: -45, textAnchor: "end", dy: 20 }}
-                  />
-                  <YAxis
-                    stroke={isDark ? "#888888" : "#888888"}
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) => `£${value}`}
-                    domain={[0, maxValue]}
-                  />
-                  <Tooltip content={renderSimpleTooltip} />
-                  <Legend />
-                  <Brush
-                    dataKey="name"
-                    height={30}
-                    stroke={isDark ? "#666" : "#8884d8"}
-                    fill={isDark ? "#333" : "#f5f5f5"}
-                    tickFormatter={formatXAxisTick}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="total"
-                    stroke="#06b6d4"
-                    fill="#06b6d4"
-                    fillOpacity={0.3}
-                    name="Revenue"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {chartType === "composed" && (
-            <div style={{ minWidth: minChartWidth, height: "400px" }}>
-              <ResponsiveContainer width="100%" height={400}>
-                <ComposedChart
-                  data={movingAverageData}
-                  margin={{
-                    top: 20,
-                    right: 30,
-                    left: 20,
-                    bottom: 60,
-                  }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke={
-                      isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"
-                    }
-                  />
-                  <XAxis
-                    dataKey="name"
-                    stroke={isDark ? "#888888" : "#888888"}
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={formatXAxisTick}
-                    height={50}
-                    tick={{ angle: -45, textAnchor: "end", dy: 20 }}
-                  />
-                  <YAxis
-                    stroke={isDark ? "#888888" : "#888888"}
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) => `£${value}`}
-                    domain={[0, maxValue]}
-                  />
-                  <Tooltip content={renderComposedTooltip} />
-                  <Legend />
-                  <Brush
-                    dataKey="name"
-                    height={30}
-                    stroke={isDark ? "#666" : "#8884d8"}
-                    fill={isDark ? "#333" : "#f5f5f5"}
-                    tickFormatter={formatXAxisTick}
-                  />
-                  <Bar
-                    dataKey="total"
-                    fill="#06b6d4"
-                    radius={[4, 4, 0, 0]}
-                    name="Revenue"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="average"
-                    stroke="#f97316"
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                    activeDot={{ r: 8 }}
-                    name="3-Month Avg"
-                  />
-                </ComposedChart>
               </ResponsiveContainer>
             </div>
           )}

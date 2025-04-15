@@ -571,18 +571,10 @@ export function ClientDistributionChart({
             setChartType(value as "pie" | "line" | "bar")
           }
         >
-          <TabsList className="grid w-[300px] grid-cols-3">
+          <TabsList className="grid w-[300px] grid-cols-1">
             <TabsTrigger value="pie" className="flex items-center gap-1">
               <PieChartIcon className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Pie</span>
-            </TabsTrigger>
-            <TabsTrigger value="bar" className="flex items-center gap-1">
-              <BarChart3 className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Bar</span>
-            </TabsTrigger>
-            <TabsTrigger value="line" className="flex items-center gap-1">
-              <LineChartIcon className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Line</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -730,113 +722,6 @@ export function ClientDistributionChart({
               />
             </PieChart>
           </ResponsiveContainer>
-        )}
-
-        {chartType === "line" && (
-          <div style={{ minWidth: minChartWidth, height: "100%" }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={filteredLineChartData}
-                margin={{
-                  top: 20,
-                  right: 30,
-                  left: 20,
-                  bottom: 60,
-                }}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke={isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}
-                />
-                <XAxis
-                  dataKey="name"
-                  stroke={isDark ? "#888888" : "#888888"}
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={formatXAxisTick}
-                  height={50}
-                  tick={{ angle: -45, textAnchor: "end", dy: 20 }}
-                />
-                <YAxis
-                  stroke={isDark ? "#888888" : "#888888"}
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(value) => `£${value}`}
-                  domain={[0, maxValue]}
-                />
-                <Tooltip content={renderLineTooltip} />
-                <Legend content={renderLegend} />
-                <Brush dataKey="name" height={30} stroke="#8884d8" />
-
-                {clientNames.map((client, index) => (
-                  <Line
-                    key={client}
-                    type="monotone"
-                    dataKey={client}
-                    stroke={COLORS[index % COLORS.length]}
-                    strokeWidth={2}
-                    activeDot={{ r: 6 }}
-                    dot={{ r: 4 }}
-                    hide={hiddenClients.includes(client)}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        {chartType === "bar" && (
-          <div style={{ minWidth: minChartWidth, height: "100%" }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={filteredLineChartData}
-                margin={{
-                  top: 20,
-                  right: 30,
-                  left: 20,
-                  bottom: 60,
-                }}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke={isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}
-                />
-                <XAxis
-                  dataKey="name"
-                  stroke={isDark ? "#888888" : "#888888"}
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={formatXAxisTick}
-                  height={50}
-                  tick={{ angle: -45, textAnchor: "end", dy: 20 }}
-                />
-                <YAxis
-                  stroke={isDark ? "#888888" : "#888888"}
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(value) => `£${value}`}
-                  domain={[0, maxValue]}
-                />
-                <Tooltip content={renderLineTooltip} />
-                <Legend content={renderLegend} />
-                <Brush dataKey="name" height={30} stroke="#8884d8" />
-
-                {clientNames.map((client, index) => (
-                  <Bar
-                    key={client}
-                    dataKey={client}
-                    fill={COLORS[index % COLORS.length]}
-                    radius={[4, 4, 0, 0]}
-                    hide={hiddenClients.includes(client)}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
         )}
       </div>
 

@@ -57,7 +57,23 @@ interface StatCardProps {
   variant?: "blue" | "green" | "amber" | "purple" | "rose" | "cyan" | "indigo";
   secondaryValue?: string;
   secondaryLabel?: string;
+  valuePrefix?: string;
+  valueSuffix?: string;
+  animate?: boolean;
 }
+
+// Format number with commas and optional decimal places
+const formatNumber = (value: number | string, decimals = 0): string => {
+  if (typeof value === "string") {
+    // If already a string, return as is (might already be formatted)
+    return value;
+  }
+
+  return new Intl.NumberFormat("en-GB", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(value);
+};
 
 export function StatCard({
   title,
@@ -70,7 +86,16 @@ export function StatCard({
   variant = "blue",
   secondaryValue,
   secondaryLabel,
+  valuePrefix = "",
+  valueSuffix = "",
+  animate = true,
 }: StatCardProps) {
+  // Format the value if it's a number
+  const formattedValue =
+    typeof value === "number"
+      ? `${valuePrefix}${formatNumber(value)}${valueSuffix}`
+      : `${valuePrefix}${value}${valueSuffix}`;
+
   return (
     <Card className={cn(cardVariants({ variant }), className)}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -82,7 +107,15 @@ export function StatCard({
           <Skeleton className="h-8 w-28" />
         ) : (
           <>
-            <div className="text-3xl font-bold">{value}</div>
+            <div
+              className={cn(
+                "text-3xl font-bold",
+                animate &&
+                  "animate-in fade-in slide-in-from-bottom-1 duration-500"
+              )}
+            >
+              {formattedValue}
+            </div>
             {secondaryValue && secondaryLabel && (
               <div className="mt-1 text-xs text-muted-foreground">
                 <span className="font-medium">{secondaryValue}</span>{" "}

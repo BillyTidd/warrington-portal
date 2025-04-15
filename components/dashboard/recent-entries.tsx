@@ -86,7 +86,7 @@ export function RecentEntries({ entries }: RecentEntriesProps) {
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       <Badge variant={getStatusColor(entry.totalAmount)}>
-                        £{entry.totalAmount.toFixed(2)}
+                        £{entry.totalAmount}
                       </Badge>
                     </div>
                   </TableCell>

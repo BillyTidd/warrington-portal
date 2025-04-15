@@ -1,15 +1,10 @@
 "use client";
+
 import { Button } from "@/components/ui/button";
 import type { DateRange } from "react-day-picker";
-import { Download, Filter, RefreshCw } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { RefreshCw, Filter } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { DatePickerWithRange } from "@/components/dashboard/date-picker-with-range";
 
 interface DashboardHeaderProps {
   title: string;
@@ -32,6 +27,14 @@ export function DashboardHeader({
   onRefresh,
   isLoading = false,
 }: DashboardHeaderProps) {
+  // Function to handle date range apply
+  const handleDateRangeApply = () => {
+    // Trigger refresh when date range is applied
+    if (onRefresh) {
+      onRefresh();
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
@@ -39,63 +42,31 @@ export function DashboardHeader({
         {description && <p className="text-muted-foreground">{description}</p>}
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-        <DateRangePicker
+      <div className="flex items-center gap-2">
+        <DatePickerWithRange
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange || (() => {})}
           timeframe={timeframe}
           onTimeframeChange={onTimeframeChange}
+          onApply={handleDateRangeApply}
         />
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRefresh}
-            disabled={isLoading}
-          >
-            <RefreshCw
-              className={cn("mr-2 h-3.5 w-3.5", isLoading && "animate-spin")}
-            />
-            Refresh
-          </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={onRefresh}
+          disabled={isLoading}
+          className="h-9 w-9"
+        >
+          <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+          <span className="sr-only">Refresh</span>
+        </Button>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Filter className="mr-2 h-3.5 w-3.5" />
-                Filter
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Filter Options</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>By Employee</DropdownMenuItem>
-              <DropdownMenuItem>By Client</DropdownMenuItem>
-              <DropdownMenuItem>By Amount</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm">
-                <Download className="mr-2 h-3.5 w-3.5" />
-                Export
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Export Options</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>PDF Report</DropdownMenuItem>
-              <DropdownMenuItem>Excel Spreadsheet</DropdownMenuItem>
-              <DropdownMenuItem>CSV Data</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <Button variant="outline" size="icon" className="h-9 w-9">
+          <Filter className="h-4 w-4" />
+          <span className="sr-only">Filter</span>
+        </Button>
       </div>
     </div>
   );
 }
-
-import { cn } from "@/lib/utils";
-import { DateRangePicker } from "./date-range-picket";
