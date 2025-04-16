@@ -36,6 +36,7 @@ import {
   processMonthlyRevenueData,
   processSummaryData,
 } from "@/lib/chart-calculations";
+import { redirect } from "next/navigation";
 
 interface Entry {
   _id: string;
@@ -110,7 +111,20 @@ export default function Dashboard() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [summaryData, setSummaryData] =
     useState<SummaryData>(initialSummaryData);
+  if (session?.user?.role !== "admin") {
+    redirect("/create-entry");
 
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600">Access Denied</h1>
+          <p className="text-gray-600">
+            You must be an admin to view this page.
+          </p>
+        </div>
+      </div>
+    );
+  }
   // Default to current month
   const [timeframe, setTimeframe] = useState("month");
   const [dateRange, setDateRange] = useState<DateRange | undefined>({

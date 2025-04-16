@@ -37,7 +37,7 @@ export default function Login() {
         toast.error(result.error);
       } else {
         toast.success("Logged in successfully");
-        router.push("/dashboard");
+        router.push("/create-entry");
       }
     } catch (error) {
       toast.error("An unexpected error occurred");
