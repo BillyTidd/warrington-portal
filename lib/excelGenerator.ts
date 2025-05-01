@@ -10,6 +10,8 @@ import {
 } from "date-fns";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import { Job } from "@/types/job";
+import autoTable from "jspdf-autotable";
 
 interface Entry {
   _id: string;
@@ -864,6 +866,587 @@ export const generatePDF = async (
   (doc as any).calculationBoxY += 5;
 
   addRow("TOTAL AFTER CIS:", totalAfterCIS, true);
+
+  return doc;
+};
+
+type RGB = [number, number, number];
+type FontStyle = "normal" | "bold" | "italic" | "bolditalic";
+
+export const generateJobPDF = async (
+  job: Job,
+  session: any
+): Promise<jsPDF> => {
+  const doc = new jsPDF({
+    orientation: "landscape",
+    unit: "mm",
+    format: "a4",
+  });
+
+  // Page dimensions
+  const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
+
+  // Define colors for consistent branding (using proper RGB tuples)
+  const primaryColor: RGB = [31, 73, 125]; // Dark blue
+  const secondaryColor: RGB = [100, 120, 200]; // Lighter blue
+  const accentColor: RGB = [70, 130, 180]; // Steel blue
+
+  // Header background
+  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.rect(0, 0, pageWidth, 45, "F");
+
+  // Add decorative element
+  doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
+  doc.rect(0, 45, pageWidth, 3, "F");
+
+  // Company name
+  doc.setTextColor(255);
+  doc.setFontSize(28);
+  doc.setFont("helvetica", "bold");
+  doc.text("WARRINGTON INSTALLS", 14, 20);
+
+  // Report title
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "normal");
+  doc.text(`JOB DETAILS REPORT`, 14, 35);
+
+  // Add user info section
+  doc.setFontSize(16);
+  doc.text(
+    `Employee: ${session?.user?.name?.toUpperCase() || ""}`,
+    pageWidth - 14,
+    20,
+    { align: "right" }
+  );
+
+  // Add generation timestamp
+  doc.setFontSize(12);
+  doc.text(
+    `Generated: ${format(new Date(), "dd-MMM-yyyy HH:mm:ss")}`,
+    pageWidth - 14,
+    35,
+    { align: "right" }
+  );
+
+  // Calculate job metrics
+  const daysRemaining = job.expireDate
+    ? Math.ceil(
+        (new Date(job.expireDate).getTime() - new Date().getTime()) /
+          (1000 * 60 * 60 * 24)
+      )
+    : 0;
+  const isOverdue = daysRemaining < 0 && job.status !== "completed";
+  const totalCost =
+    job.progressLogs?.reduce((sum, log) => sum + (log.cost || 0), 0) || 0;
+  const profit = (job.clientPrice || 0) - totalCost;
+
+  // Add job summary box
+  doc.setFillColor(245, 245, 250); // Light background
+  doc.roundedRect(14, 55, pageWidth - 28, 25, 3, 3, "F");
+
+  doc.setTextColor(50, 50, 50);
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text("Job Summary:", 20, 63);
+
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "normal");
+
+  // Summary items in a row
+  const summaryY = 72;
+  const col1 = 20;
+  const col2 = pageWidth / 4;
+  const col3 = pageWidth / 2;
+  const col4 = (3 * pageWidth) / 4 - 10;
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Client:", col1, summaryY);
+  doc.text("Worker:", col2, summaryY);
+  doc.text("Status:", col3, summaryY);
+  doc.text("Timeline:", col4, summaryY);
+
+  doc.setFont("helvetica", "normal");
+  doc.text(job.clientName || "N/A", col1, summaryY + 6);
+  doc.text(job.workerName || "N/A", col2, summaryY + 6);
+
+  // Status with color indicator
+  let statusColor: RGB = [255, 180, 0]; // Default yellow for pending
+  if (job.status === "completed") {
+    statusColor = [0, 180, 0]; // Green
+  } else if (job.status === "in-progress") {
+    statusColor = [0, 120, 255]; // Blue
+  }
+
+  doc.setFillColor(statusColor[0], statusColor[1], statusColor[2]);
+  doc.circle(col3, summaryY + 3, 2, "F");
+  doc.text(
+    job.status
+      ? job.status.charAt(0).toUpperCase() + job.status.slice(1)
+      : "Pending",
+    col3 + 5,
+    summaryY + 6
+  );
+
+  // Timeline text
+  const timelineText = isOverdue
+    ? `Overdue by ${Math.abs(daysRemaining)} days`
+    : job.status === "completed"
+    ? "Completed"
+    : `${daysRemaining} days remaining`;
+  doc.text(timelineText, col4, summaryY + 6);
+
+  // Create a more detailed job information table
+  const jobDetailsTable: any = {
+    head: [
+      [
+        {
+          content: "JOB INFORMATION",
+          colSpan: 4,
+          styles: {
+            halign: "center",
+            fontStyle: "bold" as FontStyle,
+            fontSize: 12,
+            fillColor: primaryColor,
+            textColor: [255, 255, 255] as RGB,
+          },
+        },
+      ],
+    ],
+    body: [
+      ["Job Name", job.jobName || "", "Job ID", job._id || ""],
+      ["Client", job.clientName || "", "Worker", job.workerName || ""],
+      [
+        "Start Date",
+        job.assignDate ? format(new Date(job.assignDate), "dd-MMM-yyyy") : "",
+        "Due Date",
+        job.expireDate ? format(new Date(job.expireDate), "dd-MMM-yyyy") : "",
+      ],
+      [
+        "Status",
+        job.status
+          ? job.status.charAt(0).toUpperCase() + job.status.slice(1)
+          : "Pending",
+        "Time Remaining",
+        isOverdue
+          ? `Overdue by ${Math.abs(daysRemaining)} days`
+          : `${daysRemaining} days remaining`,
+      ],
+    ],
+  };
+
+  // Add the job details table
+  autoTable(doc, {
+    startY: 90,
+    head: jobDetailsTable.head,
+    body: jobDetailsTable.body,
+    theme: "grid",
+    styles: {
+      fontSize: 10,
+      cellPadding: { top: 3, right: 2, bottom: 3, left: 2 },
+      lineWidth: 0.1,
+      textColor: [50, 50, 50] as RGB,
+    },
+    columnStyles: {
+      0: {
+        fontStyle: "bold" as FontStyle,
+        cellWidth: 30,
+        fillColor: [240, 240, 250] as RGB,
+      },
+      1: { cellWidth: 70 },
+      2: {
+        fontStyle: "bold" as FontStyle,
+        cellWidth: 30,
+        fillColor: [240, 240, 250] as RGB,
+      },
+      3: { cellWidth: 70 },
+    },
+    alternateRowStyles: {
+      fillColor: [250, 250, 255] as RGB,
+    },
+    headStyles: {
+      textColor: [255, 255, 255] as RGB,
+      fillColor: primaryColor,
+    },
+  });
+
+  // Add job description in a separate table
+  autoTable(doc, {
+    startY: (doc as any).lastAutoTable.finalY + 5,
+    head: [
+      [
+        {
+          content: "JOB DESCRIPTION",
+          styles: {
+            halign: "center",
+            fontStyle: "bold" as FontStyle,
+            fontSize: 12,
+            fillColor: primaryColor,
+            textColor: [255, 255, 255] as RGB,
+          },
+        },
+      ],
+    ],
+    body: [[job.description || "No description provided"]],
+    theme: "grid",
+    styles: {
+      fontSize: 10,
+      cellPadding: { top: 3, right: 4, bottom: 3, left: 4 },
+      lineWidth: 0.1,
+      textColor: [50, 50, 50] as RGB,
+    },
+    alternateRowStyles: {
+      fillColor: [250, 250, 255] as RGB,
+    },
+  });
+
+  // Financial Summary Section
+  let financialY = (doc as any).lastAutoTable.finalY + 10;
+
+  // Check if we need a new page
+  if (financialY > pageHeight - 100) {
+    doc.addPage();
+    // Add header to new page
+    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.rect(0, 0, pageWidth, 20, "F");
+    doc.setTextColor(255);
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("WARRINGTON INSTALLS - JOB DETAILS REPORT", 14, 15);
+
+    // Add decorative element
+    doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
+    doc.rect(0, 20, pageWidth, 2, "F");
+
+    financialY = 30;
+  }
+
+  // Add financial summary table
+  if (session?.user?.role === "admin") {
+    // Create financial data table
+    const financialData: any = {
+      head: [
+        [
+          {
+            content: "FINANCIAL SUMMARY",
+            colSpan: 2,
+            styles: {
+              halign: "center",
+              fontStyle: "bold" as FontStyle,
+              fontSize: 12,
+              fillColor: primaryColor,
+              textColor: [255, 255, 255] as RGB,
+            },
+          },
+        ],
+      ],
+      body: [
+        ["Client Price", `£${(job.clientPrice || 0).toFixed(2)}`],
+        ["Total Costs", `£${totalCost.toFixed(2)}`],
+        ["Profit", `£${profit.toFixed(2)}`],
+        [
+          "Profit Margin",
+          job.clientPrice
+            ? `${Math.round((profit / job.clientPrice) * 100)}%`
+            : "0%",
+        ],
+      ],
+    };
+
+    // Add the financial summary table
+    autoTable(doc, {
+      startY: financialY,
+      head: financialData.head,
+      body: financialData.body,
+      theme: "grid",
+      styles: {
+        fontSize: 10,
+        cellPadding: { top: 3, right: 2, bottom: 3, left: 2 },
+        lineWidth: 0.1,
+        textColor: [50, 50, 50] as RGB,
+      },
+      columnStyles: {
+        0: {
+          fontStyle: "bold" as FontStyle,
+          cellWidth: 40,
+          fillColor: [240, 240, 250] as RGB,
+        },
+        1: { cellWidth: 40, halign: "right" },
+      },
+      alternateRowStyles: {
+        fillColor: [250, 250, 255] as RGB,
+      },
+    });
+  }
+
+  // Progress Logs Section
+  const progressY =
+    session?.user?.role === "admin"
+      ? (doc as any).lastAutoTable.finalY + 10
+      : financialY;
+
+  // Check if we need a new page
+  if (progressY > pageHeight - 100) {
+    doc.addPage();
+    // Add header to new page
+    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.rect(0, 0, pageWidth, 20, "F");
+    doc.setTextColor(255);
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("WARRINGTON INSTALLS - JOB DETAILS REPORT", 14, 15);
+
+    // Add decorative element
+    doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
+    doc.rect(0, 20, pageWidth, 2, "F");
+  }
+
+  const currentY = progressY > pageHeight - 100 ? 30 : progressY;
+
+  // Progress logs table headers
+  const progressHeaders: any = [
+    [
+      {
+        content: "PROGRESS TIMELINE",
+        colSpan: 4,
+        styles: {
+          halign: "center",
+          fontStyle: "bold" as FontStyle,
+          fontSize: 12,
+          fillColor: primaryColor,
+          textColor: [255, 255, 255] as RGB,
+        },
+      },
+    ],
+    ["DATE", "UPDATED BY", "DETAILS", "COST"],
+  ];
+
+  if (job.progressLogs && job.progressLogs.length > 0) {
+    // Sort progress logs by date (newest first)
+    const sortedLogs = [...job.progressLogs].sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+
+    // Calculate total cost for progress logs
+    const progressTotalCost = sortedLogs.reduce(
+      (sum, log) => sum + (log.cost || 0),
+      0
+    );
+
+    const progressData = sortedLogs.map((log) => [
+      format(new Date(log.timestamp), "dd-MMM-yyyy HH:mm"),
+      log.updatedByName || "Unknown",
+      log.statusChange ? `Status changed to ${log.newStatus}` : log.details,
+      log.cost ? `£${log.cost.toFixed(2)}` : "-",
+    ]);
+
+    // Add total row
+    const totalRow: any = [
+      { content: "", styles: {} },
+      { content: "", styles: {} },
+      {
+        content: "TOTAL",
+        styles: {
+          fontStyle: "bold" as FontStyle,
+          halign: "right",
+          fillColor: [240, 240, 250] as RGB,
+        },
+      },
+      {
+        content: `£${progressTotalCost.toFixed(2)}`,
+        styles: {
+          fontStyle: "bold" as FontStyle,
+          halign: "right",
+          fillColor: [240, 240, 250] as RGB,
+        },
+      },
+    ];
+    progressData.push(totalRow);
+
+    // Add the progress timeline table
+    autoTable(doc, {
+      startY: currentY,
+      head: progressHeaders,
+      body: progressData,
+      theme: "grid",
+      styles: {
+        fontSize: 9,
+        cellPadding: { top: 3, right: 2, bottom: 3, left: 2 },
+        lineWidth: 0.1,
+        textColor: [50, 50, 50] as RGB,
+      },
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: [255, 255, 255] as RGB,
+        fontStyle: "bold" as FontStyle,
+        halign: "center",
+        valign: "middle",
+        fontSize: 9,
+      },
+      columnStyles: {
+        0: { cellWidth: 35 },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 100 },
+        3: { cellWidth: 25, halign: "right" },
+      },
+      alternateRowStyles: {
+        fillColor: [250, 250, 255] as RGB,
+      },
+    });
+  } else {
+    // Add empty progress timeline table with just the header
+    autoTable(doc, {
+      startY: currentY,
+      head: progressHeaders,
+      body: [["No progress logs have been recorded for this job.", "", "", ""]],
+      theme: "grid",
+      styles: {
+        fontSize: 9,
+        cellPadding: { top: 3, right: 2, bottom: 3, left: 2 },
+        lineWidth: 0.1,
+        textColor: [50, 50, 50] as RGB,
+      },
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: [255, 255, 255] as RGB,
+        fontStyle: "bold" as FontStyle,
+        halign: "center",
+        valign: "middle",
+        fontSize: 9,
+      },
+      columnStyles: {
+        0: { cellWidth: 35 },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 100 },
+        3: { cellWidth: 25, halign: "right" },
+      },
+    });
+  }
+
+  // Add calculation box with enhanced styling (if admin)
+  if (session?.user?.role === "admin") {
+    let startY = (doc as any).lastAutoTable.finalY + 10;
+
+    // Check if there's enough space for calculation box
+    if (startY + 100 > pageHeight - 20) {
+      doc.addPage();
+      // Add header to new page
+      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.rect(0, 0, pageWidth, 20, "F");
+      doc.setTextColor(255);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("WARRINGTON INSTALLS - JOB DETAILS REPORT", 14, 15);
+
+      // Add decorative element
+      doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
+      doc.rect(0, 20, pageWidth, 2, "F");
+
+      startY = 30;
+    }
+
+    // Create a professional calculation box with shadow effect
+    // Shadow effect (light gray rectangle slightly offset)
+    doc.setFillColor(220, 220, 220);
+    doc.roundedRect(pageWidth - 78, startY + 2, 70, 50, 3, 3, "F");
+
+    // Main box
+    doc.setFillColor(250, 250, 255);
+    doc.roundedRect(pageWidth - 80, startY, 70, 50, 3, 3, "F");
+
+    // Title bar
+    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.roundedRect(pageWidth - 80, startY, 70, 8, 3, 3, "F");
+
+    // Only round the top corners
+    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.rect(pageWidth - 80, startY + 4, 70, 4, "F");
+
+    doc.setTextColor(255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("CALCULATION SUMMARY", pageWidth - 45, startY + 5.5, {
+      align: "center",
+    });
+
+    // Reset text color for calculations
+    doc.setTextColor(50, 50, 50);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+
+    // Add calculation rows
+    let calcY = startY + 15;
+
+    // Client Price
+    doc.text("Client Price:", pageWidth - 75, calcY);
+    doc.text(`£${(job.clientPrice || 0).toFixed(2)}`, pageWidth - 15, calcY, {
+      align: "right",
+    });
+    calcY += 7;
+
+    // Total Costs
+    doc.text("Total Costs:", pageWidth - 75, calcY);
+    doc.text(`£${totalCost.toFixed(2)}`, pageWidth - 15, calcY, {
+      align: "right",
+    });
+    calcY += 7;
+
+    // Add line before profit
+    calcY += 2;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(pageWidth - 75, calcY, pageWidth - 15, calcY);
+    calcY += 5;
+
+    // Profit (in bold)
+    doc.setFont("helvetica", "bold");
+    doc.text("PROFIT:", pageWidth - 75, calcY);
+
+    // Set profit color based on value
+    if (profit >= 0) {
+      doc.setTextColor(0, 150, 0); // Green for positive profit
+    } else {
+      doc.setTextColor(200, 0, 0); // Red for negative profit
+    }
+
+    doc.text(`£${profit.toFixed(2)}`, pageWidth - 15, calcY, {
+      align: "right",
+    });
+    calcY += 7;
+
+    // Reset text color and add profit margin
+    doc.setTextColor(50, 50, 50);
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      `Profit Margin: ${
+        job.clientPrice ? Math.round((profit / job.clientPrice) * 100) : 0
+      }%`,
+      pageWidth - 75,
+      calcY
+    );
+  }
+
+  // Add footer to all pages
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+
+    // Footer line
+    doc.setDrawColor(200, 200, 200);
+    doc.line(10, pageHeight - 15, pageWidth - 10, pageHeight - 15);
+
+    // Footer text
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text("WARRINGTON INSTALLS", 14, pageHeight - 10);
+    doc.text(`Page ${i} of ${pageCount}`, pageWidth - 20, pageHeight - 10, {
+      align: "right",
+    });
+
+    // Add timestamp in footer
+    const timestamp = format(new Date(), "dd-MMM-yyyy");
+    doc.text(timestamp, pageWidth / 2, pageHeight - 10, { align: "center" });
+  }
 
   return doc;
 };
