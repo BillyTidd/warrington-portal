@@ -130,7 +130,7 @@ export default function JobPortalPage() {
       ];
 
       // If not admin, filter mock jobs to only show those assigned to current user
-      const filteredMockJobs =
+      const filteredMockJobs: any =
         session?.user?.role === "admin"
           ? mockJobs
           : mockJobs.filter((job) => job.userId === session?.user?.id);

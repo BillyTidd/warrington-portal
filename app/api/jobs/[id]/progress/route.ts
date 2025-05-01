@@ -11,7 +11,7 @@ export async function POST(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    if (!session?.user || !session.user.name) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -59,7 +59,7 @@ export async function POST(
     const result = await db.collection("jobs").updateOne(
       { _id: new ObjectId(id) },
       {
-        $push: { progressLogs: progressLog },
+        $push: { progressLogs: progressLog as any }, // Add type assertion to fix TypeScript error
         $set: {
           ...statusUpdate,
           updatedAt: new Date(),
@@ -132,7 +132,7 @@ export async function DELETE(
     const result = await db.collection("jobs").updateOne(
       { _id: new ObjectId(id) },
       {
-        $pull: { progressLogs: { _id: logId } },
+        $pull: { progressLogs: { _id: logId } as any }, // Add type assertion to fix TypeScript error
         $set: {
           updatedAt: new Date(),
           updatedBy: session.user.id,

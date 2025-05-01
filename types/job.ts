@@ -19,7 +19,7 @@ export interface Job {
   workerName: string; // Keep for display purposes
   description?: string;
   clientPrice?: number;
-  status?: "pending" | "in-progress" | "completed";
+  status?: any;
   progressLogs?: JobProgressLog[]; // Add progress logs
   createdBy?: string;
   createdByName?: string;

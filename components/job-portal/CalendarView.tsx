@@ -26,7 +26,7 @@ import {
   formatISO,
   isSameDay,
 } from "date-fns";
-import type { Job } from "@/app/job-portal/page";
+import type { Job } from "@/types/job";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {

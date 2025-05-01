@@ -28,7 +28,7 @@ export function JobProgressForm({
   onCancel,
   isSubmitting,
 }: JobProgressFormProps) {
-  const [formData, setFormData] = useState<Partial<JobProgressLog>>({
+  const [formData, setFormData] = useState<Partial<any>>({
     details: "",
     hoursSpent: undefined,
     cost: undefined,
