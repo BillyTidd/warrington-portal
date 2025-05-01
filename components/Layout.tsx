@@ -15,6 +15,7 @@ import {
   LogOut,
   Moon,
   Sun,
+  Package,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import Image from "next/image";
@@ -47,6 +48,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
     ...(status === "authenticated" && session?.user?.role === "admin"
       ? [{ href: "/task-reports", label: "Tasks Reports", icon: FileText }]
       : []),
+    // ...(status === "authenticated" && session?.user?.role === "admin"
+    //   ? [{ href: "/job-portal", label: "Job Portal", icon: Package }]
+    //   : []),
+    { href: "/job-portal", label: "Job Portal", icon: Package },
   ];
 
   const SidebarContent = () => (

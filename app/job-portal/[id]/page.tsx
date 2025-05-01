@@ -1,0 +1,604 @@
+"use client";
+
+import type React from "react";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { parseISO, differenceInDays } from "date-fns";
+import {
+  Loader2,
+  AlertTriangle,
+  FileText,
+  ArrowLeft,
+  ClipboardList,
+  BarChart3,
+  Plus,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { Layout } from "@/components/Layout";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { Job } from "@/types/job";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+import { JobDetailsHeader } from "@/components/job-portal/JobDetailsHeader";
+import { generateJobPDF } from "@/lib/excelGenerator";
+import { StatusUpdateSection } from "@/components/job-portal/StatusUpdateSection";
+import { JobDetailsForm } from "@/components/job-portal/JobDetailsForm";
+import { JobDescription } from "@/components/job-portal/JobDescription";
+import { JobTimeline } from "@/components/job-portal/JobTimeline";
+import { JobStatusCard } from "@/components/job-portal/JobStatusCard";
+import { ProgressForm } from "@/components/job-portal/ProgressForm";
+import { ProgressSummary } from "@/components/job-portal/ProgressSummary";
+import { ProgressTimeline } from "@/components/job-portal/ProgressTimeline";
+import { FinancialSummary } from "@/components/job-portal/FinancialSummary";
+import { CostBreakdown } from "@/components/job-portal/CostBreakdown";
+
+export default function JobDetailsPage({ params }: { params: { id: string } }) {
+  const router = useRouter();
+  const { data: session } = useSession();
+  const [job, setJob] = useState<Job | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedJob, setEditedJob] = useState<Partial<Job>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [progressDescription, setProgressDescription] = useState("");
+  const [progressAmount, setProgressAmount] = useState("");
+  const [isSubmittingProgress, setIsSubmittingProgress] = useState(false);
+  const [workers, setWorkers] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState("details");
+  const [showProgressForm, setShowProgressForm] = useState(false);
+
+  const isAdmin = session?.user?.role === "admin";
+  const isAssignedToMe = job?.userId === session?.user?.id;
+  const canUpdateJob = isAdmin || isAssignedToMe;
+  const canEditJob = isAdmin;
+
+  useEffect(() => {
+    fetchJobDetails();
+    if (isAdmin) {
+      fetchWorkers();
+    }
+  }, [params.id, isAdmin]);
+
+  const fetchJobDetails = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/jobs/${params.id}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch job details");
+      }
+      const data = await response.json();
+      setJob(data);
+      setEditedJob(data);
+    } catch (error) {
+      console.error("Error fetching job:", error);
+      toast.error("Failed to load job details");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchWorkers = async () => {
+    try {
+      const response = await fetch("/api/admin/users");
+      if (!response.ok) {
+        throw new Error("Failed to fetch workers");
+      }
+      const data = await response.json();
+      // Filter approved workers
+      const approvedWorkers = data.filter((user: any) => user.isApproved);
+      setWorkers(approvedWorkers);
+    } catch (error) {
+      console.error("Error fetching workers:", error);
+      // Fallback to mock data
+      const mockWorkers = [
+        { _id: "w1", name: "Admin User", role: "admin" },
+        { _id: "w2", name: "Aidan Wharton", role: "employee" },
+        { _id: "w3", name: "Lee Adams", role: "employee" },
+        { _id: "w4", name: "Ewan Fitzgerald", role: "employee" },
+        { _id: "w5", name: "Connor Gray", role: "employee" },
+      ];
+      setWorkers(mockWorkers);
+    }
+  };
+
+  const handleSaveJob = async () => {
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/jobs/${params.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(editedJob),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to update job");
+      }
+
+      const updatedJob = await response.json();
+      setJob(updatedJob);
+      setIsEditing(false);
+      toast.success("Job updated successfully");
+
+      // If status was changed, log it in progress
+      if (job?.status !== editedJob.status) {
+        await fetch(`/api/jobs/${params.id}/progress`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            details: `Status changed to ${editedJob.status}`,
+            statusChange: true,
+            newStatus: editedJob.status,
+          }),
+        });
+      }
+    } catch (error: any) {
+      console.error("Error updating job:", error);
+      toast.error(error.message || "Failed to update job");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteJob = async () => {
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/jobs/${params.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to delete job");
+      }
+
+      toast.success("Job deleted successfully");
+      router.push("/job-portal");
+    } catch (error: any) {
+      console.error("Error deleting job:", error);
+      toast.error(error.message || "Failed to delete job");
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+    }
+  };
+
+  const handleAddProgress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!progressDescription.trim()) {
+      toast.error("Please enter a progress description");
+      return;
+    }
+
+    setIsSubmittingProgress(true);
+    try {
+      const response = await fetch(`/api/jobs/${params.id}/progress`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          details: progressDescription,
+          cost: progressAmount ? Number.parseFloat(progressAmount) : undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to add progress");
+      }
+
+      const updatedJob = await response.json();
+      setJob(updatedJob);
+      setProgressDescription("");
+      setProgressAmount("");
+      setShowProgressForm(false);
+      toast.success("Progress added successfully");
+    } catch (error: any) {
+      console.error("Error adding progress:", error);
+      toast.error(error.message || "Failed to add progress");
+    } finally {
+      setIsSubmittingProgress(false);
+    }
+  };
+
+  const handleDeleteProgress = async (logId: string) => {
+    try {
+      const response = await fetch(
+        `/api/jobs/${params.id}/progress?logId=${logId}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to delete progress log");
+      }
+
+      const updatedJob = await response.json();
+      setJob(updatedJob);
+      toast.success("Progress log deleted successfully");
+    } catch (error: any) {
+      console.error("Error deleting progress log:", error);
+      toast.error(error.message || "Failed to delete progress log");
+    }
+  };
+
+  const handleStatusChange = async (
+    newStatus: "pending" | "in-progress" | "completed"
+  ) => {
+    if (!job || job.status === newStatus) return;
+
+    setIsSaving(true);
+    try {
+      // Update the job status
+      const response = await fetch(`/api/jobs/${params.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...job,
+          status: newStatus,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to update status");
+      }
+
+      // Add a progress log for the status change
+      const progressResponse = await fetch(`/api/jobs/${params.id}/progress`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          details: `Status changed to ${newStatus}`,
+          statusChange: true,
+          newStatus: newStatus,
+        }),
+      });
+
+      if (!progressResponse.ok) {
+        throw new Error("Failed to log status change");
+      }
+
+      const updatedJob = await progressResponse.json();
+      setJob(updatedJob);
+      setEditedJob(updatedJob);
+      toast.success("Status updated successfully");
+    } catch (error: any) {
+      console.error("Error updating status:", error);
+      toast.error(error.message || "Failed to update status");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleGeneratePDF = async () => {
+    if (!job) return;
+
+    try {
+      const safeFilename = `job-report-${job._id}.pdf`;
+
+      const doc = await generateJobPDF(job, session);
+      doc.save(safeFilename);
+      toast.success("PDF report generated successfully");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF report");
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="container mx-auto py-8 px-4">
+          <div className="flex justify-center items-center h-64">
+            <div className="text-center">
+              <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+              <p className="text-muted-foreground">Loading job details...</p>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!job) {
+    return (
+      <Layout>
+        <div className="container mx-auto py-8 px-4">
+          <div className="text-center max-w-md mx-auto">
+            <div className="bg-muted/30 rounded-full p-6 w-24 h-24 flex items-center justify-center mx-auto mb-6">
+              <AlertTriangle className="h-12 w-12 text-muted-foreground" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Job not found</h2>
+            <p className="text-muted-foreground mb-6">
+              The job you're looking for doesn't exist or you don't have
+              permission to view it.
+            </p>
+            <Button size="lg" onClick={() => router.push("/job-portal")}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Job Portal
+            </Button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  const daysRemaining = differenceInDays(parseISO(job.expireDate), new Date());
+  const isOverdue = daysRemaining < 0 && job.status !== "completed";
+  const progressPercentage =
+    job.status === "completed" ? 100 : job.status === "in-progress" ? 50 : 0;
+  const totalCost =
+    job.progressLogs?.reduce((sum, log) => sum + (log.cost || 0), 0) || 0;
+  const profit = (job.clientPrice || 0) - totalCost;
+
+  return (
+    <Layout>
+      <div className="container mx-auto py-8 px-4">
+        {/* Header Section */}
+        <div className="mb-8">
+          <JobDetailsHeader
+            job={job}
+            isEditing={isEditing}
+            editedJob={editedJob}
+            isSaving={isSaving}
+            isAdmin={isAdmin}
+            canEditJob={canEditJob}
+            canUpdateJob={canUpdateJob}
+            daysRemaining={daysRemaining}
+            isOverdue={isOverdue}
+            progressPercentage={progressPercentage}
+            setEditedJob={setEditedJob}
+            setIsEditing={setIsEditing}
+            handleSaveJob={handleSaveJob}
+            setShowProgressForm={setShowProgressForm}
+            setIsDeleteDialogOpen={setIsDeleteDialogOpen}
+          />
+
+          {/* PDF Generation Button */}
+          <div className="flex justify-end mb-4">
+            <Button
+              variant="outline"
+              onClick={handleGeneratePDF}
+              className="flex items-center gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              Generate PDF Report
+            </Button>
+          </div>
+
+          {/* Status Update Section */}
+          {canUpdateJob && !isEditing && (
+            <StatusUpdateSection
+              jobStatus={job.status || "pending"}
+              isSaving={isSaving}
+              handleStatusChange={handleStatusChange}
+            />
+          )}
+
+          {/* Main Content Tabs */}
+          <Tabs
+            defaultValue="details"
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="w-full"
+          >
+            <TabsList className="grid grid-cols-3 mb-6">
+              <TabsTrigger
+                value="details"
+                className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Details
+              </TabsTrigger>
+              <TabsTrigger
+                value="progress"
+                className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+              >
+                <ClipboardList className="h-4 w-4 mr-2" />
+                Progress
+              </TabsTrigger>
+              {isAdmin && (
+                <TabsTrigger
+                  value="financials"
+                  className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+                >
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Financials
+                </TabsTrigger>
+              )}
+            </TabsList>
+
+            <TabsContent value="details" className="mt-0">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left column - Job details */}
+                <div className="lg:col-span-2">
+                  {isEditing ? (
+                    <JobDetailsForm
+                      editedJob={editedJob}
+                      setEditedJob={setEditedJob}
+                      isAdmin={isAdmin}
+                      workers={workers}
+                    />
+                  ) : (
+                    <JobDescription description={job.description} />
+                  )}
+                </div>
+
+                {/* Right column - Job stats */}
+                <div className="lg:col-span-1 space-y-6">
+                  <JobTimeline
+                    job={job}
+                    daysRemaining={daysRemaining}
+                    isOverdue={isOverdue}
+                  />
+                  <JobStatusCard
+                    status={job.status || "pending"}
+                    progressPercentage={progressPercentage}
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="progress" className="mt-0">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left column - Add progress */}
+                <div className="lg:col-span-1 space-y-6">
+                  {canUpdateJob && (
+                    <>
+                      {showProgressForm ? (
+                        <ProgressForm
+                          isSubmitting={isSubmittingProgress}
+                          onSubmit={handleAddProgress}
+                          progressDescription={progressDescription}
+                          setProgressDescription={setProgressDescription}
+                          progressAmount={progressAmount}
+                          setProgressAmount={setProgressAmount}
+                          onCancel={() => setShowProgressForm(false)}
+                        />
+                      ) : (
+                        <div>
+                          <Card className="border-none shadow-lg">
+                            <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40">
+                              <CardTitle>Progress Tracking</CardTitle>
+                              <CardDescription>
+                                Keep track of your work on this job
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent className="pt-6">
+                              <div className="text-center py-6">
+                                <div className="bg-muted/30 rounded-full p-4 w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                                  <ClipboardList className="h-8 w-8 text-muted-foreground" />
+                                </div>
+                                <h3 className="text-lg font-medium mb-2">
+                                  Track Your Progress
+                                </h3>
+                                <p className="text-muted-foreground mb-4">
+                                  Record updates, costs, and activities as you
+                                  work on this job.
+                                </p>
+                                <Button
+                                  onClick={() => setShowProgressForm(true)}
+                                >
+                                  <Plus className="mr-2 h-4 w-4" />
+                                  Add Progress Update
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+                      )}
+
+                      <ProgressSummary
+                        progressLogs={job.progressLogs}
+                        totalCost={totalCost}
+                      />
+                    </>
+                  )}
+                </div>
+
+                {/* Right column - Progress timeline */}
+                <div className="lg:col-span-2">
+                  <ProgressTimeline
+                    progressLogs={job.progressLogs}
+                    canUpdateJob={canUpdateJob}
+                    handleDeleteProgress={handleDeleteProgress}
+                    setShowProgressForm={setShowProgressForm}
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            {isAdmin && (
+              <TabsContent value="financials" className="mt-0">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-1 space-y-6">
+                    <FinancialSummary
+                      clientPrice={job.clientPrice || 0}
+                      totalCost={totalCost}
+                      profit={profit}
+                    />
+                  </div>
+
+                  <div className="lg:col-span-2">
+                    <CostBreakdown
+                      progressLogs={job.progressLogs}
+                      totalCost={totalCost}
+                      profit={profit}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+            )}
+          </Tabs>
+        </div>
+
+        <AlertDialog
+          open={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Are you sure you want to delete this job?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the
+                job and all associated data.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteJob}
+                disabled={isDeleting}
+                className="bg-red-500 hover:bg-red-600"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete Job"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </Layout>
+  );
+}
