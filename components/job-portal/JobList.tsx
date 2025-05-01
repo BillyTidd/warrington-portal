@@ -2,7 +2,14 @@
 import { format, parseISO, isPast } from "date-fns";
 import type { Job } from "@/types/job";
 import { Button } from "@/components/ui/button";
-import { Eye, Edit, Trash2 } from "lucide-react";
+import {
+  Eye,
+  Edit,
+  Trash2,
+  CheckCircle,
+  Clock,
+  AlertTriangle,
+} from "lucide-react";
 import {
   Table,
   TableBody,
@@ -14,6 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 interface JobListProps {
   jobs: Job[];
@@ -28,24 +36,44 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
 
   const getStatusBadge = (status: string, expireDate: string) => {
     if (status === "completed") {
-      return <Badge className="bg-green-500">Completed</Badge>;
+      return (
+        <Badge className="bg-green-500/90 text-white hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700 flex items-center gap-1">
+          <CheckCircle className="h-3 w-3" />
+          <span>Completed</span>
+        </Badge>
+      );
     }
 
     if (isPast(parseISO(expireDate)) && status !== "completed") {
-      return <Badge className="bg-red-500">Overdue</Badge>;
+      return (
+        <Badge className="bg-red-500/90 text-white hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700 flex items-center gap-1">
+          <AlertTriangle className="h-3 w-3" />
+          <span>Overdue</span>
+        </Badge>
+      );
     }
 
     if (status === "in-progress") {
-      return <Badge className="bg-blue-500">In Progress</Badge>;
+      return (
+        <Badge className="bg-blue-500/90 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 flex items-center gap-1">
+          <Clock className="h-3 w-3" />
+          <span>In Progress</span>
+        </Badge>
+      );
     }
 
-    return <Badge className="bg-yellow-500">Pending</Badge>;
+    return (
+      <Badge className="bg-amber-500/90 text-white hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700 flex items-center gap-1">
+        <Clock className="h-3 w-3" />
+        <span>Pending</span>
+      </Badge>
+    );
   };
 
   if (isLoading) {
     return (
-      <div className="p-8 text-center">
-        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto"></div>
+      <div className="p-8 text-center bg-white dark:bg-gray-950 rounded-lg shadow-sm border dark:border-gray-800">
+        <div className="animate-spin h-8 w-8 border-4 border-violet-500 border-t-transparent rounded-full mx-auto"></div>
         <p className="mt-4 text-muted-foreground">Loading jobs...</p>
       </div>
     );
@@ -53,7 +81,7 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
 
   if (jobs.length === 0) {
     return (
-      <div className="p-8 text-center">
+      <div className="p-8 text-center bg-white dark:bg-gray-950 rounded-lg shadow-sm border dark:border-gray-800">
         <p className="text-muted-foreground">
           No jobs found. Create a new job to get started.
         </p>
@@ -62,22 +90,46 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-lg border dark:border-gray-800 bg-white dark:bg-gray-950 shadow-sm">
       <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Job Name</TableHead>
-            <TableHead>Client</TableHead>
-            <TableHead>Worker</TableHead>
-            <TableHead>Assign Date</TableHead>
-            <TableHead>Expire Date</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+        <TableHeader className="bg-gray-50 dark:bg-gray-900">
+          <TableRow className="hover:bg-gray-50 dark:hover:bg-gray-900 border-b dark:border-gray-800">
+            <TableHead className="font-semibold text-gray-700 dark:text-gray-300">
+              Job Name
+            </TableHead>
+            <TableHead className="font-semibold text-gray-700 dark:text-gray-300">
+              Client
+            </TableHead>
+            <TableHead className="font-semibold text-gray-700 dark:text-gray-300">
+              Worker
+            </TableHead>
+            <TableHead className="font-semibold text-gray-700 dark:text-gray-300">
+              Start Date
+            </TableHead>
+            <TableHead className="font-semibold text-gray-700 dark:text-gray-300">
+              Due Date
+            </TableHead>
+            <TableHead className="font-semibold text-gray-700 dark:text-gray-300">
+              Status
+            </TableHead>
+            <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">
+              Actions
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {jobs.map((job) => (
-            <TableRow key={job._id} className="hover:bg-muted/50">
+            <TableRow
+              key={job._id}
+              className={cn(
+                "hover:bg-gray-50 dark:hover:bg-gray-900/50 border-b dark:border-gray-800",
+                job.status === "completed" &&
+                  "bg-green-50/30 dark:bg-green-900/10",
+                isPast(parseISO(job.expireDate)) &&
+                  job.status !== "completed" &&
+                  "bg-red-50/30 dark:bg-red-900/10"
+              )}
+            >
               <TableCell className="font-medium">{job.jobName}</TableCell>
               <TableCell>{job.clientName}</TableCell>
               <TableCell>{job.workerName}</TableCell>
@@ -91,12 +143,13 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
                 {getStatusBadge(job.status || "pending", job.expireDate)}
               </TableCell>
               <TableCell className="text-right">
-                <div className="flex justify-end gap-2">
+                <div className="flex justify-end gap-1">
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => router.push(`/job-portal/${job._id}`)}
                     title="View Details"
+                    className="hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
@@ -105,6 +158,7 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
                     size="icon"
                     onClick={() => router.push(`/job-portal/${job._id}`)}
                     title="Edit Job"
+                    className="hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
@@ -114,6 +168,7 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
                       size="icon"
                       onClick={() => onDeleteJob(job)}
                       title="Delete Job"
+                      className="hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-500 text-gray-700 dark:text-gray-300"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
