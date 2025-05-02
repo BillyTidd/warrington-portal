@@ -2,7 +2,7 @@ export interface JobProgressLog {
   _id?: string;
   timestamp: Date | string;
   updatedBy: string;
-  updatedByName?: string;
+  updatedByName?: string | null;
   details: string;
   cost?: number;
   statusChange?: boolean;
@@ -21,11 +21,12 @@ export interface Job {
   expireDate: string;
   clientName: string;
   clientId?: any;
-
+  userId?: any;
+  workerName?: string;
   workers: Worker[]; // Array of workers instead of single userId/workerName
   description?: string;
   clientPrice?: number;
-  status?: "pending" | "in-progress" | "completed";
+  status?: any;
   progressLogs?: JobProgressLog[];
   createdBy?: string;
   createdByName?: string;
