@@ -1,6 +1,6 @@
 "use client";
 
-import type React from "react";
+import React from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,9 @@ import { DialogFooter } from "@/components/ui/dialog";
 import type { Job } from "@/types/job";
 import { format, parseISO } from "date-fns";
 import { useSession } from "next-auth/react";
+import { Badge } from "@/components/ui/badge";
+import { X } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface JobFormProps {
   currentJob: Partial<Job>;
@@ -48,6 +51,69 @@ export function JobForm({
   const canDelete = isAdmin;
   const canSeeClientPrice = isAdmin;
   const canAssignWorker = isAdmin;
+
+  // Initialize workers array if it doesn't exist
+  React.useEffect(() => {
+    if (!currentJob.workers) {
+      // If editing an old job that uses the old format with userId/workerName
+      if (currentJob.userId && currentJob.workerName) {
+        setCurrentJob({
+          ...currentJob,
+          workers: [
+            { userId: currentJob.userId, workerName: currentJob.workerName },
+          ],
+        });
+      } else if (!isAdmin) {
+        // For non-admin users, automatically assign themselves
+        setCurrentJob({
+          ...currentJob,
+          workers: [{ userId: currentUserId, workerName: currentUserName }],
+        });
+      } else {
+        // Initialize empty array for admins
+        setCurrentJob({
+          ...currentJob,
+          workers: [],
+        });
+      }
+    }
+  }, [
+    currentJob.workers,
+    currentUserId,
+    currentUserName,
+    isAdmin,
+    currentJob.userId,
+    currentJob.workerName,
+    setCurrentJob,
+  ]);
+
+  const handleAddWorker = (workerId: string) => {
+    const selectedWorker = workers.find((worker) => worker._id === workerId);
+    if (!selectedWorker) return;
+
+    // Check if worker is already assigned
+    const isAlreadyAssigned = currentJob.workers?.some(
+      (worker) => worker.userId === workerId
+    );
+    if (isAlreadyAssigned) return;
+
+    setCurrentJob({
+      ...currentJob,
+      workers: [
+        ...(currentJob.workers || []),
+        { userId: workerId, workerName: selectedWorker.name },
+      ],
+    });
+  };
+
+  const handleRemoveWorker = (workerId: string) => {
+    setCurrentJob({
+      ...currentJob,
+      workers:
+        currentJob.workers?.filter((worker) => worker.userId !== workerId) ||
+        [],
+    });
+  };
 
   return (
     <form onSubmit={onSubmit}>
@@ -136,40 +202,67 @@ export function JobForm({
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor="userId">Assign To</Label>
+          <Label>Assigned Workers</Label>
           {isAdmin ? (
-            <Select
-              value={currentJob.userId || ""}
-              onValueChange={(value) => {
-                const selectedWorker = workers.find(
-                  (worker) => worker._id === value
-                );
-                setCurrentJob({
-                  ...currentJob,
-                  userId: value,
-                  workerName: selectedWorker?.name || "",
-                });
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select worker" />
-              </SelectTrigger>
-              <SelectContent>
-                {workers.map((worker) => (
-                  <SelectItem key={worker._id} value={worker._id}>
-                    {worker.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <>
+              <Select onValueChange={handleAddWorker}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Add worker" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workers
+                    .filter(
+                      (worker) =>
+                        !currentJob.workers?.some(
+                          (assigned) => assigned.userId === worker._id
+                        )
+                    )
+                    .map((worker) => (
+                      <SelectItem key={worker._id} value={worker._id}>
+                        {worker.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+
+              <div className="mt-2">
+                {currentJob.workers && currentJob.workers.length > 0 ? (
+                  <ScrollArea className="max-h-32">
+                    <div className="flex flex-wrap gap-2 p-1">
+                      {currentJob.workers.map((worker) => (
+                        <Badge
+                          key={worker.userId}
+                          variant="secondary"
+                          className="px-2 py-1"
+                        >
+                          {worker.workerName}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 ml-2 hover:bg-transparent"
+                            onClick={() => handleRemoveWorker(worker.userId)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No workers assigned
+                  </p>
+                )}
+              </div>
+            </>
           ) : (
             <>
-              <Input
-                id="workerName"
-                value={currentUserName}
-                disabled
-                className="bg-muted"
-              />
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary" className="px-2 py-1">
+                  {currentUserName}
+                </Badge>
+              </div>
               <input
                 type="hidden"
                 value={currentUserId}
