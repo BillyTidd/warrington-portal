@@ -9,6 +9,7 @@ import {
   CheckCircle,
   Clock,
   AlertTriangle,
+  Users,
 } from "lucide-react";
 import {
   Table,
@@ -22,6 +23,12 @@ import { Badge } from "@/components/ui/badge";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface JobListProps {
   jobs: Job[];
@@ -70,6 +77,38 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
     );
   };
 
+  const getWorkerDisplay = (job: Job) => {
+    // Handle both new format (workers array) and old format (workerName)
+    if (job.workers && job.workers.length > 0) {
+      if (job.workers.length === 1) {
+        return job.workers[0].workerName;
+      } else {
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center">
+                  <Users className="h-4 w-4 mr-1" />
+                  <span>{job.workers.length} workers</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <ul className="list-disc pl-4">
+                  {job.workers.map((worker) => (
+                    <li key={worker.userId}>{worker.workerName}</li>
+                  ))}
+                </ul>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      }
+    }
+
+    // Fallback for old job format
+    return job.workerName || "Unassigned";
+  };
+
   if (isLoading) {
     return (
       <div className="p-8 text-center bg-white dark:bg-gray-950 rounded-lg shadow-sm border dark:border-gray-800">
@@ -101,7 +140,7 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
               Client
             </TableHead>
             <TableHead className="font-semibold text-gray-700 dark:text-gray-300">
-              Worker
+              Workers
             </TableHead>
             <TableHead className="font-semibold text-gray-700 dark:text-gray-300">
               Start Date
@@ -132,7 +171,7 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
             >
               <TableCell className="font-medium">{job.jobName}</TableCell>
               <TableCell>{job.clientName}</TableCell>
-              <TableCell>{job.workerName}</TableCell>
+              <TableCell>{getWorkerDisplay(job)}</TableCell>
               <TableCell>
                 {format(parseISO(job.assignDate), "MMM d, yyyy")}
               </TableCell>
