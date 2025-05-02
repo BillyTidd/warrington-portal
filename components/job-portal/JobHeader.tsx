@@ -41,6 +41,7 @@ export function JobHeader({
   const { data: session } = useSession();
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const isAdmin = session?.user?.role === "admin";
 
   const handleGenerateReport = async () => {
     setIsGeneratingReport(true);
@@ -154,13 +155,15 @@ export function JobHeader({
 
       {/* Third Row - Action Buttons */}
       <div className="flex flex-col sm:flex-row justify-end gap-4 items-center w-full mt-4 sm:mt-0">
-        <Button
-          onClick={onNewJob}
-          className="bg-white text-violet-600 hover:bg-violet-50 w-full sm:w-auto shadow-md hover:shadow-lg transition-all"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          <span>New Job</span>
-        </Button>
+        {isAdmin && (
+          <Button
+            onClick={onNewJob}
+            className="bg-white text-violet-600 hover:bg-violet-50 w-full sm:w-auto shadow-md hover:shadow-lg transition-all"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            <span>New Job</span>
+          </Button>
+        )}
 
         {/* <Button
           onClick={handleGenerateReport}

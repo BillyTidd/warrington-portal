@@ -192,25 +192,28 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => router.push(`/job-portal/${job._id}`)}
-                    title="Edit Job"
-                    className="hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
                   {isAdmin && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onDeleteJob(job)}
-                      title="Delete Job"
-                      className="hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-500 text-gray-700 dark:text-gray-300"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => router.push(`/job-portal/${job._id}`)}
+                        title="Edit Job"
+                        className="hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onDeleteJob(job)}
+                        title="Delete Job"
+                        className="hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-500 text-gray-700 dark:text-gray-300"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </>
                   )}
                 </div>
               </TableCell>
