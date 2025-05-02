@@ -11,10 +11,7 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
-      return NextResponse.json(
-        { message: "Please log in to continue." },
-        { status: 401 }
-      );
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
     const id = params.id;
@@ -24,14 +21,23 @@ export async function GET(
 
     const client = await clientPromise;
     const db = client.db();
+
     const job = await db.collection("jobs").findOne({ _id: new ObjectId(id) });
 
     if (!job) {
       return NextResponse.json({ message: "Job not found" }, { status: 404 });
     }
 
-    // Check if user has access to this job
-    if (session.user.role !== "admin" && job.userId !== session.user.id) {
+    // Check if user has permission to view this job
+    // Admins can view all jobs, regular users can only view jobs assigned to them
+    const isAdmin = session.user.role === "admin";
+
+    // Check if user is in the workers array (new format) or matches userId (old format)
+    const isAssigned = job.workers
+      ? job.workers.some((worker: any) => worker.userId === session.user.id)
+      : job.userId === session.user.id;
+
+    if (!isAdmin && !isAssigned) {
       return NextResponse.json(
         { message: "You don't have permission to view this job" },
         { status: 403 }
@@ -67,7 +73,7 @@ export async function PUT(
     const client = await clientPromise;
     const db = client.db();
 
-    // Check if user has permission to edit this job
+    // Check if job exists and user has permission to update it
     const existingJob = await db
       .collection("jobs")
       .findOne({ _id: new ObjectId(id) });
@@ -75,36 +81,48 @@ export async function PUT(
       return NextResponse.json({ message: "Job not found" }, { status: 404 });
     }
 
-    if (
-      session.user.role !== "admin" &&
-      existingJob.userId !== session.user.id
-    ) {
+    // Only admins can update job details
+    // Regular users can only update status
+    const isAdmin = session.user.role === "admin";
+
+    // Check if user is in the workers array (new format) or matches userId (old format)
+    const isAssigned = existingJob.workers
+      ? existingJob.workers.some(
+          (worker: any) => worker.userId === session.user.id
+        )
+      : existingJob.userId === session.user.id;
+
+    if (!isAdmin && !isAssigned) {
       return NextResponse.json(
-        { message: "You don't have permission to edit this job" },
+        { message: "You don't have permission to update this job" },
         { status: 403 }
       );
     }
 
-    // If userId is changed, look up the user to get their name
-    if (jobData.userId && jobData.userId !== existingJob.userId) {
-      try {
-        const user = await db
-          .collection("users")
-          .findOne({ _id: new ObjectId(jobData.userId) });
-        if (user) {
-          jobData.workerName = user.name;
-        }
-      } catch (error) {
-        console.error("Error looking up user:", error);
+    // If not admin, only allow updating the status
+    let updateData = {};
+    if (isAdmin) {
+      // Handle conversion from old format to new format if needed
+      if (!jobData.workers && jobData.userId) {
+        jobData.workers = [
+          {
+            userId: jobData.userId,
+            workerName: jobData.workerName,
+          },
+        ];
       }
+
+      // Admin can update all fields
+      const { _id, ...jobDataWithoutId } = jobData;
+      updateData = jobDataWithoutId;
+    } else {
+      // Regular users can only update status
+      updateData = { status: jobData.status };
     }
 
-    // Remove _id from the update object to prevent the immutable field error
-    const { _id, ...jobDataWithoutId } = jobData;
-
-    // Add updated info
-    const jobToUpdate = {
-      ...jobDataWithoutId,
+    // Add updated metadata
+    updateData = {
+      ...updateData,
       updatedBy: session.user.id,
       updatedByName: session.user.name,
       updatedAt: new Date(),
@@ -112,7 +130,7 @@ export async function PUT(
 
     const result = await db
       .collection("jobs")
-      .updateOne({ _id: new ObjectId(id) }, { $set: jobToUpdate });
+      .updateOne({ _id: new ObjectId(id) }, { $set: updateData });
 
     if (result.matchedCount === 0) {
       return NextResponse.json({ message: "Job not found" }, { status: 404 });
@@ -142,7 +160,7 @@ export async function DELETE(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user is admin
+    // Only admins can delete jobs
     if (session.user.role !== "admin") {
       return NextResponse.json(
         { message: "Only admins can delete jobs" },
@@ -158,18 +176,15 @@ export async function DELETE(
     const client = await clientPromise;
     const db = client.db();
 
-    const result = await db.collection("jobs").deleteOne({
-      _id: new ObjectId(id),
-    });
+    const result = await db
+      .collection("jobs")
+      .deleteOne({ _id: new ObjectId(id) });
 
     if (result.deletedCount === 0) {
       return NextResponse.json({ message: "Job not found" }, { status: 404 });
     }
 
-    return NextResponse.json(
-      { message: "Job deleted successfully" },
-      { status: 200 }
-    );
+    return NextResponse.json({ message: "Job deleted successfully" });
   } catch (error) {
     console.error(`Error in DELETE /api/jobs/${params.id}:`, error);
     return NextResponse.json(
