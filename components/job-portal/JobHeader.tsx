@@ -162,7 +162,7 @@ export function JobHeader({
           <span>New Job</span>
         </Button>
 
-        <Button
+        {/* <Button
           onClick={handleGenerateReport}
           className="bg-white text-violet-600 hover:bg-violet-50 w-full sm:w-auto mt-4 sm:mt-0 shadow-md hover:shadow-lg transition-all"
         >
@@ -177,7 +177,7 @@ export function JobHeader({
               <span>Generate Report</span>
             </>
           )}
-        </Button>
+        </Button> */}
       </div>
     </div>
   );
