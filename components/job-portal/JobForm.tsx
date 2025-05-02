@@ -274,7 +274,7 @@ export function JobForm({
 
         {canSeeClientPrice && (
           <div className="grid gap-2">
-            <Label htmlFor="clientPrice">Client Price ($)</Label>
+            <Label htmlFor="clientPrice">Client Price (£)</Label>
             <Input
               id="clientPrice"
               type="number"

@@ -25,7 +25,7 @@ export function FinancialSummary({
             <div className="text-sm text-muted-foreground mb-1">
               Client Price
             </div>
-            <div className="text-2xl font-bold">${clientPrice.toFixed(2)}</div>
+            <div className="text-2xl font-bold">£{clientPrice.toFixed(2)}</div>
           </div>
 
           <Separator />
@@ -35,7 +35,7 @@ export function FinancialSummary({
               Total Costs
             </div>
             <div className="text-2xl font-bold text-red-500">
-              -${totalCost.toFixed(2)}
+              -£{totalCost.toFixed(2)}
             </div>
           </div>
 
@@ -48,7 +48,7 @@ export function FinancialSummary({
                 profit >= 0 ? "text-green-500" : "text-red-500"
               }`}
             >
-              ${profit.toFixed(2)}
+              £{profit.toFixed(2)}
             </div>
           </div>
 

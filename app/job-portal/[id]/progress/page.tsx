@@ -15,6 +15,7 @@ import {
   DollarSign,
   User,
   Calendar,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +25,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Layout } from "@/components/Layout";
-import type { Job } from "@/types/job";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import type { Job, Worker } from "@/types/job";
 
 export default function JobProgressPage({
   params,
@@ -44,7 +46,12 @@ export default function JobProgressPage({
   >("pending");
 
   const isAdmin = session?.user?.role === "admin";
-  const isAssignedToMe = job?.userId === session?.user?.id;
+
+  // Check if current user is assigned to this job
+  const isAssignedToMe = job?.workers
+    ? job.workers.some((worker) => worker.userId === session?.user?.id)
+    : job?.userId === session?.user?.id; // Backward compatibility
+
   const canUpdateJob = isAdmin || isAssignedToMe;
 
   useEffect(() => {
@@ -86,7 +93,6 @@ export default function JobProgressPage({
         body: JSON.stringify({
           details: progressDescription,
           cost: progressAmount ? Number.parseFloat(progressAmount) : undefined,
-          // No status or hours in this simplified version
         }),
       });
 
@@ -179,6 +185,40 @@ export default function JobProgressPage({
       console.error("Error deleting progress log:", error);
       toast.error(error.message || "Failed to delete progress log");
     }
+  };
+
+  // Helper function to render assigned workers
+  const renderAssignedWorkers = () => {
+    if (job?.workers && job.workers.length > 0) {
+      return (
+        <ScrollArea className="max-h-32">
+          <div className="space-y-2">
+            {job.workers.map((worker: Worker) => (
+              <div key={worker.userId} className="flex items-center gap-2">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <span>{worker.workerName}</span>
+                {worker.userId === session?.user?.id && (
+                  <Badge variant="outline" className="ml-auto text-xs">
+                    You
+                  </Badge>
+                )}
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      );
+    } else if (job?.workerName) {
+      // Backward compatibility for old job format
+      return (
+        <div className="flex items-center gap-2">
+          <User className="h-4 w-4 text-muted-foreground" />
+          <span>{job.workerName}</span>
+        </div>
+      );
+    }
+    return (
+      <span className="text-muted-foreground italic">No workers assigned</span>
+    );
   };
 
   if (isLoading) {
@@ -316,10 +356,10 @@ export default function JobProgressPage({
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Assigned to:</span>{" "}
-                  {job.workerName}
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Assigned workers:</span>
                 </div>
+                {renderAssignedWorkers()}
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span className="font-medium">Due date:</span>{" "}
@@ -427,10 +467,19 @@ export default function JobProgressPage({
                                 </div>
                                 <div className="text-sm font-medium mt-1">
                                   Updated by: {log.updatedByName || "Unknown"}
+                                  {log.updatedBy === session?.user?.id && (
+                                    <Badge
+                                      variant="outline"
+                                      className="ml-2 text-xs"
+                                    >
+                                      You
+                                    </Badge>
+                                  )}
                                 </div>
                               </div>
 
-                              {(isAdmin || isAssignedToMe) && (
+                              {(isAdmin ||
+                                log.updatedBy === session?.user?.id) && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
