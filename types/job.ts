@@ -9,18 +9,22 @@ export interface JobProgressLog {
   newStatus?: string;
 }
 
+export interface Worker {
+  userId: string;
+  workerName: string;
+}
+
 export interface Job {
   _id?: string;
   jobName: string;
   assignDate: string;
   expireDate: string;
   clientName: string;
-  userId: string; // Store user ID instead of just name
-  workerName: string; // Keep for display purposes
+  workers: Worker[]; // Array of workers instead of single userId/workerName
   description?: string;
   clientPrice?: number;
-  status?: any;
-  progressLogs?: JobProgressLog[]; // Add progress logs
+  status?: "pending" | "in-progress" | "completed";
+  progressLogs?: JobProgressLog[];
   createdBy?: string;
   createdByName?: string;
   updatedBy?: string;
