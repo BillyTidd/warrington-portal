@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import clientPromise from "@/lib/mongodb";
 import { authOptions } from "@/lib/auth";
-import { ObjectId } from "mongodb";
 
 export async function GET() {
   try {
@@ -18,10 +17,10 @@ export async function GET() {
     const db = client.db();
 
     // Filter jobs based on user role
-    // Admins see all jobs, regular users only see jobs assigned to them
     let query = {};
     if (session.user.role !== "admin") {
-      query = { userId: session.user.id }; // Use userId instead of workerName
+      // For regular users, find jobs where they are in the workers array
+      query = { "workers.userId": session.user.id };
     }
 
     const jobs = await db
@@ -51,18 +50,22 @@ export async function POST(req: Request) {
     const client = await clientPromise;
     const db = client.db();
 
-    // If userId is provided, look up the user to get their name
-    if (jobData.userId) {
-      try {
-        const user = await db
-          .collection("users")
-          .findOne({ _id: new ObjectId(jobData.userId) });
-        if (user) {
-          jobData.workerName = user.name;
-        }
-      } catch (error) {
-        console.error("Error looking up user:", error);
-      }
+    // Handle backward compatibility - convert single userId/workerName to workers array
+    if (!jobData.workers && jobData.userId) {
+      jobData.workers = [
+        {
+          userId: jobData.userId,
+          workerName: jobData.workerName || "Unknown Worker",
+        },
+      ];
+      // Remove old fields to avoid confusion
+      delete jobData.userId;
+      delete jobData.workerName;
+    }
+
+    // If no workers are assigned, initialize empty array
+    if (!jobData.workers) {
+      jobData.workers = [];
     }
 
     // Add created by info and timestamps

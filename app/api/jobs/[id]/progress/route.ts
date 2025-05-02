@@ -11,7 +11,7 @@ export async function POST(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user || !session.user.name) {
+    if (!session?.user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -30,7 +30,15 @@ export async function POST(
       return NextResponse.json({ message: "Job not found" }, { status: 404 });
     }
 
-    if (session.user.role !== "admin" && job.userId !== session.user.id) {
+    // Check if user is admin or assigned to this job
+    const isAdmin = session.user.role === "admin";
+
+    // Check if user is in the workers array (new format) or matches userId (old format)
+    const isAssigned = job.workers
+      ? job.workers.some((worker: any) => worker.userId === session.user.id)
+      : job.userId === session.user.id;
+
+    if (!isAdmin && !isAssigned) {
       return NextResponse.json(
         { message: "You don't have permission to update this job" },
         { status: 403 }
@@ -121,9 +129,19 @@ export async function DELETE(
       return NextResponse.json({ message: "Job not found" }, { status: 404 });
     }
 
-    if (session.user.role !== "admin" && job.userId !== session.user.id) {
+    // Find the specific log to check ownership
+    const log = job.progressLogs?.find((log: any) => log._id === logId);
+    if (!log) {
+      return NextResponse.json({ message: "Log not found" }, { status: 404 });
+    }
+
+    // Allow deletion if user is admin, or if they created the log
+    const isAdmin = session.user.role === "admin";
+    const isLogOwner = log.updatedBy === session.user.id;
+
+    if (!isAdmin && !isLogOwner) {
       return NextResponse.json(
-        { message: "You don't have permission to update this job" },
+        { message: "You don't have permission to delete this log" },
         { status: 403 }
       );
     }
