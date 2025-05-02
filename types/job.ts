@@ -20,6 +20,8 @@ export interface Job {
   assignDate: string;
   expireDate: string;
   clientName: string;
+  clientId?: any;
+
   workers: Worker[]; // Array of workers instead of single userId/workerName
   description?: string;
   clientPrice?: number;

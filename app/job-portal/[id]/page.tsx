@@ -489,7 +489,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
               className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
             >
               <ClipboardList className="h-4 w-4 mr-2" />
-              Progress
+              Expenses / Progress
             </TabsTrigger>
             {isAdmin && (
               <TabsTrigger

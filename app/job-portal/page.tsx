@@ -1,15 +1,7 @@
 "use client";
-
-import type React from "react";
 import { useEffect, useState } from "react";
-import { format, addMonths, subMonths, parseISO } from "date-fns";
-import { Loader2, X } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { addMonths, subMonths } from "date-fns";
+import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -21,7 +13,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { JobForm } from "@/components/job-portal/JobForm";
 import { JobHeader } from "@/components/job-portal/JobHeader";
 import { JobList } from "@/components/job-portal/JobList";
 import { CalendarView } from "@/components/job-portal/CalendarView";
@@ -30,52 +21,35 @@ import { Layout } from "@/components/Layout";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import type { Job } from "@/types/job";
+import { Button } from "@/components/ui/button";
 
 export default function JobPortalPage() {
   const { data: session } = useSession();
   const router = useRouter();
 
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [workers, setWorkers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentJob, setCurrentJob] = useState<Partial<Job>>({});
-  const [isEditMode, setIsEditMode] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
 
   useEffect(() => {
-    fetchData();
+    fetchJobs();
   }, []);
 
-  const fetchData = async () => {
+  const fetchJobs = async () => {
     setIsLoading(true);
     try {
-      // Fetch data from API endpoints
-      const [jobsRes, workersRes] = await Promise.all([
-        fetch("/api/jobs"),
-        fetch("/api/admin/users"),
-      ]);
-
-      if (!jobsRes.ok || !workersRes.ok) {
-        throw new Error("Failed to fetch data");
+      const response = await fetch("/api/jobs");
+      if (!response.ok) {
+        throw new Error("Failed to fetch jobs");
       }
-
-      const jobsData = await jobsRes.json();
-      const workersData = await workersRes.json();
-
-      // Filter approved workers
-      const approvedWorkers = workersData.filter(
-        (user: any) => user.isApproved
-      );
-
+      const jobsData = await response.json();
       setJobs(jobsData);
-      setWorkers(approvedWorkers);
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("Error fetching jobs:", error);
       toast.error("Failed to fetch job data");
     } finally {
       setIsLoading(false);
@@ -90,78 +64,8 @@ export default function JobPortalPage() {
     );
   };
 
-  const handleNewJob = (date?: string) => {
-    // For non-admin users, pre-fill their name as the worker
-    const initialJobData: Partial<Job> = {
-      assignDate: date || format(new Date(), "yyyy-MM-dd"),
-      expireDate: format(
-        addMonths(date ? parseISO(date) : new Date(), 1),
-        "yyyy-MM-dd"
-      ),
-    };
-
-    // If not admin, pre-assign the job to the current user
-    if (session?.user?.role !== "admin" && session?.user?.name) {
-      initialJobData.userId = session.user.id;
-      initialJobData.workerName = session.user.name;
-    }
-
-    setCurrentJob(initialJobData);
-    setIsEditMode(false);
-    setIsModalOpen(true);
-  };
-
-  const handleSaveJob = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSaving(true);
-    try {
-      const url = isEditMode ? `/api/jobs/${currentJob._id}` : "/api/jobs";
-      const method = isEditMode ? "PUT" : "POST";
-
-      const { _id, ...jobDataWithoutId } = currentJob as Job;
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(jobDataWithoutId),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to save job");
-      }
-
-      const savedJob = await response.json();
-
-      // Update local state to reflect changes
-      if (isEditMode && currentJob._id) {
-        setJobs(
-          jobs.map((job) => (job._id === currentJob._id ? savedJob : job))
-        );
-      } else {
-        setJobs([...jobs, savedJob]);
-      }
-
-      toast.success(
-        isEditMode ? "Job updated successfully" : "Job created successfully"
-      );
-      setIsModalOpen(false);
-
-      // If it's a new job, navigate to the job details page
-      if (!isEditMode && savedJob._id) {
-        router.push(`/job-portal/${savedJob._id}`);
-      }
-    } catch (error: any) {
-      console.error("Error saving job:", error);
-      toast.error(
-        error.message ||
-          (isEditMode ? "Failed to update job" : "Failed to create job")
-      );
-    } finally {
-      setIsSaving(false);
-    }
+  const handleNewJob = () => {
+    router.push("/job-portal/new");
   };
 
   const handleDeleteJob = async () => {
@@ -181,7 +85,6 @@ export default function JobPortalPage() {
       setJobs(jobs.filter((job) => job._id !== currentJob._id));
 
       toast.success("Job deleted successfully");
-      setIsModalOpen(false);
       setIsDeleteDialogOpen(false);
     } catch (error: any) {
       console.error("Error deleting job:", error);
@@ -198,7 +101,7 @@ export default function JobPortalPage() {
           <JobHeader
             currentDate={currentDate}
             onNavigate={handleNavigate}
-            onNewJob={() => handleNewJob()}
+            onNewJob={handleNewJob}
             jobs={jobs}
           >
             <ViewToggle view={viewMode} onChange={setViewMode} />
@@ -218,40 +121,26 @@ export default function JobPortalPage() {
               jobs={jobs}
               currentDate={currentDate}
               onViewDetails={(job) => router.push(`/job-portal/${job._id}`)}
-              onNewJob={handleNewJob}
+              onNewJob={(date) =>
+                router.push(`/job-portal/new?date=${date || ""}`)
+              }
               onNavigate={handleNavigate}
               setCurrentDate={setCurrentDate}
             />
           )}
         </div>
 
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
-            >
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
-            </button>
-
-            <DialogHeader>
-              <DialogTitle>
-                {isEditMode ? "Edit Job" : "Create New Job"}
-              </DialogTitle>
-            </DialogHeader>
-
-            <JobForm
-              currentJob={currentJob}
-              workers={workers}
-              isEditMode={isEditMode}
-              onSubmit={handleSaveJob}
-              onDelete={() => setIsDeleteDialogOpen(true)}
-              isSaving={isSaving}
-              setCurrentJob={setCurrentJob}
-            />
-          </DialogContent>
-        </Dialog>
+        {/* Floating action button for mobile */}
+        <div className="fixed bottom-6 right-6 md:hidden">
+          <Button
+            onClick={handleNewJob}
+            size="lg"
+            className="rounded-full h-14 w-14 shadow-lg"
+          >
+            <Plus className="h-6 w-6" />
+            <span className="sr-only">New Job</span>
+          </Button>
+        </div>
 
         <AlertDialog
           open={isDeleteDialogOpen}
