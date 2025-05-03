@@ -14,8 +14,10 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface JobDetailsProps {
   job: Job;
@@ -75,6 +77,8 @@ export function JobDetails({ job, onEdit, onDelete }: JobDetailsProps) {
         </div>
       </div>
 
+      <Separator />
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardContent className="p-4">
@@ -90,9 +94,26 @@ export function JobDetails({ job, onEdit, onDelete }: JobDetailsProps) {
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-muted-foreground mb-2">
               <User className="h-4 w-4" />
-              <span className="font-medium">Assigned Worker</span>
+              <span className="font-medium">Assigned Workers</span>
             </div>
-            <p>{job.workerName}</p>
+            {job.workers && job.workers.length > 0 ? (
+              <ScrollArea className="max-h-24">
+                <div className="flex flex-wrap gap-2">
+                  {job.workers.map((worker) => (
+                    <Badge key={worker.userId} variant="outline">
+                      {worker.workerName}
+                    </Badge>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : job.workerName ? (
+              // Backward compatibility for old job format
+              <p>{job.workerName}</p>
+            ) : (
+              <p className="text-muted-foreground italic">
+                No workers assigned
+              </p>
+            )}
           </CardContent>
         </Card>
 

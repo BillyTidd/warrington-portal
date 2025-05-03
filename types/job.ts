@@ -2,11 +2,16 @@ export interface JobProgressLog {
   _id?: string;
   timestamp: Date | string;
   updatedBy: string;
-  updatedByName?: string;
+  updatedByName?: string | null;
   details: string;
   cost?: number;
   statusChange?: boolean;
   newStatus?: string;
+}
+
+export interface Worker {
+  userId: string;
+  workerName: string;
 }
 
 export interface Job {
@@ -15,12 +20,14 @@ export interface Job {
   assignDate: string;
   expireDate: string;
   clientName: string;
-  userId: string; // Store user ID instead of just name
-  workerName: string; // Keep for display purposes
+  clientId?: any;
+  userId?: any;
+  workerName?: string;
+  workers: Worker[]; // Array of workers instead of single userId/workerName
   description?: string;
   clientPrice?: number;
   status?: any;
-  progressLogs?: JobProgressLog[]; // Add progress logs
+  progressLogs?: JobProgressLog[];
   createdBy?: string;
   createdByName?: string;
   updatedBy?: string;

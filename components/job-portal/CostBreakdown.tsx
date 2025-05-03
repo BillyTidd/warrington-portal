@@ -44,7 +44,7 @@ export function CostBreakdown({
                 >
                   <div>
                     <div className="font-medium">
-                      ${log.cost?.toFixed(2) || "0.00"}
+                      £{log.cost?.toFixed(2) || "0.00"}
                     </div>
                     <div className="text-sm text-muted-foreground mt-1">
                       {format(new Date(log.timestamp), "MMM d, yyyy")}
@@ -74,7 +74,7 @@ export function CostBreakdown({
       <CardFooter className="border-t bg-muted/30 flex justify-between p-4">
         <div className="text-sm text-muted-foreground">
           Total Costs:{" "}
-          <span className="font-medium">${totalCost.toFixed(2)}</span>
+          <span className="font-medium">£{totalCost.toFixed(2)}</span>
         </div>
         <div className="text-sm text-muted-foreground">
           Profit:{" "}
@@ -83,7 +83,7 @@ export function CostBreakdown({
               profit >= 0 ? "text-green-500" : "text-red-500"
             }`}
           >
-            ${profit.toFixed(2)}
+            £{profit.toFixed(2)}
           </span>
         </div>
       </CardFooter>

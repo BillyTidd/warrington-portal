@@ -106,7 +106,7 @@ export function ProgressTimeline({
                           <div className="mt-3 text-sm bg-muted/30 p-2 rounded-md inline-block">
                             <span className="font-medium flex items-center">
                               <DollarSign className="h-3 w-3 mr-1" />
-                              Amount: ${log.cost?.toFixed(2) || "0.00"}
+                              Amount: £{log.cost?.toFixed(2) || "0.00"}
                             </span>
                           </div>
                         )}

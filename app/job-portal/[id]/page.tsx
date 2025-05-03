@@ -14,6 +14,7 @@ import {
   ClipboardList,
   BarChart3,
   Plus,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -29,7 +30,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Job } from "@/types/job";
+import type { Job, Worker } from "@/types/job";
 import {
   Card,
   CardContent,
@@ -37,7 +38,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
+// Import components
 import { JobDetailsHeader } from "@/components/job-portal/JobDetailsHeader";
 import { generateJobPDF } from "@/lib/excelGenerator";
 import { StatusUpdateSection } from "@/components/job-portal/StatusUpdateSection";
@@ -69,7 +73,12 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const [showProgressForm, setShowProgressForm] = useState(false);
 
   const isAdmin = session?.user?.role === "admin";
-  const isAssignedToMe = job?.userId === session?.user?.id;
+
+  // Check if current user is assigned to this job (works with both old and new format)
+  const isAssignedToMe = job?.workers
+    ? job.workers.some((worker) => worker.userId === session?.user?.id)
+    : job?.userId === session?.user?.id; // Backward compatibility
+
   const canUpdateJob = isAdmin || isAssignedToMe;
   const canEditJob = isAdmin;
 
@@ -307,15 +316,68 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
     if (!job) return;
 
     try {
-      const safeFilename = `job-report-${job._id}.pdf`;
-
       const doc = await generateJobPDF(job, session);
-      doc.save(safeFilename);
+      doc.save(`job-${job._id}-report.pdf`);
       toast.success("PDF report generated successfully");
     } catch (error) {
       console.error("Error generating PDF:", error);
       toast.error("Failed to generate PDF report");
     }
+  };
+
+  // Helper function to render assigned workers
+  const renderAssignedWorkers = () => {
+    if (job?.workers && job.workers.length > 0) {
+      return (
+        <Card className="mb-4">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center">
+              <Users className="h-5 w-5 mr-2" />
+              Assigned Workers
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="max-h-40">
+              <div className="space-y-2">
+                {job.workers.map((worker: Worker) => (
+                  <div
+                    key={worker.userId}
+                    className="flex items-center justify-between py-1 px-2 rounded-md hover:bg-muted/50"
+                  >
+                    <span>{worker.workerName}</span>
+                    {worker.userId === session?.user?.id && (
+                      <Badge variant="outline" className="ml-2">
+                        You
+                      </Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      );
+    } else if (job?.workerName) {
+      // Backward compatibility for old job format
+      return (
+        <Card className="mb-4">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Assigned Worker</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between py-1 px-2">
+              <span>{job.workerName}</span>
+              {job.userId === session?.user?.id && (
+                <Badge variant="outline" className="ml-2">
+                  You
+                </Badge>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+    return null;
   };
 
   if (isLoading) {
@@ -368,202 +430,202 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
     <Layout>
       <div className="container mx-auto py-8 px-4">
         {/* Header Section */}
-        <div className="mb-8">
-          <JobDetailsHeader
-            job={job}
-            isEditing={isEditing}
-            editedJob={editedJob}
-            isSaving={isSaving}
-            isAdmin={isAdmin}
-            canEditJob={canEditJob}
-            canUpdateJob={canUpdateJob}
-            daysRemaining={daysRemaining}
-            isOverdue={isOverdue}
-            progressPercentage={progressPercentage}
-            setEditedJob={setEditedJob}
-            setIsEditing={setIsEditing}
-            handleSaveJob={handleSaveJob}
-            setShowProgressForm={setShowProgressForm}
-            setIsDeleteDialogOpen={setIsDeleteDialogOpen}
-          />
+        <JobDetailsHeader
+          job={job}
+          isEditing={isEditing}
+          editedJob={editedJob}
+          isSaving={isSaving}
+          isAdmin={isAdmin}
+          canEditJob={canEditJob}
+          canUpdateJob={canUpdateJob}
+          daysRemaining={daysRemaining}
+          isOverdue={isOverdue}
+          progressPercentage={progressPercentage}
+          setEditedJob={setEditedJob}
+          setIsEditing={setIsEditing}
+          handleSaveJob={handleSaveJob}
+          setShowProgressForm={setShowProgressForm}
+          setIsDeleteDialogOpen={setIsDeleteDialogOpen}
+        />
 
-          {/* PDF Generation Button */}
-          <div className="flex justify-end mb-4">
-            <Button
-              variant="outline"
-              onClick={handleGeneratePDF}
-              className="flex items-center gap-2"
-            >
-              <FileText className="h-4 w-4" />
-              Generate PDF Report
-            </Button>
-          </div>
-
-          {/* Status Update Section */}
-          {canUpdateJob && !isEditing && (
-            <StatusUpdateSection
-              jobStatus={job.status || "pending"}
-              isSaving={isSaving}
-              handleStatusChange={handleStatusChange}
-            />
-          )}
-
-          {/* Main Content Tabs */}
-          <Tabs
-            defaultValue="details"
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="w-full"
+        {/* PDF Generation Button */}
+        <div className="flex justify-end mb-4">
+          <Button
+            variant="outline"
+            onClick={handleGeneratePDF}
+            className="flex items-center gap-2"
           >
-            <TabsList className="grid grid-cols-3 mb-6">
-              <TabsTrigger
-                value="details"
-                className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                Details
-              </TabsTrigger>
-              <TabsTrigger
-                value="progress"
-                className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
-              >
-                <ClipboardList className="h-4 w-4 mr-2" />
-                Progress
-              </TabsTrigger>
-              {isAdmin && (
-                <TabsTrigger
-                  value="financials"
-                  className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
-                >
-                  <BarChart3 className="h-4 w-4 mr-2" />
-                  Financials
-                </TabsTrigger>
-              )}
-            </TabsList>
+            <FileText className="h-4 w-4" />
+            Generate PDF Report
+          </Button>
+        </div>
 
-            <TabsContent value="details" className="mt-0">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left column - Job details */}
-                <div className="lg:col-span-2">
-                  {isEditing ? (
-                    <JobDetailsForm
-                      editedJob={editedJob}
-                      setEditedJob={setEditedJob}
-                      isAdmin={isAdmin}
-                      workers={workers}
-                    />
-                  ) : (
-                    <JobDescription description={job.description} />
-                  )}
-                </div>
+        {/* Status Update Section */}
+        {canUpdateJob && !isEditing && (
+          <StatusUpdateSection
+            jobStatus={job.status || "pending"}
+            isSaving={isSaving}
+            handleStatusChange={handleStatusChange}
+          />
+        )}
 
-                {/* Right column - Job stats */}
-                <div className="lg:col-span-1 space-y-6">
-                  <JobTimeline
-                    job={job}
-                    daysRemaining={daysRemaining}
-                    isOverdue={isOverdue}
-                  />
-                  <JobStatusCard
-                    status={job.status || "pending"}
-                    progressPercentage={progressPercentage}
-                  />
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="progress" className="mt-0">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left column - Add progress */}
-                <div className="lg:col-span-1 space-y-6">
-                  {canUpdateJob && (
-                    <>
-                      {showProgressForm ? (
-                        <ProgressForm
-                          isSubmitting={isSubmittingProgress}
-                          onSubmit={handleAddProgress}
-                          progressDescription={progressDescription}
-                          setProgressDescription={setProgressDescription}
-                          progressAmount={progressAmount}
-                          setProgressAmount={setProgressAmount}
-                          onCancel={() => setShowProgressForm(false)}
-                        />
-                      ) : (
-                        <div>
-                          <Card className="border-none shadow-lg">
-                            <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40">
-                              <CardTitle>Progress Tracking</CardTitle>
-                              <CardDescription>
-                                Keep track of your work on this job
-                              </CardDescription>
-                            </CardHeader>
-                            <CardContent className="pt-6">
-                              <div className="text-center py-6">
-                                <div className="bg-muted/30 rounded-full p-4 w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                                  <ClipboardList className="h-8 w-8 text-muted-foreground" />
-                                </div>
-                                <h3 className="text-lg font-medium mb-2">
-                                  Track Your Progress
-                                </h3>
-                                <p className="text-muted-foreground mb-4">
-                                  Record updates, costs, and activities as you
-                                  work on this job.
-                                </p>
-                                <Button
-                                  onClick={() => setShowProgressForm(true)}
-                                >
-                                  <Plus className="mr-2 h-4 w-4" />
-                                  Add Progress Update
-                                </Button>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </div>
-                      )}
-
-                      <ProgressSummary
-                        progressLogs={job.progressLogs}
-                        totalCost={totalCost}
-                      />
-                    </>
-                  )}
-                </div>
-
-                {/* Right column - Progress timeline */}
-                <div className="lg:col-span-2">
-                  <ProgressTimeline
-                    progressLogs={job.progressLogs}
-                    canUpdateJob={canUpdateJob}
-                    handleDeleteProgress={handleDeleteProgress}
-                    setShowProgressForm={setShowProgressForm}
-                  />
-                </div>
-              </div>
-            </TabsContent>
-
+        {/* Main Content Tabs */}
+        <Tabs
+          defaultValue="details"
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="w-full"
+        >
+          <TabsList className="grid grid-cols-3 mb-6">
+            <TabsTrigger
+              value="details"
+              className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Details
+            </TabsTrigger>
+            <TabsTrigger
+              value="progress"
+              className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+            >
+              <ClipboardList className="h-4 w-4 mr-2" />
+              Expenses / Progress
+            </TabsTrigger>
             {isAdmin && (
-              <TabsContent value="financials" className="mt-0">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-1 space-y-6">
-                    <FinancialSummary
-                      clientPrice={job.clientPrice || 0}
-                      totalCost={totalCost}
-                      profit={profit}
-                    />
-                  </div>
+              <TabsTrigger
+                value="financials"
+                className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+              >
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Financials
+              </TabsTrigger>
+            )}
+          </TabsList>
 
-                  <div className="lg:col-span-2">
-                    <CostBreakdown
+          <TabsContent value="details" className="mt-0">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left column - Job details */}
+              <div className="lg:col-span-2">
+                {isEditing ? (
+                  <JobDetailsForm
+                    editedJob={editedJob}
+                    setEditedJob={setEditedJob}
+                    isAdmin={isAdmin}
+                    workers={workers}
+                  />
+                ) : (
+                  <>
+                    {/* Display assigned workers */}
+                    {renderAssignedWorkers()}
+                    <JobDescription description={job.description} />
+                  </>
+                )}
+              </div>
+
+              {/* Right column - Job stats */}
+              <div className="lg:col-span-1 space-y-6">
+                <JobTimeline
+                  job={job}
+                  daysRemaining={daysRemaining}
+                  isOverdue={isOverdue}
+                />
+                <JobStatusCard
+                  status={job.status || "pending"}
+                  progressPercentage={progressPercentage}
+                />
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="progress" className="mt-0">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left column - Add progress */}
+              <div className="lg:col-span-1 space-y-6">
+                {canUpdateJob && (
+                  <>
+                    {showProgressForm ? (
+                      <ProgressForm
+                        isSubmitting={isSubmittingProgress}
+                        onSubmit={handleAddProgress}
+                        progressDescription={progressDescription}
+                        setProgressDescription={setProgressDescription}
+                        progressAmount={progressAmount}
+                        setProgressAmount={setProgressAmount}
+                        onCancel={() => setShowProgressForm(false)}
+                      />
+                    ) : (
+                      <div>
+                        <Card className="border-none shadow-lg">
+                          <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40">
+                            <CardTitle>Progress Tracking</CardTitle>
+                            <CardDescription>
+                              Keep track of your work on this job
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent className="pt-6">
+                            <div className="text-center py-6">
+                              <div className="bg-muted/30 rounded-full p-4 w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                                <ClipboardList className="h-8 w-8 text-muted-foreground" />
+                              </div>
+                              <h3 className="text-lg font-medium mb-2">
+                                Track Your Progress
+                              </h3>
+                              <p className="text-muted-foreground mb-4">
+                                Record updates, costs, and activities as you
+                                work on this job.
+                              </p>
+                              <Button onClick={() => setShowProgressForm(true)}>
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add Progress Update
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+
+                    <ProgressSummary
                       progressLogs={job.progressLogs}
                       totalCost={totalCost}
-                      profit={profit}
                     />
-                  </div>
+                  </>
+                )}
+              </div>
+
+              {/* Right column - Progress timeline */}
+              <div className="lg:col-span-2">
+                <ProgressTimeline
+                  progressLogs={job.progressLogs}
+                  canUpdateJob={canUpdateJob}
+                  handleDeleteProgress={handleDeleteProgress}
+                  setShowProgressForm={setShowProgressForm}
+                />
+              </div>
+            </div>
+          </TabsContent>
+
+          {isAdmin && (
+            <TabsContent value="financials" className="mt-0">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-1 space-y-6">
+                  <FinancialSummary
+                    clientPrice={job.clientPrice || 0}
+                    totalCost={totalCost}
+                    profit={profit}
+                  />
                 </div>
-              </TabsContent>
-            )}
-          </Tabs>
-        </div>
+
+                <div className="lg:col-span-2">
+                  <CostBreakdown
+                    progressLogs={job.progressLogs}
+                    totalCost={totalCost}
+                    profit={profit}
+                  />
+                </div>
+              </div>
+            </TabsContent>
+          )}
+        </Tabs>
 
         <AlertDialog
           open={isDeleteDialogOpen}

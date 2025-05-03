@@ -34,7 +34,7 @@ export function ProgressSummary({
 
           <div>
             <div className="text-sm text-muted-foreground mb-1">Total Cost</div>
-            <div className="text-2xl font-bold">${totalCost.toFixed(2)}</div>
+            <div className="text-2xl font-bold">£{totalCost.toFixed(2)}</div>
           </div>
 
           <Separator />
