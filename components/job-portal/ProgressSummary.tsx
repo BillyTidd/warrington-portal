@@ -8,11 +8,13 @@ import type { JobProgressLog } from "@/types/job";
 interface ProgressSummaryProps {
   progressLogs: JobProgressLog[] | undefined;
   totalCost: number;
+  currencySymbol?: string;
 }
 
 export function ProgressSummary({
   progressLogs,
   totalCost,
+  currencySymbol = "£",
 }: ProgressSummaryProps) {
   return (
     <Card className="border-none shadow-lg">

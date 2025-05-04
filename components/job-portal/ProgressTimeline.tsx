@@ -19,6 +19,7 @@ interface ProgressTimelineProps {
   canUpdateJob: boolean;
   handleDeleteProgress: (logId: string) => Promise<void>;
   setShowProgressForm: (show: boolean) => void;
+  currencySymbol?: string;
 }
 
 export function ProgressTimeline({
