@@ -22,6 +22,7 @@ export interface Job {
   _id: string;
   clientName: string;
   userId: string;
+  jobName?: any;
   workerName: string;
   assignDate: Date | string;
   expireDate: any | string;

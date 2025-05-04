@@ -141,7 +141,7 @@ export function ProgressTimeline({
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="h-[500px]">
+          <ScrollArea className="h-[600px]">
             <div className="space-y-0">
               {sortedLogs.map((log, index) => (
                 <div
