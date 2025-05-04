@@ -1,7 +1,5 @@
 "use client";
 
-import type React from "react";
-
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -62,12 +60,12 @@ import { JobDetailsForm } from "@/components/job-portal/JobDetailsForm";
 import { JobDescription } from "@/components/job-portal/JobDescription";
 import { JobTimeline } from "@/components/job-portal/JobTimeline";
 import { JobStatusCard } from "@/components/job-portal/JobStatusCard";
+import { JobProgressForm } from "@/components/job-portal/JobProgressForm";
 import { ProgressSummary } from "@/components/job-portal/ProgressSummary";
 import { ProgressTimeline } from "@/components/job-portal/ProgressTimeline";
 import { FinancialSummary } from "@/components/job-portal/FinancialSummary";
 import { CostBreakdown } from "@/components/job-portal/CostBreakdown";
 import { generateJobPDF } from "@/lib/excelGenerator";
-import { JobProgressForm } from "@/components/job-portal/JobProgressForm";
 
 export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -100,7 +98,8 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   );
   const workerPaymentRate =
     currentWorker?.paymentRate || job?.workerPaymentRate;
-  const workerHourlyRate = currentWorker?.hourlyRate || job?.workerHourlyRate;
+  const workerHourlyRate: any =
+    currentWorker?.hourlyRate || job?.workerHourlyRate;
 
   const canUpdateJob = isAdmin || isAssignedToMe;
   const canEditJob = isAdmin;
@@ -223,24 +222,33 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
     }
   };
 
-  const handleAddProgress = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!progressDescription.trim()) {
-      toast.error("Please enter a progress description");
-      return;
-    }
-
+  const handleAddProgress = async (progressData: Partial<any>) => {
     setIsSubmittingProgress(true);
     try {
+      // Prepare the data for the API
+      const apiData = {
+        details: progressData.description,
+        cost:
+          progressData.workType === "extra"
+            ? progressData.overtimeHours * workerHourlyRate
+            : progressData.amount
+            ? Number.parseFloat(progressData.amount.toString())
+            : undefined,
+        overtimeHours: progressData.overtimeHours,
+        overtimeCost:
+          progressData.workType === "extra" &&
+          progressData.overtimeHours &&
+          workerHourlyRate
+            ? progressData.overtimeHours * workerHourlyRate
+            : undefined,
+      };
+
       const response = await fetch(`/api/jobs/${params.id}/progress`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          details: progressDescription,
-          cost: progressAmount ? Number.parseFloat(progressAmount) : undefined,
-        }),
+        body: JSON.stringify(apiData),
       });
 
       if (!response.ok) {
@@ -248,10 +256,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
         throw new Error(errorData.message || "Failed to add progress");
       }
 
-      const updatedJob = await response.json();
-      setJob(updatedJob);
-      setProgressDescription("");
-      setProgressAmount("");
+      await fetchJobDetails(); // Refresh job data
       setShowProgressForm(false);
       toast.success("Progress added successfully");
     } catch (error: any) {
@@ -787,16 +792,11 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                   <>
                     {showProgressForm ? (
                       <JobProgressForm
-                        isSubmitting={isSubmittingProgress}
                         onSubmit={handleAddProgress}
-                        progressDescription={progressDescription}
-                        setProgressDescription={setProgressDescription}
-                        progressAmount={progressAmount}
-                        setProgressAmount={setProgressAmount}
                         onCancel={() => setShowProgressForm(false)}
+                        isSubmitting={isSubmittingProgress}
+                        workerHourlyRate={workerHourlyRate}
                         currencySymbol="£"
-                        job={job}
-                        currentUserId={session?.user?.id || ""}
                       />
                     ) : (
                       <div>

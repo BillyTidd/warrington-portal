@@ -28,43 +28,67 @@ import { toast } from "sonner";
 
 interface JobProgressFormProps {
   isSubmitting: boolean;
-  onSubmit: (e: React.FormEvent) => Promise<void>;
-  progressDescription: string;
-  setProgressDescription: (value: string) => void;
-  progressAmount: string;
-  setProgressAmount: (value: string) => void;
+  onSubmit: (progressData: Partial<any>) => Promise<void>;
   onCancel: () => void;
+  progressDescription?: string;
+  setProgressDescription?: (value: string) => void;
+  progressAmount?: string;
+  setProgressAmount?: (value: string) => void;
   currencySymbol?: string;
-  job: any;
-  currentUserId: string;
-  workerHourlyRate?: any;
+  job?: any;
+  currentUserId?: string;
+  workerHourlyRate?: number;
 }
 
 export function JobProgressForm({
   isSubmitting,
   onSubmit,
-  progressDescription,
-  setProgressDescription,
-  progressAmount,
-  setProgressAmount,
   onCancel,
+  progressDescription: externalProgressDescription,
+  setProgressDescription: externalSetProgressDescription,
+  progressAmount: externalProgressAmount,
+  setProgressAmount: externalSetProgressAmount,
   currencySymbol = "£",
   job,
   currentUserId,
   workerHourlyRate,
 }: JobProgressFormProps) {
   const router = useRouter();
+
+  // Internal state for when external state is not provided
+  const [internalProgressDescription, setInternalProgressDescription] =
+    useState("");
+  const [internalProgressAmount, setInternalProgressAmount] = useState("");
+
+  // Use either external or internal state
+  const progressDescription =
+    externalProgressDescription !== undefined
+      ? externalProgressDescription
+      : internalProgressDescription;
+  const setProgressDescription =
+    externalSetProgressDescription || setInternalProgressDescription;
+  const progressAmount =
+    externalProgressAmount !== undefined
+      ? externalProgressAmount
+      : internalProgressAmount;
+  const setProgressAmount =
+    externalSetProgressAmount || setInternalProgressAmount;
+
   const [status, setStatus] = useState("In Progress");
   const [workType, setWorkType] = useState("regular");
   const [overtimeHours, setOvertimeHours] = useState<number | undefined>(
     undefined
   );
 
-  // Find the current worker's hourly rate from the job data
-  const currentWorker = job?.workers?.find(
-    (worker: any) => worker.userId === currentUserId
-  );
-  const hourlyRate = currentWorker?.hourlyRate || 0;
+  // Determine hourly rate - use prop if provided, otherwise try to get from job data
+  let hourlyRate = workerHourlyRate || 0;
+
+  if (!hourlyRate && job && currentUserId) {
+    const currentWorker = job.workers?.find(
+      (worker: any) => worker.userId === currentUserId
+    );
+    hourlyRate = currentWorker?.hourlyRate || 0;
+  }
 
   // Update calculated amount whenever overtime hours change
   useEffect(() => {
@@ -98,10 +122,26 @@ export function JobProgressForm({
       return;
     }
 
-    // Call the parent's onSubmit function
-    await onSubmit(e);
+    // Prepare data to submit
+    const progressData = {
+      description: progressDescription,
+      amount: progressAmount ? Number.parseFloat(progressAmount) : 0,
+      status,
+      workType,
+      overtimeHours: workType === "extra" ? overtimeHours : undefined,
+    };
 
-    // Reset form fields
+    // Call the parent's onSubmit function with the data
+    await onSubmit(progressData);
+
+    // Reset form fields if using internal state
+    if (!externalProgressDescription) {
+      setInternalProgressDescription("");
+    }
+    if (!externalProgressAmount) {
+      setInternalProgressAmount("");
+    }
+
     setWorkType("regular");
     setOvertimeHours(undefined);
     setStatus("In Progress");
