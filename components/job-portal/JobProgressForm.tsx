@@ -2,9 +2,17 @@
 
 import type React from "react";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { format } from "date-fns";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -14,132 +22,203 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
-import type { JobProgressLog } from "@/types/job";
+import { Input } from "@/components/ui/input";
+import { Clock, PoundSterling } from "lucide-react";
+import { toast } from "sonner";
 
 interface JobProgressFormProps {
-  onSubmit: (data: Partial<JobProgressLog>) => Promise<void>;
-  onCancel: () => void;
   isSubmitting: boolean;
+  onSubmit: (e: React.FormEvent) => Promise<void>;
+  progressDescription: string;
+  setProgressDescription: (value: string) => void;
+  progressAmount: string;
+  setProgressAmount: (value: string) => void;
+  onCancel: () => void;
+  currencySymbol?: string;
+  job: any;
+  currentUserId: string;
+  workerHourlyRate?: any;
 }
 
 export function JobProgressForm({
-  onSubmit,
-  onCancel,
   isSubmitting,
+  onSubmit,
+  progressDescription,
+  setProgressDescription,
+  progressAmount,
+  setProgressAmount,
+  onCancel,
+  currencySymbol = "£",
+  job,
+  currentUserId,
+  workerHourlyRate,
 }: JobProgressFormProps) {
-  const [formData, setFormData] = useState<Partial<any>>({
-    details: "",
-    hoursSpent: undefined,
-    cost: undefined,
-    status: undefined,
-  });
+  const router = useRouter();
+  const [status, setStatus] = useState("In Progress");
+  const [workType, setWorkType] = useState("regular");
+  const [overtimeHours, setOvertimeHours] = useState<number | undefined>(
+    undefined
+  );
 
+  // Find the current worker's hourly rate from the job data
+  const currentWorker = job?.workers?.find(
+    (worker: any) => worker.userId === currentUserId
+  );
+  const hourlyRate = currentWorker?.hourlyRate || 0;
+
+  // Update calculated amount whenever overtime hours change
+  useEffect(() => {
+    if (workType === "extra" && overtimeHours && hourlyRate) {
+      const cost = overtimeHours * hourlyRate;
+      setProgressAmount(cost.toFixed(2));
+    } else if (workType === "regular") {
+      // Reset overtime hours when switching to regular work
+      setOvertimeHours(undefined);
+    }
+  }, [workType, overtimeHours, hourlyRate, setProgressAmount]);
+
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSubmit(formData);
+
+    if (!progressDescription.trim()) {
+      toast.error("Please provide a description of the progress");
+      return;
+    }
+
+    // If extra hours are selected but no hourly rate is set
+    if (workType === "extra" && !hourlyRate) {
+      toast.error("Cannot calculate extra hours cost. No hourly rate is set.");
+      return;
+    }
+
+    // If extra hours are selected but no hours are entered
+    if (workType === "extra" && !overtimeHours) {
+      toast.error("Please enter the number of extra hours");
+      return;
+    }
+
+    // Call the parent's onSubmit function
+    await onSubmit(e);
+
+    // Reset form fields
+    setWorkType("regular");
+    setOvertimeHours(undefined);
+    setStatus("In Progress");
   };
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="space-y-4">
-        <div>
-          <Label htmlFor="status">Status Update</Label>
-          <Select
-            value={formData.status}
-            onValueChange={(
-              value: "started" | "in-progress" | "paused" | "completed"
-            ) => setFormData({ ...formData, status: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="started">Started</SelectItem>
-              <SelectItem value="in-progress">In Progress</SelectItem>
-              <SelectItem value="paused">Paused</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label htmlFor="details">Progress Details</Label>
-          <Textarea
-            id="details"
-            value={formData.details}
-            onChange={(e) =>
-              setFormData({ ...formData, details: e.target.value })
-            }
-            placeholder="Describe what you've done, challenges faced, or next steps..."
-            rows={3}
-            required
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Update Progress</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="hoursSpent">Hours Spent</Label>
-            <Input
-              id="hoursSpent"
-              type="number"
-              step="0.25"
-              min="0"
-              value={formData.hoursSpent || ""}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  hoursSpent: e.target.value
-                    ? Number.parseFloat(e.target.value)
-                    : undefined,
-                })
-              }
-              placeholder="0.00"
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              value={progressDescription}
+              onChange={(e) => setProgressDescription(e.target.value)}
+              placeholder="Describe the progress made..."
+              rows={4}
+              className="mt-1"
+              required
             />
           </div>
 
           <div>
-            <Label htmlFor="cost">Cost ($)</Label>
+            <Label htmlFor="workType">Work Type</Label>
+            <Select value={workType} onValueChange={setWorkType}>
+              <SelectTrigger id="workType" className="mt-1">
+                <SelectValue placeholder="Select work type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="regular">Regular Work</SelectItem>
+                <SelectItem value="extra">Extra Hours</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {workType === "extra" && (
+            <div>
+              <Label htmlFor="overtimeHours">Extra Hours</Label>
+              <div className="relative mt-1">
+                <Clock className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                <Input
+                  id="overtimeHours"
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={overtimeHours || ""}
+                  onChange={(e) => {
+                    const value = e.target.value
+                      ? Number.parseFloat(e.target.value)
+                      : undefined;
+                    setOvertimeHours(value);
+                  }}
+                  placeholder="Enter extra hours"
+                  className="pl-8"
+                />
+              </div>
+              {hourlyRate === 0 && (
+                <p className="text-sm text-yellow-500 mt-1">
+                  No hourly rate set. Please contact admin.
+                </p>
+              )}
+              {hourlyRate > 0 && overtimeHours && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Cost: {currencySymbol}
+                  {(overtimeHours * hourlyRate).toFixed(2)} ({overtimeHours}{" "}
+                  hours × {currencySymbol}
+                  {hourlyRate.toFixed(2)}/hour)
+                </p>
+              )}
+            </div>
+          )}
+
+          <div>
+            <Label htmlFor="cost">Cost</Label>
+            <div className="relative mt-1">
+              <PoundSterling className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+              <Input
+                id="cost"
+                type="number"
+                min="0"
+                step="0.01"
+                value={progressAmount}
+                onChange={(e) => setProgressAmount(e.target.value)}
+                placeholder={`Enter cost in ${currencySymbol}`}
+                className="pl-8"
+                disabled={workType === "extra" && hourlyRate > 0}
+              />
+            </div>
+            {workType === "extra" && hourlyRate > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Cost is automatically calculated from extra hours
+              </p>
+            )}
+          </div>
+
+          <div>
+            <Label>Date</Label>
             <Input
-              id="cost"
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.cost || ""}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  cost: e.target.value
-                    ? Number.parseFloat(e.target.value)
-                    : undefined,
-                })
-              }
-              placeholder="0.00"
+              type="text"
+              value={format(new Date(), "PPP")}
+              disabled
+              className="mt-1 bg-muted"
             />
           </div>
-        </div>
-
-        <div className="flex justify-end gap-2 mt-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCancel}
-            disabled={isSubmitting}
-          >
+        </CardContent>
+        <CardFooter className="flex justify-between space-x-2">
+          <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              "Save Progress"
-            )}
+          <Button type="submit" disabled={isSubmitting} className="w-full">
+            {isSubmitting ? "Updating..." : "Update Progress"}
           </Button>
-        </div>
-      </div>
+        </CardFooter>
+      </Card>
     </form>
   );
 }
