@@ -268,13 +268,21 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   };
 
   const handleDeleteProgress = async (logId: string) => {
+    if (!logId) {
+      console.error("Cannot delete: logId is missing");
+      return;
+    }
+
+    console.log("Starting to delete log with ID or identifier:", logId);
     try {
       const response = await fetch(
-        `/api/jobs/${params.id}/progress?logId=${logId}`,
+        `/api/jobs/${params.id}/progress?logId=${encodeURIComponent(logId)}`,
         {
           method: "DELETE",
         }
       );
+
+      console.log("Delete API response status:", response.status);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -282,6 +290,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
       }
 
       const updatedJob = await response.json();
+      console.log("Job updated successfully after delete");
       setJob(updatedJob);
       toast.success("Progress log deleted successfully");
     } catch (error: any) {
@@ -843,7 +852,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                 <ProgressTimeline
                   progressLogs={job.progressLogs}
                   canUpdateJob={canUpdateJob}
-                  handleDeleteProgress={handleDeleteProgress}
+                  handleDeleteProgress={handleDeleteProgress} // Ensure this is passed correctly
                   setShowProgressForm={setShowProgressForm}
                   currencySymbol="£"
                 />
@@ -853,7 +862,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
           {isAdmin && (
             <TabsContent value="financials" className="mt-0">
-              <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1 space-y-6">
                   {/* <FinancialSummary
                     clientPrice={job.clientPrice || 0}

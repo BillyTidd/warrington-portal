@@ -1,8 +1,8 @@
 export interface Worker {
   userId: string;
   workerName: string;
-  paymentRate?: number; // Total payment for the job
-  hourlyRate?: number; // Hourly rate for overtime calculations
+  paymentRate?: number;
+  hourlyRate?: number;
 }
 
 export interface JobProgressLog {
@@ -20,29 +20,18 @@ export interface JobProgressLog {
 
 export interface Job {
   _id: string;
-  jobName: string;
   clientName: string;
-  clientId?: string;
+  userId: string;
+  workerName: string;
+  assignDate: Date | string;
+  expireDate: any | string;
   description: string;
-  assignDate: string;
-  expireDate: string;
-  status?: "pending" | "in-progress" | "completed";
+  status: string;
   clientPrice?: number;
-
-  // New format - array of workers
-  workers?: Worker[];
-
-  // Old format - single worker (for backward compatibility)
-  userId?: string;
-  workerName?: string;
   workerPaymentRate?: number; // For backward compatibility
   workerHourlyRate?: number; // For backward compatibility
-
+  workers?: Worker[]; // New field for multiple workers
   progressLogs?: JobProgressLog[];
-  createdBy: string;
-  createdByName: string;
-  createdAt: string;
-  updatedBy?: string;
-  updatedByName?: string;
-  updatedAt?: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }

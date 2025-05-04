@@ -1,12 +1,11 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import clientPromise from "@/lib/mongodb";
 import { authOptions } from "@/lib/auth";
 import { ObjectId } from "mongodb";
-import type { JobProgressLog } from "@/types/job";
 
 export async function POST(
-  req: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -15,88 +14,84 @@ export async function POST(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const id = params.id;
-    if (!id || !ObjectId.isValid(id)) {
+    const jobId = params.id;
+    if (!jobId || !ObjectId.isValid(jobId)) {
       return NextResponse.json({ message: "Invalid job ID" }, { status: 400 });
     }
 
-    const progressData = await req.json();
-    const client = await clientPromise;
-    const db = client.db();
+    const {
+      details,
+      cost,
+      overtimeHours,
+      overtimeCost,
+      statusChange,
+      newStatus,
+    } = await request.json();
 
-    // Check if user has permission to update this job
-    const job = await db.collection("jobs").findOne({ _id: new ObjectId(id) });
-    if (!job) {
-      return NextResponse.json({ message: "Job not found" }, { status: 404 });
-    }
-
-    // Check if user is admin or assigned to this job
-    const isAdmin = session.user.role === "admin";
-
-    // Check if user is in the workers array (new format) or matches userId (old format)
-    const isAssigned = job.workers
-      ? job.workers.some((worker: any) => worker.userId === session.user.id)
-      : job.userId === session.user.id;
-
-    if (!isAdmin && !isAssigned) {
-      return NextResponse.json(
-        { message: "You don't have permission to update this job" },
-        { status: 403 }
-      );
-    }
-
-    // Create progress log entry
-    const progressLog: JobProgressLog = {
-      _id: new ObjectId().toString(),
+    const progressLog = {
+      _id: new ObjectId().toString(), // Add a unique ID for each progress log
       timestamp: new Date(),
       updatedBy: session.user.id,
       updatedByName: session.user.name,
-      details: progressData.details,
-      cost: progressData.cost,
-      statusChange: progressData.statusChange || false,
-      newStatus: progressData.newStatus,
+      details,
+      cost,
+      overtimeHours,
+      overtimeCost,
+      statusChange,
+      newStatus: statusChange ? newStatus : null,
     };
 
-    // Update job status if this is a status change
-    let statusUpdate = {};
-    if (progressData.statusChange && progressData.newStatus) {
-      statusUpdate = { status: progressData.newStatus };
-    }
+    const client = await clientPromise;
+    const db = client.db();
 
-    // Add progress log to job
+    // Update the job with the new progress log
     const result = await db.collection("jobs").updateOne(
-      { _id: new ObjectId(id) },
+      { _id: new ObjectId(jobId) },
       {
-        $push: { progressLogs: progressLog as any }, // Add type assertion to fix TypeScript error
-        $set: {
-          ...statusUpdate,
-          updatedAt: new Date(),
-          updatedBy: session.user.id,
-          updatedByName: session.user.name,
-        },
+        $push: { progressLogs: progressLog } as any,
+        ...(statusChange
+          ? {
+              $set: {
+                status: newStatus,
+                updatedBy: session.user.id,
+                updatedByName: session.user.name,
+                updatedAt: new Date(),
+              },
+            }
+          : {
+              $set: {
+                updatedBy: session.user.id,
+                updatedByName: session.user.name,
+                updatedAt: new Date(),
+              },
+            }),
       }
     );
 
-    if (result.matchedCount === 0) {
-      return NextResponse.json({ message: "Job not found" }, { status: 404 });
+    if (result.modifiedCount === 0) {
+      return NextResponse.json(
+        { message: "Failed to update job progress" },
+        { status: 400 }
+      );
     }
 
+    // Get the updated job
     const updatedJob = await db
       .collection("jobs")
-      .findOne({ _id: new ObjectId(id) });
+      .findOne({ _id: new ObjectId(jobId) });
 
     return NextResponse.json(updatedJob);
   } catch (error) {
-    console.error(`Error in POST /api/jobs/${params.id}/progress:`, error);
+    console.error("Error updating job progress:", error);
     return NextResponse.json(
-      { message: "An error occurred while updating job progress" },
+      { message: "Internal server error" },
       { status: 500 }
     );
   }
 }
 
 export async function DELETE(
-  req: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -105,12 +100,12 @@ export async function DELETE(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const id = params.id;
-    if (!id || !ObjectId.isValid(id)) {
+    const jobId = params.id;
+    if (!jobId || !ObjectId.isValid(jobId)) {
       return NextResponse.json({ message: "Invalid job ID" }, { status: 400 });
     }
 
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(request.url);
     const logId = searchParams.get("logId");
 
     if (!logId) {
@@ -123,55 +118,166 @@ export async function DELETE(
     const client = await clientPromise;
     const db = client.db();
 
-    // Check if user has permission to delete this log
-    const job = await db.collection("jobs").findOne({ _id: new ObjectId(id) });
+    // Get the job
+    const job = await db
+      .collection("jobs")
+      .findOne({ _id: new ObjectId(jobId) });
+
     if (!job) {
       return NextResponse.json({ message: "Job not found" }, { status: 404 });
     }
 
-    // Find the specific log to check ownership
-    const log = job.progressLogs?.find((log: any) => log._id === logId);
-    if (!log) {
-      return NextResponse.json({ message: "Log not found" }, { status: 404 });
+    // Check if the job has progress logs
+    if (!job.progressLogs || job.progressLogs.length === 0) {
+      return NextResponse.json(
+        { message: "No progress logs found" },
+        { status: 404 }
+      );
     }
 
-    // Allow deletion if user is admin, or if they created the log
-    const isAdmin = session.user.role === "admin";
-    const isLogOwner = log.updatedBy === session.user.id;
+    // First, try to add _id to any logs that don't have one
+    let migrationNeeded = false;
+    const updatedLogs = job.progressLogs.map((log: any) => {
+      if (!log._id) {
+        migrationNeeded = true;
+        return { ...log, _id: new ObjectId().toString() };
+      }
+      return log;
+    });
 
-    if (!isAdmin && !isLogOwner) {
+    // If we needed to add IDs, update the job first
+    if (migrationNeeded) {
+      await db
+        .collection("jobs")
+        .updateOne(
+          { _id: new ObjectId(jobId) },
+          { $set: { progressLogs: updatedLogs } }
+        );
+    }
+
+    // Determine if we're deleting by _id or by timestamp
+    const isObjectId = ObjectId.isValid(logId);
+    const isTimestamp = logId.includes("T") && logId.includes("Z");
+
+    // Create the query to find the log to delete
+    let deleteQuery: any = {};
+
+    if (isObjectId) {
+      // If it looks like an ObjectId, try to delete by _id
+      deleteQuery = { "progressLogs._id": logId };
+    } else if (isTimestamp) {
+      // If it looks like a timestamp, try to delete by timestamp
+      try {
+        const timestamp = new Date(logId);
+        deleteQuery = { "progressLogs.timestamp": timestamp };
+      } catch (e) {
+        // If parsing the timestamp fails, use the raw string
+        deleteQuery = { "progressLogs.timestamp": logId };
+      }
+    } else {
+      // If it's neither, try to match by string comparison with timestamp
+      deleteQuery = {
+        $or: [
+          { "progressLogs._id": logId },
+          { "progressLogs.timestamp": { $regex: logId, $options: "i" } },
+        ],
+      };
+    }
+
+    // Find the log to delete
+    const jobWithLog = await db.collection("jobs").findOne({
+      _id: new ObjectId(jobId),
+      ...deleteQuery,
+    });
+
+    if (!jobWithLog) {
+      return NextResponse.json(
+        { message: "Progress log not found" },
+        { status: 404 }
+      );
+    }
+
+    // Find the specific log to check permissions
+    const logToDelete = jobWithLog.progressLogs.find((log: any) => {
+      if (isObjectId && log._id) {
+        return log._id === logId;
+      } else if (isTimestamp && log.timestamp) {
+        const logTimestamp =
+          typeof log.timestamp === "string"
+            ? log.timestamp
+            : log.timestamp.toISOString();
+        return logTimestamp.includes(logId);
+      }
+      return false;
+    });
+
+    if (!logToDelete) {
+      return NextResponse.json(
+        { message: "Progress log not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check permissions
+    const isAdmin = session.user.role === "admin";
+    const isCreator = logToDelete.updatedBy === session.user.id;
+
+    if (!isAdmin && !isCreator) {
       return NextResponse.json(
         { message: "You don't have permission to delete this log" },
         { status: 403 }
       );
     }
 
-    // Remove the progress log
+    // Create the pull query based on what we have
+    let pullCriteria: any = {};
+
+    if (logToDelete._id) {
+      pullCriteria = { _id: logToDelete._id };
+    } else {
+      // If no _id, use timestamp and other fields to identify the log
+      pullCriteria = {
+        timestamp: logToDelete.timestamp,
+        updatedBy: logToDelete.updatedBy,
+        details: logToDelete.details,
+      };
+
+      // Add cost if it exists for more precise matching
+      if (logToDelete.cost !== undefined) {
+        pullCriteria.cost = logToDelete.cost;
+      }
+    }
+
+    // Delete the log
     const result = await db.collection("jobs").updateOne(
-      { _id: new ObjectId(id) },
+      { _id: new ObjectId(jobId) },
       {
-        $pull: { progressLogs: { _id: logId } as any }, // Add type assertion to fix TypeScript error
+        $pull: { progressLogs: pullCriteria },
         $set: {
-          updatedAt: new Date(),
           updatedBy: session.user.id,
           updatedByName: session.user.name,
+          updatedAt: new Date(),
         },
       }
     );
 
-    if (result.matchedCount === 0) {
-      return NextResponse.json({ message: "Job not found" }, { status: 404 });
+    if (result.modifiedCount === 0) {
+      return NextResponse.json(
+        { message: "Failed to delete progress log" },
+        { status: 400 }
+      );
     }
 
+    // Get the updated job
     const updatedJob = await db
       .collection("jobs")
-      .findOne({ _id: new ObjectId(id) });
+      .findOne({ _id: new ObjectId(jobId) });
 
     return NextResponse.json(updatedJob);
   } catch (error) {
-    console.error(`Error in DELETE /api/jobs/${params.id}/progress:`, error);
+    console.error("Error deleting progress log:", error);
     return NextResponse.json(
-      { message: "An error occurred while deleting job progress log" },
+      { message: "Internal server error" },
       { status: 500 }
     );
   }
