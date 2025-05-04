@@ -66,6 +66,7 @@ import { ProgressTimeline } from "@/components/job-portal/ProgressTimeline";
 import { FinancialSummary } from "@/components/job-portal/FinancialSummary";
 import { CostBreakdown } from "@/components/job-portal/CostBreakdown";
 import { generateJobPDF } from "@/lib/excelGenerator";
+import { PDFButton } from "@/components/job-portal/PDFButton";
 
 export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -694,16 +695,10 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           isAssignedToMe={isAssignedToMe}
         />
 
-        {/* PDF Generation Button */}
-        <div className="flex justify-end mb-4">
-          <Button
-            variant="outline"
-            onClick={handleGeneratePDF}
-            className="flex items-center gap-2"
-          >
-            <FileText className="h-4 w-4" />
-            Generate PDF Report
-          </Button>
+        {/* PDF Generation Buttons */}
+        <div className="flex justify-end mb-4 gap-2">
+          <PDFButton job={job} variant="outline" />
+          <PDFButton job={job} variant="outline" saveToDatabase={true} />
         </div>
 
         {/* Status Update Section */}
