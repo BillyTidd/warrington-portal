@@ -1,37 +1,38 @@
-export interface JobProgressLog {
-  _id?: string;
-  timestamp: Date | string;
-  updatedBy: string;
-  updatedByName?: string | null;
-  details: string;
-  cost?: number;
-  statusChange?: boolean;
-  newStatus?: string;
-}
-
 export interface Worker {
   userId: string;
   workerName: string;
+  paymentRate?: number;
+  hourlyRate?: number;
+}
+
+export interface JobProgressLog {
+  _id?: string;
+  timestamp: string | Date;
+  updatedBy: string;
+  updatedByName: string;
+  details: string;
+  cost?: number;
+  overtimeHours?: number;
+  overtimeCost?: number;
+  statusChange?: boolean;
+  newStatus?: string | null;
 }
 
 export interface Job {
-  _id?: string;
-  jobName: string;
-  assignDate: string;
-  expireDate: string;
+  _id: string;
   clientName: string;
-  clientId?: any;
-  userId?: any;
-  workerName?: string;
-  workers: Worker[]; // Array of workers instead of single userId/workerName
-  description?: string;
+  userId: string;
+  jobName?: any;
+  workerName: string;
+  assignDate: Date | string;
+  expireDate: any | string;
+  description: string;
+  status: string;
   clientPrice?: number;
-  status?: any;
+  workerPaymentRate?: number; // For backward compatibility
+  workerHourlyRate?: number; // For backward compatibility
+  workers?: Worker[]; // New field for multiple workers
   progressLogs?: JobProgressLog[];
-  createdBy?: string;
-  createdByName?: string;
-  updatedBy?: string;
-  updatedByName?: string;
-  createdAt?: Date | string;
-  updatedAt?: Date | string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }

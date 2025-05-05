@@ -937,9 +937,6 @@ export const generateJobPDF = async (
       )
     : 0;
   const isOverdue = daysRemaining < 0 && job.status !== "completed";
-  const totalCost =
-    job.progressLogs?.reduce((sum, log) => sum + (log.cost || 0), 0) || 0;
-  const profit = (job.clientPrice || 0) - totalCost;
 
   // Add job summary box
   doc.setFillColor(245, 245, 250); // Light background
@@ -1100,90 +1097,86 @@ export const generateJobPDF = async (
     },
   });
 
-  // Financial Summary Section
-  let financialY = (doc as any).lastAutoTable.finalY + 10;
+  // Create a map to track costs per worker for invoicing
+  const workerCosts: any = new Map();
 
-  // Check if we need a new page
-  if (financialY > pageHeight - 100) {
-    doc.addPage();
-    // Add header to new page
-    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.rect(0, 0, pageWidth, 20, "F");
-    doc.setTextColor(255);
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("WARRINGTON INSTALLS - JOB DETAILS REPORT", 14, 15);
-
-    // Add decorative element
-    doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
-    doc.rect(0, 20, pageWidth, 2, "F");
-
-    financialY = 30;
-  }
-
-  // Add financial summary table
-  if (session?.user?.role === "admin") {
-    // Create financial data table
-    const financialData: any = {
-      head: [
-        [
-          {
-            content: "FINANCIAL SUMMARY",
-            colSpan: 2,
-            styles: {
-              halign: "center",
-              fontStyle: "bold" as FontStyle,
-              fontSize: 12,
-              fillColor: primaryColor,
-              textColor: [255, 255, 255] as RGB,
-            },
-          },
-        ],
-      ],
-      body: [
-        ["Client Price", `£${(job.clientPrice || 0).toFixed(2)}`],
-        ["Total Costs", `£${totalCost.toFixed(2)}`],
-        ["Profit", `£${profit.toFixed(2)}`],
-        [
-          "Profit Margin",
-          job.clientPrice
-            ? `${Math.round((profit / job.clientPrice) * 100)}%`
-            : "0%",
-        ],
-      ],
-    };
-
-    // Add the financial summary table
-    autoTable(doc, {
-      startY: financialY,
-      head: financialData.head,
-      body: financialData.body,
-      theme: "grid",
-      styles: {
-        fontSize: 10,
-        cellPadding: { top: 3, right: 2, bottom: 3, left: 2 },
-        lineWidth: 0.1,
-        textColor: [50, 50, 50] as RGB,
-      },
-      columnStyles: {
-        0: {
-          fontStyle: "bold" as FontStyle,
-          cellWidth: 40,
-          fillColor: [240, 240, 250] as RGB,
-        },
-        1: { cellWidth: 40, halign: "right" },
-      },
-      alternateRowStyles: {
-        fillColor: [250, 250, 255] as RGB,
-      },
+  // Initialize worker costs if workers are defined
+  if (job.workers && job.workers.length > 0) {
+    job.workers.forEach((worker: any) => {
+      workerCosts.set(worker.userId, {
+        name: worker.workerName,
+        regularCost: 0,
+        overtimeCost: 0,
+        fixedRate: worker.fixedRate || 0,
+        totalCost: worker.fixedRate || 0, // Initialize with fixed rate if available
+        logs: [],
+      });
     });
   }
 
+  // Filter progress logs based on user role
+  let relevantLogs = [];
+  if (session?.user?.role === "admin") {
+    // Admin sees all logs
+    relevantLogs = job.progressLogs || [];
+  } else {
+    // Workers only see their own logs
+    relevantLogs = (job.progressLogs || []).filter(
+      (log) => log.updatedBy === session?.user?.id
+    );
+  }
+
+  // Sort logs by date (newest first)
+  const sortedLogs = [...relevantLogs].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  );
+
+  // Calculate costs from logs
+  let regularCosts = 0;
+  let overtimeCosts = 0;
+  let totalCost = 0;
+
+  // Process logs and calculate costs
+  if (sortedLogs.length > 0) {
+    sortedLogs.forEach((log) => {
+      regularCosts += log.cost || 0;
+      overtimeCosts += log.overtimeCost || 0;
+
+      // Track costs per worker for invoicing
+      const workerId = log.updatedBy;
+      if (workerCosts.has(workerId)) {
+        const workerData = workerCosts.get(workerId);
+        workerData.regularCost += log.cost || 0;
+        workerData.overtimeCost += log.overtimeCost || 0;
+        workerData.totalCost =
+          (workerData.fixedRate || 0) +
+          workerData.regularCost +
+          workerData.overtimeCost;
+        workerData.logs.push(log);
+        workerCosts.set(workerId, workerData);
+      }
+    });
+  }
+
+  // For admin, calculate total costs including fixed rates
+  if (session?.user?.role === "admin") {
+    // Add fixed rates to total cost
+    const fixedRatesTotal: any = Array.from(workerCosts.values()).reduce(
+      (sum, worker: any) => sum + (worker.fixedRate || 0),
+      0
+    );
+    totalCost = regularCosts + overtimeCosts + fixedRatesTotal;
+  } else {
+    // For workers, only show their costs
+    totalCost = regularCosts + overtimeCosts;
+  }
+
+  // Calculate profit (admin only)
+  const profit =
+    session?.user?.role === "admin" ? (job.clientPrice || 0) - totalCost : 0;
+
   // Progress Logs Section
-  const progressY =
-    session?.user?.role === "admin"
-      ? (doc as any).lastAutoTable.finalY + 10
-      : financialY;
+  let progressY = (doc as any).lastAutoTable.finalY + 10;
 
   // Check if we need a new page
   if (progressY > pageHeight - 100) {
@@ -1199,16 +1192,16 @@ export const generateJobPDF = async (
     // Add decorative element
     doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
     doc.rect(0, 20, pageWidth, 2, "F");
-  }
 
-  const currentY = progressY > pageHeight - 100 ? 30 : progressY;
+    progressY = 30;
+  }
 
   // Progress logs table headers
   const progressHeaders: any = [
     [
       {
         content: "PROGRESS TIMELINE",
-        colSpan: 4,
+        colSpan: 6,
         styles: {
           halign: "center",
           fontStyle: "bold" as FontStyle,
@@ -1218,27 +1211,24 @@ export const generateJobPDF = async (
         },
       },
     ],
-    ["DATE", "UPDATED BY", "DETAILS", "COST"],
+    [
+      "DATE",
+      "UPDATED BY",
+      "DETAILS",
+      "EXTRA HOURS",
+      "EXTRA COST",
+      "TOTAL COST",
+    ],
   ];
 
-  if (job.progressLogs && job.progressLogs.length > 0) {
-    // Sort progress logs by date (newest first)
-    const sortedLogs = [...job.progressLogs].sort(
-      (a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-
-    // Calculate total cost for progress logs
-    const progressTotalCost = sortedLogs.reduce(
-      (sum, log) => sum + (log.cost || 0),
-      0
-    );
-
+  if (sortedLogs.length > 0) {
     const progressData = sortedLogs.map((log) => [
       format(new Date(log.timestamp), "dd-MMM-yyyy HH:mm"),
       log.updatedByName || "Unknown",
       log.statusChange ? `Status changed to ${log.newStatus}` : log.details,
-      log.cost ? `£${log.cost.toFixed(2)}` : "-",
+      log.overtimeHours ? log.overtimeHours.toFixed(1) : "0",
+      log.overtimeCost ? `£${log.overtimeCost.toFixed(2)}` : "£0.00",
+      `£${((log.cost || 0) + (log.overtimeCost || 0)).toFixed(2)}`,
     ]);
 
     // Add total row
@@ -1253,8 +1243,10 @@ export const generateJobPDF = async (
           fillColor: [240, 240, 250] as RGB,
         },
       },
+      { content: "", styles: {} },
+      { content: "", styles: {} },
       {
-        content: `£${progressTotalCost.toFixed(2)}`,
+        content: `£${(regularCosts + overtimeCosts).toFixed(2)}`,
         styles: {
           fontStyle: "bold" as FontStyle,
           halign: "right",
@@ -1266,7 +1258,7 @@ export const generateJobPDF = async (
 
     // Add the progress timeline table
     autoTable(doc, {
-      startY: currentY,
+      startY: progressY,
       head: progressHeaders,
       body: progressData,
       theme: "grid",
@@ -1285,10 +1277,12 @@ export const generateJobPDF = async (
         fontSize: 9,
       },
       columnStyles: {
-        0: { cellWidth: 35 },
-        1: { cellWidth: 35 },
-        2: { cellWidth: 100 },
-        3: { cellWidth: 25, halign: "right" },
+        0: { cellWidth: 30 },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 70 },
+        3: { cellWidth: 20, halign: "center" },
+        4: { cellWidth: 20, halign: "right" },
+        5: { cellWidth: 25, halign: "right" },
       },
       alternateRowStyles: {
         fillColor: [250, 250, 255] as RGB,
@@ -1297,9 +1291,18 @@ export const generateJobPDF = async (
   } else {
     // Add empty progress timeline table with just the header
     autoTable(doc, {
-      startY: currentY,
+      startY: progressY,
       head: progressHeaders,
-      body: [["No progress logs have been recorded for this job.", "", "", ""]],
+      body: [
+        [
+          "No progress logs have been recorded for this job.",
+          "",
+          "",
+          "0",
+          "£0.00",
+          "£0.00",
+        ],
+      ],
       theme: "grid",
       styles: {
         fontSize: 9,
@@ -1316,12 +1319,138 @@ export const generateJobPDF = async (
         fontSize: 9,
       },
       columnStyles: {
-        0: { cellWidth: 35 },
-        1: { cellWidth: 35 },
-        2: { cellWidth: 100 },
-        3: { cellWidth: 25, halign: "right" },
+        0: { cellWidth: 30 },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 70 },
+        3: { cellWidth: 20, halign: "center" },
+        4: { cellWidth: 20, halign: "right" },
+        5: { cellWidth: 25, halign: "right" },
       },
     });
+  }
+
+  // Add worker invoicing section if this is a worker's view
+  if (session?.user?.role !== "admin" && sortedLogs.length > 0) {
+    let invoiceY = (doc as any).lastAutoTable.finalY + 10;
+
+    // Check if we need a new page
+    if (invoiceY > pageHeight - 100) {
+      doc.addPage();
+      // Add header to new page
+      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.rect(0, 0, pageWidth, 20, "F");
+      doc.setTextColor(255);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("WARRINGTON INSTALLS - JOB DETAILS REPORT", 14, 15);
+
+      // Add decorative element
+      doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
+      doc.rect(0, 20, pageWidth, 2, "F");
+
+      invoiceY = 30;
+    }
+
+    // Get worker data
+    const workerId = session?.user?.id;
+    const workerData = workerCosts.get(workerId) || {
+      name: session?.user?.name || "Unknown",
+      regularCost: regularCosts,
+      overtimeCost: overtimeCosts,
+      fixedRate: 0,
+      totalCost: regularCosts + overtimeCosts,
+    };
+
+    // Create invoice table
+    const invoiceHeaders: any = [
+      [
+        {
+          content: "WORKER INVOICE SUMMARY",
+          colSpan: 2,
+          styles: {
+            halign: "center",
+            fontStyle: "bold" as FontStyle,
+            fontSize: 12,
+            fillColor: primaryColor,
+            textColor: [255, 255, 255] as RGB,
+          },
+        },
+      ],
+    ];
+
+    const invoiceData = [
+      ["Worker Name", session?.user?.name || "Unknown"],
+      ["Job Name", job.jobName || ""],
+      ["Client", job.clientName || ""],
+    ];
+
+    // Add fixed rate if applicable
+    if (workerData.fixedRate > 0) {
+      invoiceData.push(["Fixed Rate", `£${workerData.fixedRate.toFixed(2)}`]);
+    }
+
+    // Add regular and overtime costs
+    invoiceData.push(
+      ["Regular Hours Cost", `£${workerData.regularCost.toFixed(2)}`],
+      ["Overtime Cost", `£${workerData.overtimeCost.toFixed(2)}`],
+      [
+        {
+          content: "TOTAL INVOICE AMOUNT",
+          styles: {
+            fontStyle: "bold" as FontStyle,
+            fillColor: [240, 240, 250] as RGB,
+          },
+        },
+        {
+          content: `£${workerData.totalCost.toFixed(2)}`,
+          styles: {
+            fontStyle: "bold" as FontStyle,
+            halign: "right",
+            fillColor: [240, 240, 250] as RGB,
+          },
+        },
+      ]
+    );
+
+    // Add the invoice table
+    autoTable(doc, {
+      startY: invoiceY,
+      head: invoiceHeaders,
+      body: invoiceData,
+      theme: "grid",
+      styles: {
+        fontSize: 10,
+        cellPadding: { top: 3, right: 2, bottom: 3, left: 2 },
+        lineWidth: 0.1,
+        textColor: [50, 50, 50] as RGB,
+      },
+      columnStyles: {
+        0: {
+          fontStyle: "bold" as FontStyle,
+          cellWidth: 60,
+          fillColor: [240, 240, 250] as RGB,
+        },
+        1: { cellWidth: 60 },
+      },
+      alternateRowStyles: {
+        fillColor: [250, 250, 255] as RGB,
+      },
+      headStyles: {
+        textColor: [255, 255, 255] as RGB,
+        fillColor: primaryColor,
+      },
+    });
+
+    // Add invoice note
+    const noteY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(80, 80, 80);
+    doc.text(
+      "Note: This invoice summary can be used to bill for your part of this job.",
+      14,
+      noteY
+    );
   }
 
   // Add calculation box with enhanced styling (if admin)
@@ -1349,11 +1478,11 @@ export const generateJobPDF = async (
     // Create a professional calculation box with shadow effect
     // Shadow effect (light gray rectangle slightly offset)
     doc.setFillColor(220, 220, 220);
-    doc.roundedRect(pageWidth - 78, startY + 2, 70, 50, 3, 3, "F");
+    doc.roundedRect(pageWidth - 78, startY + 2, 70, 100, 3, 3, "F"); // Increased height for worker costs
 
     // Main box
     doc.setFillColor(250, 250, 255);
-    doc.roundedRect(pageWidth - 80, startY, 70, 50, 3, 3, "F");
+    doc.roundedRect(pageWidth - 80, startY, 70, 100, 3, 3, "F"); // Increased height
 
     // Title bar
     doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
@@ -1385,12 +1514,96 @@ export const generateJobPDF = async (
     });
     calcY += 7;
 
+    // Regular Costs
+    doc.text("Regular Costs:", pageWidth - 75, calcY);
+    doc.text(`£${regularCosts.toFixed(2)}`, pageWidth - 15, calcY, {
+      align: "right",
+    });
+    calcY += 7;
+
+    // Overtime Costs
+    doc.text("Overtime Costs:", pageWidth - 75, calcY);
+    doc.text(`£${overtimeCosts.toFixed(2)}`, pageWidth - 15, calcY, {
+      align: "right",
+    });
+    calcY += 7;
+
+    // Fixed Rate Costs
+    const fixedRatesTotal: any = Array.from(workerCosts.values()).reduce(
+      (sum, worker: any) => sum + (worker.fixedRate || 0),
+      0
+    );
+    if (fixedRatesTotal > 0) {
+      doc.text("Fixed Rate Costs:", pageWidth - 75, calcY);
+      doc.text(`£${fixedRatesTotal.toFixed(2)}`, pageWidth - 15, calcY, {
+        align: "right",
+      });
+      calcY += 7;
+    }
+
     // Total Costs
     doc.text("Total Costs:", pageWidth - 75, calcY);
     doc.text(`£${totalCost.toFixed(2)}`, pageWidth - 15, calcY, {
       align: "right",
     });
     calcY += 7;
+
+    // Add worker costs section if there are workers
+    if (workerCosts.size > 0) {
+      // Add line before worker costs
+      doc.setDrawColor(200, 200, 200);
+      doc.line(pageWidth - 75, calcY, pageWidth - 15, calcY);
+      calcY += 5;
+
+      doc.setFont("helvetica", "bold");
+      doc.text("WORKER COSTS:", pageWidth - 75, calcY);
+      calcY += 7;
+
+      doc.setFont("helvetica", "normal");
+
+      // List each worker's cost breakdown
+      for (const [_, workerData] of workerCosts) {
+        if (workerData.totalCost > 0) {
+          doc.text(`${workerData.name}:`, pageWidth - 75, calcY);
+          calcY += 5;
+
+          // Indent and show breakdown
+          if (workerData.fixedRate > 0) {
+            doc.text(
+              `  Fixed Rate: £${workerData.fixedRate.toFixed(2)}`,
+              pageWidth - 70,
+              calcY
+            );
+            calcY += 4;
+          }
+
+          if (workerData.regularCost > 0) {
+            doc.text(
+              `  Regular: £${workerData.regularCost.toFixed(2)}`,
+              pageWidth - 70,
+              calcY
+            );
+            calcY += 4;
+          }
+
+          if (workerData.overtimeCost > 0) {
+            doc.text(
+              `  Overtime: £${workerData.overtimeCost.toFixed(2)}`,
+              pageWidth - 70,
+              calcY
+            );
+            calcY += 4;
+          }
+
+          doc.text(
+            `  Total: £${workerData.totalCost.toFixed(2)}`,
+            pageWidth - 70,
+            calcY
+          );
+          calcY += 6;
+        }
+      }
+    }
 
     // Add line before profit
     calcY += 2;

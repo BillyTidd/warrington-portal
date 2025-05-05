@@ -15,6 +15,7 @@ interface CostBreakdownProps {
   progressLogs: JobProgressLog[] | undefined;
   totalCost: number;
   profit: number;
+  currencySymbol?: string;
 }
 
 export function CostBreakdown({

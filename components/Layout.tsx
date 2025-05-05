@@ -48,10 +48,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
     ...(status === "authenticated" && session?.user?.role === "admin"
       ? [{ href: "/task-reports", label: "Tasks Reports", icon: FileText }]
       : []),
-    // ...(status === "authenticated" && session?.user?.role === "admin"
-    //   ? [{ href: "/job-portal", label: "Job Portal", icon: Package }]
-    //   : []),
     { href: "/job-portal", label: "Job Portal", icon: Package },
+    ...(status === "authenticated" && session?.user?.role === "admin"
+      ? [{ href: "/job-portal/reports", label: "Job Reports", icon: Package }]
+      : []),
   ];
 
   const SidebarContent = () => (

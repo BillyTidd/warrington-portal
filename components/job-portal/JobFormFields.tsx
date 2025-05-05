@@ -1,7 +1,8 @@
 "use client";
 
 import type React from "react";
-import { X } from "lucide-react";
+import { useState } from "react";
+import { X, DollarSign, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +15,13 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Card, CardContent } from "@/components/ui/card";
 import type { Job, Worker } from "@/types/job";
 import type { Session } from "next-auth";
 
@@ -41,11 +48,26 @@ export function JobFormFields({
 }: JobFormFieldsProps) {
   const currentUserId = session?.user?.id || "";
   const currentUserName = session?.user?.name || "";
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
 
   const removeWorker = (workerId: string) => {
     setJob((prev) => ({
       ...prev,
       workers: prev.workers?.filter((w) => w.userId !== workerId) || [],
+    }));
+  };
+
+  const updateWorkerRate = (
+    workerId: string,
+    field: "paymentRate" | "hourlyRate",
+    value: number | undefined
+  ) => {
+    setJob((prev) => ({
+      ...prev,
+      workers:
+        prev.workers?.map((worker) =>
+          worker.userId === workerId ? { ...worker, [field]: value } : worker
+        ) || [],
     }));
   };
 
@@ -117,7 +139,13 @@ export function JobFormFields({
         <Label className="text-base">Assign Workers</Label>
         {isAdmin ? (
           <div className="space-y-3 mt-1.5">
-            <Select onValueChange={handleWorkerSelect}>
+            <Select
+              value={selectedWorkerId || ""}
+              onValueChange={(value) => {
+                setSelectedWorkerId(value);
+                handleWorkerSelect(value);
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select workers" />
               </SelectTrigger>
@@ -134,31 +162,94 @@ export function JobFormFields({
               </SelectContent>
             </Select>
 
-            {/* Display selected workers */}
+            {/* Display selected workers with payment rates */}
             {job.workers && job.workers.length > 0 ? (
-              <ScrollArea className="h-24 border rounded-md p-2">
-                <div className="flex flex-wrap gap-2">
-                  {job.workers.map((worker: Worker) => (
-                    <Badge
-                      key={worker.userId}
-                      variant="secondary"
-                      className="px-2 py-1"
-                    >
-                      {worker.workerName}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-4 w-4 p-0 ml-1"
-                        onClick={() => removeWorker(worker.userId)}
-                      >
-                        <X className="h-3 w-3" />
-                        <span className="sr-only">Remove</span>
-                      </Button>
-                    </Badge>
-                  ))}
-                </div>
-              </ScrollArea>
+              <Card>
+                <CardContent className="p-4">
+                  <Accordion type="single" collapsible className="w-full">
+                    {job.workers.map((worker: Worker) => (
+                      <AccordionItem key={worker.userId} value={worker.userId}>
+                        <AccordionTrigger className="py-2">
+                          <div className="flex items-center">
+                            <span>{worker.workerName}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 ml-2"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeWorker(worker.userId);
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                              <span className="sr-only">Remove</span>
+                            </Button>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-3 py-2">
+                            <div>
+                              <Label
+                                htmlFor={`payment-rate-${worker.userId}`}
+                                className="flex items-center text-sm"
+                              >
+                                <DollarSign className="h-3.5 w-3.5 mr-1" />
+                                Payment Rate (Total)
+                              </Label>
+                              <Input
+                                id={`payment-rate-${worker.userId}`}
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={worker.paymentRate || ""}
+                                onChange={(e) =>
+                                  updateWorkerRate(
+                                    worker.userId,
+                                    "paymentRate",
+                                    e.target.value
+                                      ? Number.parseFloat(e.target.value)
+                                      : undefined
+                                  )
+                                }
+                                placeholder="0.00"
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label
+                                htmlFor={`hourly-rate-${worker.userId}`}
+                                className="flex items-center text-sm"
+                              >
+                                <Clock className="h-3.5 w-3.5 mr-1" />
+                                Hourly Rate (Overtime)
+                              </Label>
+                              <Input
+                                id={`hourly-rate-${worker.userId}`}
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={worker.hourlyRate || ""}
+                                onChange={(e) =>
+                                  updateWorkerRate(
+                                    worker.userId,
+                                    "hourlyRate",
+                                    e.target.value
+                                      ? Number.parseFloat(e.target.value)
+                                      : undefined
+                                  )
+                                }
+                                placeholder="0.00"
+                                className="mt-1"
+                              />
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                </CardContent>
+              </Card>
             ) : (
               <div className="text-sm text-muted-foreground p-2">
                 No workers assigned yet. Select workers from the dropdown above.

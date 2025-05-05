@@ -1,28 +1,30 @@
 "use client";
+
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { format, parseISO } from "date-fns";
 import {
   ArrowLeft,
+  ChevronRight,
   Edit,
-  Save,
-  X,
+  Loader2,
   MoreHorizontal,
   Plus,
+  Save,
   Trash2,
+  X,
+  Download,
   CheckCircle,
   Clock,
   AlertTriangle,
-  Briefcase,
-  User,
-  Calendar,
-  Loader2,
-  ChevronRight,
-  FileText,
+  Users,
+  DollarSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
   DropdownMenu,
@@ -32,48 +34,77 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { Job } from "@/types/job";
+import { toast } from "sonner";
 import { generateJobPDF } from "@/lib/excelGenerator";
+import type { Job } from "@/types/job";
 
 interface JobDetailsHeaderProps {
   job: Job;
   isEditing: boolean;
+  setIsEditing: (value: boolean) => void;
   editedJob: Partial<Job>;
+  setEditedJob: (value: Partial<Job>) => void;
+  handleSaveJob: () => Promise<void>;
   isSaving: boolean;
+  setIsDeleteDialogOpen: (value: boolean) => void;
+  setShowProgressForm: (value: boolean) => void;
   isAdmin: boolean;
-  canEditJob: boolean;
   canUpdateJob: boolean;
+  canEditJob: boolean;
   daysRemaining: number;
   isOverdue: boolean;
   progressPercentage: number;
-  setEditedJob: (job: Partial<Job>) => void;
-  setIsEditing: (isEditing: boolean) => void;
-  handleSaveJob: () => Promise<void>;
-  setShowProgressForm: (show: boolean) => void;
-  setIsDeleteDialogOpen: (isOpen: boolean) => void;
+  isAssignedToMe: boolean;
 }
 
 export function JobDetailsHeader({
   job,
   isEditing,
+  setIsEditing,
   editedJob,
+  setEditedJob,
+  handleSaveJob,
   isSaving,
+  setIsDeleteDialogOpen,
+  setShowProgressForm,
   isAdmin,
-  canEditJob,
   canUpdateJob,
+  canEditJob,
   daysRemaining,
   isOverdue,
   progressPercentage,
-  setEditedJob,
-  setIsEditing,
-  handleSaveJob,
-  setShowProgressForm,
-  setIsDeleteDialogOpen,
+  isAssignedToMe,
 }: JobDetailsHeaderProps) {
   const router = useRouter();
+  const { data: session } = useSession();
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+  // Find the current worker's payment information
+  const currentWorker = job.workers?.find(
+    (worker) => worker.userId === session?.user?.id
+  );
+  const paymentRate = currentWorker?.paymentRate || job.workerPaymentRate;
+  const hourlyRate = currentWorker?.hourlyRate || job.workerHourlyRate;
+
+  const handleGeneratePDF = async () => {
+    setIsGeneratingPDF(true);
+    try {
+      const doc = await generateJobPDF(job, session);
+      doc.save(`WARRINGTON-INSTALLS-job-${job._id}.pdf`);
+      toast.success("PDF generated successfully");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF");
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  // Get worker count for display
+  const workerCount = job.workers ? job.workers.length : job.userId ? 1 : 0;
 
   return (
-    <>
+    <div className="mb-8">
       <div className="flex items-center mb-4">
         <Button
           variant="ghost"
@@ -135,6 +166,14 @@ export function JobDetailsHeader({
                   Overdue by {Math.abs(daysRemaining)} days
                 </Badge>
               )}
+
+              {/* Show payment badge if assigned to me */}
+              {isAssignedToMe && paymentRate && (
+                <Badge className="bg-emerald-500 hover:bg-emerald-600">
+                  <DollarSign className="h-3 w-3 mr-1" />$
+                  {paymentRate.toFixed(2)}
+                </Badge>
+              )}
             </div>
           </div>
 
@@ -174,6 +213,52 @@ export function JobDetailsHeader({
                 </Button>
               </>
             )}
+
+            {!isEditing && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="bg-white/20 text-white hover:bg-white/30 border-white/30"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Job Actions</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {canUpdateJob && (
+                    <DropdownMenuItem onClick={() => setShowProgressForm(true)}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Progress
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem
+                    onClick={handleGeneratePDF}
+                    disabled={isGeneratingPDF}
+                  >
+                    {isGeneratingPDF ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="mr-2 h-4 w-4" />
+                    )}
+                    {isGeneratingPDF
+                      ? "Generating PDF..."
+                      : "Download PDF Report"}
+                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem
+                      onClick={() => setIsDeleteDialogOpen(true)}
+                      className="text-red-500"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Job
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
 
@@ -181,22 +266,18 @@ export function JobDetailsHeader({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-white/80">
               <div className="text-xs uppercase">Client</div>
-              <div className="font-medium mt-1 flex items-center">
-                <Briefcase className="h-4 w-4 mr-1 text-white/60" />
-                {job.clientName}
-              </div>
+              <div className="font-medium mt-1">{job.clientName}</div>
             </div>
             <div className="text-white/80">
               <div className="text-xs uppercase">Assigned To</div>
               <div className="font-medium mt-1 flex items-center">
-                <User className="h-4 w-4 mr-1 text-white/60" />
-                {job.workerName}
+                <Users className="h-3 w-3 mr-1" />
+                {workerCount} {workerCount === 1 ? "Worker" : "Workers"}
               </div>
             </div>
             <div className="text-white/80">
               <div className="text-xs uppercase">Due Date</div>
-              <div className="font-medium mt-1 flex items-center">
-                <Calendar className="h-4 w-4 mr-1 text-white/60" />
+              <div className="font-medium mt-1">
                 {format(parseISO(job.expireDate), "MMM d, yyyy")}
               </div>
             </div>
@@ -215,6 +296,6 @@ export function JobDetailsHeader({
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

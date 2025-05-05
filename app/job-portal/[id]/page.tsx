@@ -1,11 +1,9 @@
 "use client";
 
-import type React from "react";
-
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { parseISO, differenceInDays } from "date-fns";
+import { parseISO, differenceInDays, format } from "date-fns";
 import {
   Loader2,
   AlertTriangle,
@@ -15,6 +13,10 @@ import {
   BarChart3,
   Plus,
   Users,
+  PoundSterling,
+  Clock,
+  Info,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -37,23 +39,34 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 // Import components
 import { JobDetailsHeader } from "@/components/job-portal/JobDetailsHeader";
-import { generateJobPDF } from "@/lib/excelGenerator";
 import { StatusUpdateSection } from "@/components/job-portal/StatusUpdateSection";
 import { JobDetailsForm } from "@/components/job-portal/JobDetailsForm";
 import { JobDescription } from "@/components/job-portal/JobDescription";
 import { JobTimeline } from "@/components/job-portal/JobTimeline";
 import { JobStatusCard } from "@/components/job-portal/JobStatusCard";
-import { ProgressForm } from "@/components/job-portal/ProgressForm";
+import { JobProgressForm } from "@/components/job-portal/JobProgressForm";
 import { ProgressSummary } from "@/components/job-portal/ProgressSummary";
 import { ProgressTimeline } from "@/components/job-portal/ProgressTimeline";
 import { FinancialSummary } from "@/components/job-portal/FinancialSummary";
 import { CostBreakdown } from "@/components/job-portal/CostBreakdown";
+import { generateJobPDF } from "@/lib/excelGenerator";
+import { PDFButton } from "@/components/job-portal/PDFButton";
 
 export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -69,6 +82,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const [progressAmount, setProgressAmount] = useState("");
   const [isSubmittingProgress, setIsSubmittingProgress] = useState(false);
   const [workers, setWorkers] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("details");
   const [showProgressForm, setShowProgressForm] = useState(false);
 
@@ -79,13 +93,22 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
     ? job.workers.some((worker) => worker.userId === session?.user?.id)
     : job?.userId === session?.user?.id; // Backward compatibility
 
+  // Get the current worker's payment information
+  const currentWorker = job?.workers?.find(
+    (worker) => worker.userId === session?.user?.id
+  );
+  const workerPaymentRate =
+    currentWorker?.paymentRate || job?.workerPaymentRate;
+  const workerHourlyRate: any =
+    currentWorker?.hourlyRate || job?.workerHourlyRate;
+
   const canUpdateJob = isAdmin || isAssignedToMe;
   const canEditJob = isAdmin;
 
   useEffect(() => {
     fetchJobDetails();
     if (isAdmin) {
-      fetchWorkers();
+      fetchWorkersAndClients();
     }
   }, [params.id, isAdmin]);
 
@@ -107,27 +130,30 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
     }
   };
 
-  const fetchWorkers = async () => {
+  const fetchWorkersAndClients = async () => {
     try {
-      const response = await fetch("/api/admin/users");
-      if (!response.ok) {
-        throw new Error("Failed to fetch workers");
+      const [workersRes, clientsRes] = await Promise.all([
+        fetch("/api/admin/users"),
+        fetch("/api/clients"),
+      ]);
+
+      if (!workersRes.ok || !clientsRes.ok) {
+        throw new Error("Failed to fetch data");
       }
-      const data = await response.json();
+
+      const workersData = await workersRes.json();
+      const clientsData = await clientsRes.json();
+
       // Filter approved workers
-      const approvedWorkers = data.filter((user: any) => user.isApproved);
+      const approvedWorkers = workersData.filter(
+        (user: any) => user.isApproved
+      );
+
       setWorkers(approvedWorkers);
+      setClients(clientsData);
     } catch (error) {
-      console.error("Error fetching workers:", error);
-      // Fallback to mock data
-      const mockWorkers = [
-        { _id: "w1", name: "Admin User", role: "admin" },
-        { _id: "w2", name: "Aidan Wharton", role: "employee" },
-        { _id: "w3", name: "Lee Adams", role: "employee" },
-        { _id: "w4", name: "Ewan Fitzgerald", role: "employee" },
-        { _id: "w5", name: "Connor Gray", role: "employee" },
-      ];
-      setWorkers(mockWorkers);
+      console.error("Error fetching data:", error);
+      toast.error("Failed to fetch workers and clients");
     }
   };
 
@@ -197,24 +223,33 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
     }
   };
 
-  const handleAddProgress = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!progressDescription.trim()) {
-      toast.error("Please enter a progress description");
-      return;
-    }
-
+  const handleAddProgress = async (progressData: Partial<any>) => {
     setIsSubmittingProgress(true);
     try {
+      // Prepare the data for the API
+      const apiData = {
+        details: progressData.description,
+        cost:
+          progressData.workType === "extra"
+            ? progressData.overtimeHours * workerHourlyRate
+            : progressData.amount
+            ? Number.parseFloat(progressData.amount.toString())
+            : undefined,
+        overtimeHours: progressData.overtimeHours,
+        overtimeCost:
+          progressData.workType === "extra" &&
+          progressData.overtimeHours &&
+          workerHourlyRate
+            ? progressData.overtimeHours * workerHourlyRate
+            : undefined,
+      };
+
       const response = await fetch(`/api/jobs/${params.id}/progress`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          details: progressDescription,
-          cost: progressAmount ? Number.parseFloat(progressAmount) : undefined,
-        }),
+        body: JSON.stringify(apiData),
       });
 
       if (!response.ok) {
@@ -222,10 +257,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
         throw new Error(errorData.message || "Failed to add progress");
       }
 
-      const updatedJob = await response.json();
-      setJob(updatedJob);
-      setProgressDescription("");
-      setProgressAmount("");
+      await fetchJobDetails(); // Refresh job data
       setShowProgressForm(false);
       toast.success("Progress added successfully");
     } catch (error: any) {
@@ -237,13 +269,21 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   };
 
   const handleDeleteProgress = async (logId: string) => {
+    if (!logId) {
+      console.error("Cannot delete: logId is missing");
+      return;
+    }
+
+    console.log("Starting to delete log with ID or identifier:", logId);
     try {
       const response = await fetch(
-        `/api/jobs/${params.id}/progress?logId=${logId}`,
+        `/api/jobs/${params.id}/progress?logId=${encodeURIComponent(logId)}`,
         {
           method: "DELETE",
         }
       );
+
+      console.log("Delete API response status:", response.status);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -251,6 +291,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
       }
 
       const updatedJob = await response.json();
+      console.log("Job updated successfully after delete");
       setJob(updatedJob);
       toast.success("Progress log deleted successfully");
     } catch (error: any) {
@@ -380,6 +421,211 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
     return null;
   };
 
+  // Render worker payment information if the current user is assigned to this job
+  const renderWorkerPayment = () => {
+    if (!isAssignedToMe || !job) return null;
+
+    if (!workerPaymentRate && !workerHourlyRate) return null;
+
+    return (
+      <Card className="mb-4 border-none shadow-lg overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 pb-3">
+          <CardTitle className="text-lg flex items-center">
+            <PoundSterling className="h-5 w-5 mr-2 text-emerald-500" />
+            Your Payment Information
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4 space-y-4">
+          {workerPaymentRate && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium">Total Payment:</span>
+              <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                £{workerPaymentRate.toFixed(2)}
+              </span>
+            </div>
+          )}
+
+          {workerHourlyRate && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium flex items-center">
+                <Clock className="h-4 w-4 mr-1 text-muted-foreground" />
+                Overtime Rate:
+              </span>
+              <span className="font-medium">
+                £{workerHourlyRate.toFixed(2)}/hour
+              </span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Render detailed worker payment information for admin view
+  const renderAdminWorkerPayments = () => {
+    if (!isAdmin || !job || !job.workers || job.workers.length === 0)
+      return null;
+
+    // Calculate total payment for all workers
+    const totalWorkerPayments = job.workers.reduce(
+      (sum, worker) => sum + (worker.paymentRate || 0),
+      0
+    );
+
+    return (
+      <Card className="mb-6 border-none shadow-lg overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 pb-3">
+          <CardTitle className="text-lg flex items-center">
+            <PoundSterling className="h-5 w-5 mr-2 text-blue-500" />
+            Worker Payment Details
+          </CardTitle>
+          <CardDescription>
+            Payment rates and overtime information for all assigned workers
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Worker</TableHead>
+                <TableHead>Fixed Rate</TableHead>
+                <TableHead>Hourly Rate</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {job.workers.map((worker) => (
+                <TableRow key={worker.userId}>
+                  <TableCell className="font-medium">
+                    {worker.workerName}
+                  </TableCell>
+                  <TableCell>
+                    {worker.paymentRate ? (
+                      <span className="font-medium text-blue-600 dark:text-blue-400">
+                        £{worker.paymentRate.toFixed(2)}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">
+                        Not set
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {worker.hourlyRate ? (
+                      <span className="font-medium">
+                        £{worker.hourlyRate.toFixed(2)}/hr
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">
+                        Not set
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                    >
+                      Active
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+        <CardFooter className="bg-blue-50/50 dark:bg-blue-950/20 border-t px-6 py-3">
+          <div className="flex justify-between items-center w-full">
+            <div className="flex items-center">
+              <Info className="h-4 w-4 text-blue-500 mr-2" />
+              <span className="text-sm text-muted-foreground">
+                Total worker payments
+              </span>
+            </div>
+            <span className="font-bold text-lg text-blue-600 dark:text-blue-400">
+              £{totalWorkerPayments.toFixed(2)}
+            </span>
+          </div>
+        </CardFooter>
+      </Card>
+    );
+  };
+
+  // Render financial overview for admin
+  const renderAdminFinancialOverview = () => {
+    if (!isAdmin || !job) return null;
+
+    const clientPrice = job.clientPrice || 0;
+    const totalWorkerPayments = job.workers
+      ? job.workers.reduce((sum, worker) => sum + (worker.paymentRate || 0), 0)
+      : job.workerPaymentRate || 0;
+    const additionalCosts =
+      job.progressLogs?.reduce((sum, log) => sum + (log.cost || 0), 0) || 0;
+    const totalCosts = totalWorkerPayments + additionalCosts;
+    const profit = clientPrice - totalCosts;
+    const profitMargin = clientPrice > 0 ? (profit / clientPrice) * 100 : 0;
+
+    return (
+      <Card className="mb-6 border-none shadow-lg overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/40 dark:to-violet-950/40 pb-3">
+          <CardTitle className="text-lg flex items-center">
+            <BarChart3 className="h-5 w-5 mr-2 text-purple-500" />
+            Financial Overview
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Client Price</p>
+              <p className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                £{clientPrice.toFixed(2)}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Worker Payments</p>
+              <p className="text-xl font-bold text-red-500">
+                -£{totalWorkerPayments.toFixed(2)}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Additional Costs</p>
+              <p className="text-xl font-bold text-red-500">
+                -£{additionalCosts.toFixed(2)}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Profit</p>
+              <p
+                className={`text-xl font-bold ${
+                  profit >= 0 ? "text-green-500" : "text-red-500"
+                }`}
+              >
+                £{profit.toFixed(2)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t">
+            <div className="flex justify-between items-center">
+              <p className="text-sm font-medium">Profit Margin</p>
+              <Badge
+                className={`${
+                  profitMargin >= 20
+                    ? "bg-green-500"
+                    : profitMargin >= 0
+                    ? "bg-amber-500"
+                    : "bg-red-500"
+                }`}
+              >
+                {profitMargin.toFixed(1)}%
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   if (isLoading) {
     return (
       <Layout>
@@ -446,18 +692,13 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           handleSaveJob={handleSaveJob}
           setShowProgressForm={setShowProgressForm}
           setIsDeleteDialogOpen={setIsDeleteDialogOpen}
+          isAssignedToMe={isAssignedToMe}
         />
 
-        {/* PDF Generation Button */}
-        <div className="flex justify-end mb-4">
-          <Button
-            variant="outline"
-            onClick={handleGeneratePDF}
-            className="flex items-center gap-2"
-          >
-            <FileText className="h-4 w-4" />
-            Generate PDF Report
-          </Button>
+        {/* PDF Generation Buttons */}
+        <div className="flex justify-end mb-4 gap-2">
+          <PDFButton job={job} variant="outline" />
+          <PDFButton job={job} variant="outline" saveToDatabase={true} />
         </div>
 
         {/* Status Update Section */}
@@ -468,6 +709,12 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
             handleStatusChange={handleStatusChange}
           />
         )}
+
+        {/* Admin Financial Overview (visible only to admins) */}
+        {isAdmin && !isEditing && renderAdminFinancialOverview()}
+
+        {/* Admin Worker Payments (visible only to admins) */}
+        {isAdmin && !isEditing && renderAdminWorkerPayments()}
 
         {/* Main Content Tabs */}
         <Tabs
@@ -517,6 +764,10 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                   <>
                     {/* Display assigned workers */}
                     {renderAssignedWorkers()}
+
+                    {/* Display worker payment information if assigned to this job */}
+                    {renderWorkerPayment()}
+
                     <JobDescription description={job.description} />
                   </>
                 )}
@@ -544,14 +795,12 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                 {canUpdateJob && (
                   <>
                     {showProgressForm ? (
-                      <ProgressForm
-                        isSubmitting={isSubmittingProgress}
+                      <JobProgressForm
                         onSubmit={handleAddProgress}
-                        progressDescription={progressDescription}
-                        setProgressDescription={setProgressDescription}
-                        progressAmount={progressAmount}
-                        setProgressAmount={setProgressAmount}
                         onCancel={() => setShowProgressForm(false)}
+                        isSubmitting={isSubmittingProgress}
+                        workerHourlyRate={workerHourlyRate}
+                        currencySymbol="£"
                       />
                     ) : (
                       <div>
@@ -587,6 +836,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                     <ProgressSummary
                       progressLogs={job.progressLogs}
                       totalCost={totalCost}
+                      currencySymbol="£"
                     />
                   </>
                 )}
@@ -597,8 +847,9 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                 <ProgressTimeline
                   progressLogs={job.progressLogs}
                   canUpdateJob={canUpdateJob}
-                  handleDeleteProgress={handleDeleteProgress}
+                  handleDeleteProgress={handleDeleteProgress} // Ensure this is passed correctly
                   setShowProgressForm={setShowProgressForm}
+                  currencySymbol="£"
                 />
               </div>
             </div>
@@ -608,11 +859,12 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
             <TabsContent value="financials" className="mt-0">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1 space-y-6">
-                  <FinancialSummary
+                  {/* <FinancialSummary
                     clientPrice={job.clientPrice || 0}
                     totalCost={totalCost}
                     profit={profit}
-                  />
+                    currencySymbol="£"
+                  /> */}
                 </div>
 
                 <div className="lg:col-span-2">
@@ -620,6 +872,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                     progressLogs={job.progressLogs}
                     totalCost={totalCost}
                     profit={profit}
+                    currencySymbol="£"
                   />
                 </div>
               </div>

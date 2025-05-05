@@ -7,6 +7,7 @@ interface FinancialSummaryProps {
   clientPrice: number;
   totalCost: number;
   profit: number;
+  currencySymbol?: string;
 }
 
 export function FinancialSummary({
