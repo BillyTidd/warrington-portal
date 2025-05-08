@@ -57,28 +57,88 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    // Get the PDF data and job info from the request
+    // Get the PDF data from the request
     const formData = await request.formData();
     const pdfBlob = formData.get("pdf") as Blob;
-    const jobId = formData.get("jobId") as string;
-    const jobName = formData.get("jobName") as string;
 
-    if (!pdfBlob || !jobId || !jobName) {
+    if (!pdfBlob) {
       return NextResponse.json(
-        { message: "Missing required data" },
+        { message: "PDF file is required" },
         { status: 400 }
       );
     }
+
+    // Check if this is a single job report or a multiple jobs report
+    const reportType = formData.get("reportType") as string;
+    const isBulkReport = reportType === "jobs-summary";
 
     // Generate a unique report number
     const reportNumber = String(Math.floor(Math.random() * 9999)).padStart(
       4,
       "0"
     );
-
-    // Create a descriptive filename with job info and timestamp
     const timestamp = format(new Date(), "yyyy-MM-dd_HH-mm-ss");
-    const fileName = `Job_Report_${reportNumber}_${jobId}_${timestamp}.pdf`;
+
+    let fileName: string;
+    let reportData: any = {};
+
+    if (isBulkReport) {
+      // Handle multiple jobs report
+      const jobCount = formData.get("jobCount") as string;
+      const reportName = formData.get("reportName") as string;
+      const jobIds = formData.get("jobIds") as string;
+
+      if (!jobCount || !reportName) {
+        console.error("Missing bulk report data:", { jobCount, reportName });
+        return NextResponse.json(
+          {
+            message: "Missing required data for bulk report",
+            received: {
+              jobCount: !!jobCount,
+              reportName: !!reportName,
+              pdfBlob: !!pdfBlob,
+            },
+          },
+          { status: 400 }
+        );
+      }
+
+      fileName = `Jobs_Summary_Report_${reportNumber}_${timestamp}.pdf`;
+
+      reportData = {
+        reportType: "bulk",
+        jobCount: Number.parseInt(jobCount),
+        reportName: reportName,
+        jobIds: jobIds || "",
+      };
+    } else {
+      // Handle single job report
+      const jobId = formData.get("jobId") as string;
+      const jobName = formData.get("jobName") as string;
+
+      if (!jobId || !jobName) {
+        console.error("Missing single job report data:", { jobId, jobName });
+        return NextResponse.json(
+          {
+            message: "Missing required data for single job report",
+            received: {
+              jobId: !!jobId,
+              jobName: !!jobName,
+              pdfBlob: !!pdfBlob,
+            },
+          },
+          { status: 400 }
+        );
+      }
+
+      fileName = `Job_Report_${reportNumber}_${jobId}_${timestamp}.pdf`;
+
+      reportData = {
+        reportType: "single",
+        jobId: jobId,
+        jobName: jobName,
+      };
+    }
 
     // Get or create the reports folder
     const folderId = await getOrCreateReportsFolder();
@@ -128,13 +188,11 @@ export async function POST(request: NextRequest) {
       fileUrl: response.data.webViewLink || "",
       fileName: fileName,
       reportNumber: reportNumber,
-      jobId: jobId,
-      jobName: jobName,
+      ...reportData,
       createdBy: session.user.id,
       creatorName: session.user.name,
       creatorRole: session.user.role,
       createdAt: new Date(),
-      duration: "N/A", // You can calculate this based on job data if needed
     });
 
     return NextResponse.json({
