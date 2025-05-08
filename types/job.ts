@@ -12,6 +12,7 @@ export interface JobProgressLog {
   updatedByName: string;
   details: string;
   cost?: number;
+  hours?: number;
   overtimeHours?: number;
   overtimeCost?: number;
   statusChange?: boolean;
@@ -20,9 +21,12 @@ export interface JobProgressLog {
 
 export interface Job {
   _id: string;
+  id: string;
+
   clientName: string;
   userId: string;
   jobName?: any;
+  hours?: any;
   clientId?: any;
   workerName: string;
   assignDate: Date | any;
