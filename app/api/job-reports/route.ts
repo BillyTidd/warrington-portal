@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
     const creator = searchParams.get("creator");
+    const reportType = searchParams.get("reportType");
 
     const client = await clientPromise;
     const db = client.db();
@@ -48,13 +49,41 @@ export async function GET(request: NextRequest) {
       query.createdBy = session.user.id;
     }
 
+    // Filter by report type if specified
+    if (reportType === "single") {
+      query.$or = [
+        { reportType: "single" },
+        { reportType: { $exists: false }, jobId: { $exists: true } },
+      ];
+    } else if (reportType === "bulk") {
+      query.$or = [{ reportType: "bulk" }, { jobCount: { $exists: true } }];
+    }
+
     // Add search filter
     if (search) {
-      query.$or = [
-        { jobName: { $regex: search, $options: "i" } },
-        { reportNumber: { $regex: search, $options: "i" } },
-        { creatorName: { $regex: search, $options: "i" } },
-      ];
+      // If we already have $or from report type, we need to use $and
+      if (query.$or) {
+        query.$and = [
+          { $or: query.$or },
+          {
+            $or: [
+              { jobName: { $regex: search, $options: "i" } },
+              { reportName: { $regex: search, $options: "i" } },
+              { reportNumber: { $regex: search, $options: "i" } },
+              { creatorName: { $regex: search, $options: "i" } },
+            ],
+          },
+        ];
+        // Remove the original $or after moving it to $and
+        delete query.$or;
+      } else {
+        query.$or = [
+          { jobName: { $regex: search, $options: "i" } },
+          { reportName: { $regex: search, $options: "i" } },
+          { reportNumber: { $regex: search, $options: "i" } },
+          { creatorName: { $regex: search, $options: "i" } },
+        ];
+      }
     }
 
     // Add date range filter
@@ -75,6 +104,8 @@ export async function GET(request: NextRequest) {
     if (creator) {
       query.creatorName = { $regex: creator, $options: "i" };
     }
+
+    console.log("Query:", JSON.stringify(query, null, 2));
 
     // Get total count for pagination
     const total = await db.collection("job-reports").countDocuments(query);

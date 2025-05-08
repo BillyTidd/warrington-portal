@@ -13,8 +13,12 @@ import {
   ArrowUpDown,
   Calendar,
   User,
-  Clock,
   X,
+  FileBarChart,
+  FileDigit,
+  Users,
+  RefreshCw,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +39,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   Table,
@@ -59,30 +64,41 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface JobReport {
   _id: string;
   fileUrl: string;
   fileName: string;
   reportNumber: string;
-  jobId: string;
-  jobName: string;
+  jobId?: string;
+  jobName?: string;
+  reportType?: "single" | "bulk";
+  jobCount?: number;
+  reportName?: string;
+  jobIds?: string;
   createdBy: string;
   creatorName: string;
   creatorRole: string;
   createdAt: string;
-  duration: string;
+  duration?: string;
 }
 
 export default function JobReportsPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const [reports, setReports] = useState<JobReport[]>([]);
-  const [filteredReports, setFilteredReports] = useState<JobReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string>("createdAt");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [activeTab, setActiveTab] = useState("all");
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -91,20 +107,14 @@ export default function JobReportsPage() {
   const reportsPerPage = 10;
 
   // Date filtering
-  const [startDate, setStartDate] = useState<Date | null>(null);
-  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [startDate, setStartDate] = useState<any | null>(null);
+  const [endDate, setEndDate] = useState<any | null>(null);
   const [creatorFilter, setCreatorFilter] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     fetchReports();
-  }, [
-    currentPage,
-    sortField,
-    sortDirection,
-    startDate,
-    endDate,
-    creatorFilter,
-  ]);
+  }, [currentPage, sortField, sortDirection, activeTab]);
 
   const fetchReports = async () => {
     setIsLoading(true);
@@ -121,6 +131,7 @@ export default function JobReportsPage() {
       if (startDate) params.append("startDate", startDate.toISOString());
       if (endDate) params.append("endDate", endDate.toISOString());
       if (creatorFilter) params.append("creator", creatorFilter);
+      if (activeTab !== "all") params.append("reportType", activeTab);
 
       const response = await fetch(`/api/job-reports?${params.toString()}`);
       if (!response.ok) {
@@ -129,7 +140,6 @@ export default function JobReportsPage() {
 
       const data = await response.json();
       setReports(data.reports);
-      setFilteredReports(data.reports);
       setTotalPages(data.totalPages);
       setTotalReports(data.total);
     } catch (error) {
@@ -141,6 +151,7 @@ export default function JobReportsPage() {
   };
 
   const handleSearch = () => {
+    setCurrentPage(1);
     fetchReports();
   };
 
@@ -163,6 +174,8 @@ export default function JobReportsPage() {
     setCurrentPage(1);
     setSortField("createdAt");
     setSortDirection("desc");
+    setActiveTab("all");
+    fetchReports();
   };
 
   // Generate page numbers with ellipsis
@@ -200,13 +213,50 @@ export default function JobReportsPage() {
 
   const isAdmin = session?.user?.role === "admin";
 
+  const getReportTypeIcon = (report: JobReport) => {
+    if (report.reportType === "bulk" || report.jobCount) {
+      return <FileBarChart className="h-4 w-4 text-blue-500" />;
+    } else {
+      return <FileText className="h-4 w-4 text-green-500" />;
+    }
+  };
+
+  const getReportTypeBadge = (report: JobReport) => {
+    if (report.reportType === "bulk" || report.jobCount) {
+      return (
+        <Badge variant="outline" className="border-blue-500 text-blue-600">
+          Bulk Report
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge variant="outline" className="border-green-500 text-green-600">
+          Single Job
+        </Badge>
+      );
+    }
+  };
+
+  const getReportName = (report: JobReport) => {
+    if (report.reportType === "bulk" || report.jobCount) {
+      return report.reportName || `Jobs Summary (${report.jobCount} jobs)`;
+    } else {
+      return report.jobName || "Job Report";
+    }
+  };
+
   return (
     <Layout>
       <div className="container mx-auto py-8 px-4">
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold mb-4 sm:mb-0">Job Reports</h1>
+        <div className="flex flex-col sm:flex-row justify-between items-start mb-6">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Job Reports</h1>
+            <p className="text-muted-foreground mb-4">
+              View and download all generated job reports
+            </p>
+          </div>
 
-          {/* <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto mt-4 sm:mt-0">
             <div className="relative flex-1 sm:flex-none sm:w-64">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -222,124 +272,141 @@ export default function JobReportsPage() {
               <Search className="h-4 w-4" />
             </Button>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <Filter className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem onClick={() => handleSort("createdAt")}>
-                  <Calendar className="mr-2 h-4 w-4" />
-                  Sort by Date
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleSort("creatorName")}>
-                  <User className="mr-2 h-4 w-4" />
-                  Sort by Creator
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleSort("jobName")}>
-                  <FileText className="mr-2 h-4 w-4" />
-                  Sort by Job Name
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div> */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowFilters(!showFilters)}
+              className={showFilters ? "bg-muted" : ""}
+            >
+              <Filter className="h-4 w-4" />
+            </Button>
+
+            <Button variant="outline" size="icon" onClick={fetchReports}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
+        {/* Tabs for report types */}
+        <Tabs
+          defaultValue="all"
+          value={activeTab}
+          onValueChange={(value) => {
+            setActiveTab(value);
+            setCurrentPage(1);
+          }}
+          className="mb-6"
+        >
+          <TabsList className="grid w-full sm:w-auto grid-cols-3">
+            <TabsTrigger value="all">All Reports</TabsTrigger>
+            <TabsTrigger value="single">Single Job</TabsTrigger>
+            <TabsTrigger value="bulk">Bulk Reports</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         {/* Advanced filters */}
-        {/* <Card className="mb-6">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Filters</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start text-left font-normal"
-                    >
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {startDate ? format(startDate, "PPP") : "Pick a date"}
-                      {startDate && (
-                        <X
-                          className="ml-auto h-4 w-4 opacity-50 hover:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setStartDate(null);
-                          }}
-                        />
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={startDate || undefined}
-                      onSelect={setStartDate}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div className="space-y-2">
-                <Label>End Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start text-left font-normal"
-                    >
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {endDate ? format(endDate, "PPP") : "Pick a date"}
-                      {endDate && (
-                        <X
-                          className="ml-auto h-4 w-4 opacity-50 hover:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEndDate(null);
-                          }}
-                        />
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={endDate || undefined}
-                      onSelect={setEndDate}
-                      disabled={(date) =>
-                        startDate ? date < startDate : false
-                      }
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              {isAdmin && (
+        {showFilters && (
+          <Card className="mb-6 border-dashed animate-in fade-in-50 duration-300">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Advanced Filters</CardTitle>
+              <CardDescription>
+                Filter reports by date range and creator
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Creator</Label>
-                  <Input
-                    placeholder="Filter by creator name"
-                    value={creatorFilter}
-                    onChange={(e) => setCreatorFilter(e.target.value)}
-                  />
+                  <Label>Start Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {startDate ? format(startDate, "PPP") : "Pick a date"}
+                        {startDate && (
+                          <X
+                            className="ml-auto h-4 w-4 opacity-50 hover:opacity-100"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setStartDate(null);
+                            }}
+                          />
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={startDate || undefined}
+                        onSelect={setStartDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
-              )}
-            </div>
 
-            <div className="flex justify-end mt-4">
-              <Button variant="outline" onClick={clearFilters} className="mr-2">
-                Clear Filters
-              </Button>
-              <Button onClick={handleSearch}>Apply Filters</Button>
-            </div>
-          </CardContent>
-        </Card> */}
+                <div className="space-y-2">
+                  <Label>End Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {endDate ? format(endDate, "PPP") : "Pick a date"}
+                        {endDate && (
+                          <X
+                            className="ml-auto h-4 w-4 opacity-50 hover:opacity-100"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEndDate(null);
+                            }}
+                          />
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={endDate || undefined}
+                        onSelect={setEndDate}
+                        disabled={(date) =>
+                          startDate ? date < startDate : false
+                        }
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {isAdmin && (
+                  <div className="space-y-2">
+                    <Label>Creator</Label>
+                    <Input
+                      placeholder="Filter by creator name"
+                      value={creatorFilter}
+                      onChange={(e) => setCreatorFilter(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end mt-4">
+                <Button
+                  variant="outline"
+                  onClick={clearFilters}
+                  className="mr-2"
+                >
+                  Clear Filters
+                </Button>
+                <Button onClick={handleSearch}>Apply Filters</Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
@@ -354,27 +421,81 @@ export default function JobReportsPage() {
               <FileText className="h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-xl font-medium mb-2">No Reports Found</h3>
               <p className="text-muted-foreground text-center max-w-md">
-                {searchTerm || startDate || endDate || creatorFilter
+                {searchTerm ||
+                startDate ||
+                endDate ||
+                creatorFilter ||
+                activeTab !== "all"
                   ? "No reports match your search criteria. Try adjusting your filters."
                   : "No job reports have been generated yet. Generate a report from a job details page."}
               </p>
+              {(searchTerm ||
+                startDate ||
+                endDate ||
+                creatorFilter ||
+                activeTab !== "all") && (
+                <Button
+                  variant="outline"
+                  onClick={clearFilters}
+                  className="mt-4"
+                >
+                  Clear Filters
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle>Job Reports</CardTitle>
-              <CardDescription>
-                View and download reports for all jobs
-              </CardDescription>
+          <Card className="shadow-md border-gray-200">
+            <CardHeader className="pb-3 bg-gray-50 dark:bg-gray-900">
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Job Reports</CardTitle>
+                  <CardDescription>
+                    {totalReports} report{totalReports !== 1 ? "s" : ""} found
+                  </CardDescription>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <ArrowUpDown className="mr-2 h-4 w-4" />
+                      Sort by
+                      <ChevronDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleSort("createdAt")}>
+                      <Calendar className="mr-2 h-4 w-4" />
+                      Date{" "}
+                      {sortField === "createdAt" &&
+                        (sortDirection === "desc" ? "(Newest)" : "(Oldest)")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleSort("creatorName")}>
+                      <User className="mr-2 h-4 w-4" />
+                      Creator Name
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleSort("reportNumber")}
+                    >
+                      <FileDigit className="mr-2 h-4 w-4" />
+                      Report Number
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => handleSort("jobCount")}>
+                      <Users className="mr-2 h-4 w-4" />
+                      Job Count
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <ScrollArea className="h-[600px]">
                 <Table>
                   <TableHeader className="sticky top-0 bg-background">
                     <TableRow>
+                      <TableHead className="w-[80px]">Type</TableHead>
                       <TableHead className="w-[100px]">Report #</TableHead>
-                      <TableHead>Job Name</TableHead>
+                      <TableHead>Report Name</TableHead>
                       <TableHead
                         className="cursor-pointer"
                         onClick={() => handleSort("createdAt")}
@@ -393,20 +514,44 @@ export default function JobReportsPage() {
                           <ArrowUpDown className="ml-2 h-4 w-4" />
                         </div>
                       </TableHead>
-                      <TableHead>Duration</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {reports.map((report) => (
-                      <TableRow key={report._id}>
+                      <TableRow key={report._id} className="group">
+                        <TableCell>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <div className="flex justify-center">
+                                  {getReportTypeIcon(report)}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {report.reportType === "bulk" || report.jobCount
+                                  ? `Bulk report with ${report.jobCount} jobs`
+                                  : "Single job report"}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
                         <TableCell className="font-medium">
                           {report.reportNumber}
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium">{report.jobName}</div>
-                          <div className="text-xs text-muted-foreground">
-                            ID: {report.jobId}
+                          <div className="font-medium">
+                            {getReportName(report)}
+                          </div>
+                          <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
+                            {getReportTypeBadge(report)}
+                            {report.reportType !== "bulk" &&
+                              !report.jobCount &&
+                              report.jobId && (
+                                <span className="text-xs text-muted-foreground">
+                                  ID: {report.jobId.substring(0, 8)}...
+                                </span>
+                              )}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -421,19 +566,13 @@ export default function JobReportsPage() {
                               variant="outline"
                               className={`mr-2 ${
                                 report.creatorRole === "admin"
-                                  ? "border-blue-500"
-                                  : "border-green-500"
+                                  ? "border-blue-500 text-blue-600"
+                                  : "border-green-500 text-green-600"
                               }`}
                             >
                               {report.creatorRole}
                             </Badge>
                             {report.creatorName}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center">
-                            <Clock className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                            {report.duration}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
@@ -443,6 +582,7 @@ export default function JobReportsPage() {
                             onClick={() =>
                               window.open(report.fileUrl, "_blank")
                             }
+                            className="opacity-70 group-hover:opacity-100"
                           >
                             <Download className="h-4 w-4 mr-2" />
                             View
@@ -454,7 +594,7 @@ export default function JobReportsPage() {
                 </Table>
               </ScrollArea>
             </CardContent>
-            <CardFooter className="flex flex-col sm:flex-row justify-between items-center border-t p-4">
+            <CardFooter className="flex flex-col sm:flex-row justify-between items-center border-t p-4 bg-gray-50 dark:bg-gray-900">
               <div className="text-sm text-muted-foreground mb-4 sm:mb-0">
                 Showing {reports.length} of {totalReports} reports
               </div>
