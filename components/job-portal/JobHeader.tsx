@@ -1,25 +1,11 @@
 "use client";
 
 import type React from "react";
-import { useState } from "react";
-import { useSession } from "next-auth/react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-  Filter,
-  Calendar,
-  FileText,
-} from "lucide-react";
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight, Plus, RefreshCw } from "lucide-react";
 import type { Job } from "@/types/job";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ReportDialog } from "./ReportDailoge";
+// import { DirectReportButton } from "./DirectReportButton"
 
 interface JobHeaderProps {
   currentDate: Date;
@@ -27,6 +13,7 @@ interface JobHeaderProps {
   onNewJob: () => void;
   jobs: Job[];
   children?: React.ReactNode;
+  onRefresh?: () => void;
 }
 
 export function JobHeader({
@@ -35,173 +22,196 @@ export function JobHeader({
   onNewJob,
   jobs,
   children,
+  onRefresh,
 }: JobHeaderProps) {
-  const { data: session } = useSession();
-  const isAdmin = session?.user?.role === "admin";
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const currentMonth = format(currentDate, "MMMM yyyy");
 
   return (
-    <div className="bg-gradient-to-r from-violet-600 to-purple-600 rounded-lg shadow-lg overflow-hidden">
-      {/* Header Top Section */}
-      <div className="p-4 md:p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        {/* Title and Icon */}
-        <div className="flex items-center gap-3">
-          <div className="bg-white/20 p-2 rounded-lg">
-            <Calendar className="h-5 w-5 text-white" />
-          </div>
-          <h2 className="text-2xl md:text-3xl font-bold text-white">
-            {isAdmin ? "Job Management" : "My Jobs"}
-          </h2>
-        </div>
+    <div className="bg-gray-900 border-b border-gray-800">
+      {/* Top section with title and action buttons */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:p-6">
+        <h1 className="text-2xl font-bold text-white mb-4 sm:mb-0">
+          Job Portal
+        </h1>
 
-        {/* Action Buttons for larger screens */}
-        <div className="hidden md:flex items-center gap-3">
-          {/* Report button for all users */}
-          <Button
-            variant="outline"
-            className="bg-white text-violet-600 hover:bg-violet-50 shadow-md hover:shadow-lg transition-all"
-            onClick={() => {
-              const reportDialog = document.getElementById(
-                "report-dialog-trigger"
-              );
-              if (reportDialog) {
-                (reportDialog as HTMLButtonElement).click();
-              }
-            }}
-          >
-            <FileText className="mr-2 h-4 w-4" />
-            <span>Generate Report</span>
-          </Button>
-
-          {isAdmin && (
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          {onRefresh && (
             <Button
-              onClick={onNewJob}
-              className="bg-white text-violet-600 hover:bg-violet-50 shadow-md hover:shadow-lg transition-all"
+              variant="outline"
+              size="sm"
+              onClick={onRefresh}
+              className="flex items-center gap-1"
             >
-              <Plus className="mr-2 h-4 w-4" />
-              <span>New Job</span>
+              <RefreshCw className="h-4 w-4" />
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
           )}
+
+          <Button
+            onClick={onNewJob}
+            size="sm"
+            className="hidden md:flex items-center gap-1"
+          >
+            <Plus className="h-4 w-4" />
+            New Job
+          </Button>
+
+          <DirectReportButton jobs={jobs} />
         </div>
       </div>
 
-      {/* Header Bottom Section */}
-      <div className="bg-violet-700/40 p-3 md:p-4 flex flex-wrap items-center justify-between gap-3">
-        {/* Navigation Controls */}
+      {/* Bottom section with navigation and filters */}
+      <div className="flex flex-wrap items-center justify-between p-4 bg-gray-950 rounded-b-lg">
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            size="sm"
+            size="icon"
             onClick={() => onNavigate("prev")}
-            className="bg-white/10 border-none text-white hover:bg-white/20 h-9"
+            className="h-8 w-8"
           >
             <ChevronLeft className="h-4 w-4" />
+            <span className="sr-only">Previous</span>
           </Button>
+
+          <h2 className="text-lg font-medium text-white px-2">
+            {currentMonth}
+          </h2>
+
           <Button
             variant="outline"
-            size="sm"
+            size="icon"
             onClick={() => onNavigate("next")}
-            className="bg-white/10 border-none text-white hover:bg-white/20 h-9"
+            className="h-8 w-8"
           >
             <ChevronRight className="h-4 w-4" />
+            <span className="sr-only">Next</span>
           </Button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-white/10 border-none text-white hover:bg-white/20 h-9"
-              >
-                <Filter className="mr-2 h-4 w-4" />
-                <span className="hidden xs:inline">Filter</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuCheckboxItem
-                checked={statusFilter.includes("pending")}
-                onCheckedChange={(checked) => {
-                  if (checked) {
-                    setStatusFilter([...statusFilter, "pending"]);
-                  } else {
-                    setStatusFilter(
-                      statusFilter.filter((s) => s !== "pending")
-                    );
-                  }
-                }}
-              >
-                Pending
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={statusFilter.includes("in-progress")}
-                onCheckedChange={(checked) => {
-                  if (checked) {
-                    setStatusFilter([...statusFilter, "in-progress"]);
-                  } else {
-                    setStatusFilter(
-                      statusFilter.filter((s) => s !== "in-progress")
-                    );
-                  }
-                }}
-              >
-                In Progress
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={statusFilter.includes("completed")}
-                onCheckedChange={(checked) => {
-                  if (checked) {
-                    setStatusFilter([...statusFilter, "completed"]);
-                  } else {
-                    setStatusFilter(
-                      statusFilter.filter((s) => s !== "completed")
-                    );
-                  }
-                }}
-              >
-                Completed
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {children}
         </div>
 
-        {/* Action Buttons for mobile */}
-        <div className="flex md:hidden items-center gap-2 w-full sm:w-auto justify-end mt-2 sm:mt-0">
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-white text-violet-600 hover:bg-violet-50 shadow-sm hover:shadow-md transition-all flex-1 sm:flex-none"
-            onClick={() => {
-              const reportDialog = document.getElementById(
-                "report-dialog-trigger"
-              );
-              if (reportDialog) {
-                (reportDialog as HTMLButtonElement).click();
-              }
-            }}
-          >
-            <FileText className="mr-2 h-4 w-4" />
-            <span>Generate Report</span>
-          </Button>
-
-          {isAdmin && (
-            <Button
-              size="sm"
-              onClick={onNewJob}
-              className="bg-white text-violet-600 hover:bg-violet-50 shadow-sm hover:shadow-md transition-all flex-1 sm:flex-none"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              <span>New Job</span>
-            </Button>
-          )}
-        </div>
+        <div className="mt-2 sm:mt-0">{children}</div>
       </div>
-
-      {/* Hidden ReportDialog with accessible trigger */}
-      <span className="hidden">
-        <ReportDialog jobs={jobs} triggerId="report-dialog-trigger" />
-      </span>
     </div>
+  );
+}
+
+import { useState } from "react";
+import { useSession } from "next-auth/react";
+import { FileText, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { generateJobsPDF } from "@/lib/pdf-generator-jobs";
+
+interface DirectReportButtonProps {
+  jobs: Job[];
+  variant?:
+    | "default"
+    | "outline"
+    | "secondary"
+    | "ghost"
+    | "link"
+    | "destructive";
+  size?: "default" | "sm" | "lg" | "icon";
+}
+
+export function DirectReportButton({
+  jobs,
+  variant = "default",
+  size = "sm",
+}: DirectReportButtonProps) {
+  const { data: session } = useSession();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleGenerateReport = async () => {
+    if (!jobs || jobs.length === 0) {
+      toast.error("No jobs available to generate report");
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      // Create a filename with current date
+      const today = new Date();
+      const formattedDate = today.toISOString().split("T")[0];
+      const filename = `jobs-report-${formattedDate}.pdf`;
+
+      // Generate the PDF with all displayed jobs
+      const startDate = new Date(today);
+      startDate.setDate(startDate.getDate() - 30); // Default to last 30 days if needed
+
+      const endDate = new Date(today);
+      endDate.setDate(endDate.getDate() + 1); // Include today
+
+      const doc = await generateJobsPDF(jobs, session, startDate, endDate);
+
+      // Download the PDF
+      doc.save(filename);
+      toast.success("PDF downloaded successfully");
+
+      // Now save to database
+      setIsUploading(true);
+
+      // Convert the PDF to a blob
+      const pdfBlob = doc.output("blob");
+
+      // Create FormData to send the PDF to the server
+      const formData = new FormData();
+      formData.append("pdf", pdfBlob);
+      formData.append("reportType", "jobs-summary");
+      formData.append("jobCount", jobs.length.toString());
+      formData.append("reportName", `Jobs Summary Report - ${formattedDate}`);
+
+      // Add job IDs as a comma-separated string for reference
+      const jobIds = jobs.map((job) => job._id).join(",");
+      formData.append("jobIds", jobIds);
+
+      // Upload to server which will handle database storage
+      const response = await fetch("/api/upload-pdf", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("API error response:", errorData);
+        throw new Error(errorData.message || "Failed to upload PDF");
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success("Report saved to database successfully");
+      } else {
+        throw new Error("Failed to save report to database");
+      }
+    } catch (error) {
+      console.error("Error generating jobs report:", error);
+      toast.error("Failed to generate report. Please try again.");
+    } finally {
+      setIsGenerating(false);
+      setIsUploading(false);
+    }
+  };
+
+  return (
+    <Button
+      onClick={handleGenerateReport}
+      disabled={isGenerating || isUploading || jobs.length === 0}
+      variant={variant}
+      size={size}
+      className="relative overflow-hidden group"
+    >
+      <span className="absolute inset-0 bg-blue-100 dark:bg-blue-900/20 opacity-0 group-hover:opacity-10 transition-opacity"></span>
+      {isGenerating ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          {isUploading ? "Saving..." : "Generating..."}
+        </>
+      ) : (
+        <>
+          <FileText className="mr-2 h-4 w-4" />
+          Generate Report ({jobs.length})
+        </>
+      )}
+    </Button>
   );
 }
