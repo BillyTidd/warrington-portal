@@ -129,15 +129,16 @@ export const generateJobsPDF = async (
   doc.setTextColor(50, 50, 50);
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
-  doc.text(
-    `Report Period: ${format(startDate, "dd-MMM-yyyy")} to ${format(
-      endDate,
-      "dd-MMM-yyyy"
-    )}`,
-    pageWidth / 2,
-    60,
-    { align: "center" }
-  );
+  // Check if start and end dates are the same
+  const reportPeriodText =
+    startDate.toDateString() === endDate.toDateString()
+      ? `Report Date: ${format(startDate, "dd-MMM-yyyy")}`
+      : `Report Period: ${format(startDate, "dd-MMM-yyyy")} to ${format(
+          endDate,
+          "dd-MMM-yyyy"
+        )}`;
+
+  doc.text(reportPeriodText, pageWidth / 2, 60, { align: "center" });
 
   // Add summary statistics
   const totalJobs = jobs.length;
