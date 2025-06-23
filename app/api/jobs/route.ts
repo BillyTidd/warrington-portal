@@ -44,8 +44,20 @@ export async function GET(request: Request) {
     const query: any = {};
 
     // Filter by user role
-    if (session.user.role !== "admin") {
+    if (session.user.role === "admin") {
+      // Admin sees all jobs
+      console.log("Admin user - showing all jobs");
+    } else if (session.user.role === "customer") {
+      // Customer sees only jobs created from their booking requests
+      query.clientId = session.user.id;
+      console.log("Customer user - filtering by clientId:", session.user.id);
+    } else {
+      // Employee sees jobs they're assigned to work on
       query["workers.userId"] = session.user.id;
+      console.log(
+        "Employee user - filtering by workers.userId:",
+        session.user.id
+      );
     }
 
     // Filter by date range - handle both field naming conventions

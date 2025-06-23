@@ -5,16 +5,20 @@ import { authOptions } from "@/lib/auth";
 import { ObjectId } from "mongodb";
 
 export async function GET(
-  req: Request,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { message: "Please log in to continue." },
+        { status: 401 }
+      );
     }
 
-    const id = params.id;
+    const { id } = params;
+
     if (!id || !ObjectId.isValid(id)) {
       return NextResponse.json({ message: "Invalid job ID" }, { status: 400 });
     }
@@ -22,31 +26,47 @@ export async function GET(
     const client = await clientPromise;
     const db = client.db();
 
-    const job = await db.collection("jobs").findOne({ _id: new ObjectId(id) });
+    // Build query with role-based filtering
+    const query: any = { _id: new ObjectId(id) };
 
-    if (!job) {
-      return NextResponse.json({ message: "Job not found" }, { status: 404 });
+    // Apply role-based filtering
+    if (session.user.role === "admin") {
+      // Admin can see any job
+    } else if (session.user.role === "customer") {
+      // Customer can only see jobs created from their booking requests
+      query.clientId = session.user.id;
+    } else {
+      // Employee can only see jobs they're assigned to
+      query["workers.userId"] = session.user.id;
     }
 
-    // Check if user has permission to view this job
-    // Admins can view all jobs, regular users can only view jobs assigned to them
-    const isAdmin = session.user.role === "admin";
+    console.log("Job detail query:", JSON.stringify(query, null, 2));
 
-    // Check if user is in the workers array (new format) or matches userId (old format)
-    const isAssigned = job.workers
-      ? job.workers.some((worker: any) => worker.userId === session.user.id)
-      : job.userId === session.user.id;
+    const job = await db.collection("jobs").findOne(query);
 
-    if (!isAdmin && !isAssigned) {
+    if (!job) {
       return NextResponse.json(
-        { message: "You don't have permission to view this job" },
-        { status: 403 }
+        { message: "Job not found or access denied" },
+        { status: 404 }
       );
+    }
+
+    // Fetch client details if available
+    if (job.clientId) {
+      try {
+        const clientData = await db
+          .collection("clients")
+          .findOne({ _id: new ObjectId(job.clientId) });
+        job.client = clientData || { name: job.clientName || "Unknown Client" };
+      } catch (error) {
+        console.error("Error fetching client data:", error);
+        job.client = { name: job.clientName || "Unknown Client" };
+      }
     }
 
     return NextResponse.json(job);
   } catch (error) {
-    console.error(`Error in GET /api/jobs/${params.id}:`, error);
+    console.error("Error in GET /api/jobs/[id]:", error);
     return NextResponse.json(
       { message: "An error occurred while fetching the job" },
       { status: 500 }
