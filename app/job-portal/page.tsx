@@ -607,9 +607,9 @@ export default function JobPortalPage() {
         <p className="text-gray-400 max-w-md mb-6">
           {viewMode === "calendar"
             ? `No jobs found for ${format(
-                currentDate,
-                "MMMM yyyy"
-              )}. Try another month or create a new job.`
+              currentDate,
+              "MMMM yyyy"
+            )}. Try another month or create a new job.`
             : "No jobs match your current filters. Try adjusting your search criteria or create a new job."}
         </p>
         <div className="flex gap-3">

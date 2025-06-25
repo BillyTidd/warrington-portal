@@ -1,5 +1,7 @@
 "use client";
 
+import type React from "react";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -16,6 +18,8 @@ import {
   Moon,
   Sun,
   Package,
+  LayoutDashboard,
+  ClipboardList,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import Image from "next/image";
@@ -28,49 +32,105 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const isActive = (path: string) => pathname === path;
 
-  const navItems = [
-    ...(status === "authenticated" && session?.user?.role === "admin"
-      ? [{ href: "/dashboard", label: "Dashboard", icon: Users }]
-      : []),
-    { href: "/create-entry", label: "Create Entry", icon: FileText },
-    { href: "/entries", label: "Entries", icon: FileText },
-    ...(status === "authenticated" && session?.user?.role === "admin"
-      ? [{ href: "/clients", label: "Clients", icon: Users }]
-      : []),
-    ...(status === "authenticated" && session?.user?.role === "admin"
-      ? [{ href: "/admin/users", label: "Manage Users", icon: Users }]
-      : []),
-    ...(status === "authenticated" && session?.user?.role === "admin"
-      ? [{ href: "/invoice", label: "Invoice", icon: FileText }]
-      : []),
-    { href: "/calender", label: "Calender", icon: Calendar },
+  const userRole = session?.user?.role;
 
-    ...(status === "authenticated" && session?.user?.role === "admin"
-      ? [{ href: "/task-reports", label: "Tasks Reports", icon: FileText }]
-      : []),
-    { href: "/job-portal", label: "Job Portal", icon: Package },
-    ...(status === "authenticated" && session?.user?.role === "admin"
-      ? [{ href: "/job-portal/reports", label: "Job Reports", icon: Package }]
-      : []),
-  ];
+  // Navigation items based on user role
+  const getNavItems = () => {
+    if (userRole === "customer") {
+      return [
+        {
+          href: "/customer/dashboard",
+          label: "Dashboard",
+          icon: LayoutDashboard,
+        },
+        {
+          href: "/admin/job-requests",
+          label: "My Job Requests",
+          icon: ClipboardList,
+        },
+        { href: "/job-portal", label: "My Jobs", icon: Package },
+        // { href: "/job-portal/reports", label: "Job Reports", icon: FileText },
+        { href: "/estimate", label: "New Estimate", icon: FileText },
+      ];
+    }
+
+    // Admin/Employee navigation
+    return [
+      ...(userRole === "admin"
+        ? [{ href: "/dashboard", label: "Dashboard", icon: Users }]
+        : []),
+      { href: "/create-entry", label: "Create Entry", icon: FileText },
+      { href: "/entries", label: "Entries", icon: FileText },
+      ...(userRole === "admin"
+        ? [{ href: "/clients", label: "Clients", icon: Users }]
+        : []),
+      ...(userRole === "admin"
+        ? [{ href: "/admin/users", label: "Manage Users", icon: Users }]
+        : []),
+      ...(userRole === "admin"
+        ? [{ href: "/invoice", label: "Invoice", icon: FileText }]
+        : []),
+      { href: "/calender", label: "Calender", icon: Calendar },
+      ...(userRole === "admin"
+        ? [{ href: "/task-reports", label: "Tasks Reports", icon: FileText }]
+        : []),
+      { href: "/job-portal", label: "Job Portal", icon: Package },
+      ...(userRole === "admin"
+        ? [{ href: "/job-portal/reports", label: "Job Reports", icon: Package }]
+        : []),
+      ...(userRole === "admin"
+        ? [
+          {
+            href: "/admin/job-requests",
+            label: "Job Requests",
+            icon: Package,
+          },
+        ]
+        : []),
+    ];
+  };
+
+  const navItems = getNavItems();
+  const isCustomerLayout = userRole === "customer";
 
   const SidebarContent = () => (
     <div className="flex h-full flex-col">
       <div
-        className={`flex h-14 items-center justify-center border-b px-4 ${
-          theme !== "dark" && "bg-black"
-        }`}
+        className={`flex h-14 items-center justify-center border-b px-4 ${isCustomerLayout
+            ? "bg-gradient-to-r from-blue-600 to-indigo-600"
+            : theme !== "dark"
+              ? "bg-black"
+              : ""
+          }`}
       >
-        <Link className="flex items-center gap-2 font-semibold" href="/">
-          {theme === "dark" ? (
-            <Image
-              src={"/logo-light.png"}
-              alt="logo"
-              width={400}
-              height={200}
-            />
+        <Link
+          className={`flex items-center gap-2 font-semibold ${isCustomerLayout ? "text-white" : ""
+            }`}
+          href={isCustomerLayout ? "/customer/dashboard" : "/"}
+        >
+          {isCustomerLayout ? (
+            <>
+              <Package className="h-6 w-6" />
+              <span>Customer Portal</span>
+            </>
           ) : (
-            <Image src={"/logo-dark.jpg"} alt="logo" width={600} height={200} />
+            <>
+              {theme === "dark" ? (
+                <Image
+                  src={"/logo-light.png"}
+                  alt="logo"
+                  width={400}
+                  height={200}
+                />
+              ) : (
+                <Image
+                  src={"/logo-dark.jpg"}
+                  alt="logo"
+                  width={600}
+                  height={200}
+                />
+              )}
+            </>
           )}
         </Link>
       </div>
@@ -94,6 +154,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </nav>
       </ScrollArea>
       <div className="border-t p-2">
+        {isCustomerLayout && (
+          <div className="mb-2 px-3 py-2 text-sm text-muted-foreground">
+            Welcome, {session?.user?.name}
+          </div>
+        )}
         <Button
           variant="ghost"
           className="w-full justify-start h-10 mb-1"

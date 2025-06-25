@@ -1,12 +1,14 @@
-import { ObjectId } from 'mongodb'
+import type { ObjectId } from "mongodb"
 
 export interface User {
   _id: ObjectId
   name: string
   email: string
   password: string
-  role: 'employee' | 'admin'
+  role: "employee" | "admin" | "customer"
   isApproved: boolean
+  phone?: string
+  company?: string
 }
 
 export interface ClientData {
