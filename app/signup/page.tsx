@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-
+import { Suspense } from "react";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,8 @@ import { Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
-export default function Signup() {
+// Separate component that uses useSearchParams
+function SignupForm() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -203,5 +204,32 @@ export default function Signup() {
         </CardFooter>
       </Card>
     </div>
+  );
+}
+
+// Loading fallback component
+function SignupLoading() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">Loading...</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-center">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Main component with Suspense boundary
+export default function Signup() {
+  return (
+    <Suspense fallback={<SignupLoading />}>
+      <SignupForm />
+    </Suspense>
   );
 }
