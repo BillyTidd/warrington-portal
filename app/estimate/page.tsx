@@ -249,7 +249,7 @@ export default function EstimatePage() {
                                 </div>
                             ) : (
                                 <>
-                                    <Link href="/auth/login?type=customer">
+                                    <Link href="/login?type=customer">
                                         <Button
                                             variant="ghost"
                                             size="sm"
@@ -259,7 +259,7 @@ export default function EstimatePage() {
                                             Login
                                         </Button>
                                     </Link>
-                                    <Link href="/auth/signup?type=customer">
+                                    <Link href="/signup?type=customer">
                                         <Button
                                             size="sm"
                                             className="bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700"
