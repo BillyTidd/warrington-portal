@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
-    Clock,
     Users,
     MapPin,
     Phone,
@@ -21,18 +20,19 @@ import {
     Filter,
     X,
     Calendar,
+    ArrowUpDown,
+    ArrowUp,
+    ArrowDown,
+    Crown,
+    Wrench,
+    HardHat,
+    Truck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
     Dialog,
@@ -63,10 +63,28 @@ import {
     PaginationNext,
     PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Layout } from "@/components/Layout";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+
+interface LaborBreakdown {
+    type: string;
+    hours: number;
+    dayRate: number;
+    overtimeHours: number;
+    overtimeRate: number;
+    cost: number;
+}
 
 interface BookingRequest {
     _id: string;
@@ -82,12 +100,30 @@ interface BookingRequest {
         jobLocation: string;
         jobType: string;
         jobDescription: string;
+        workerTypes: string[];
+        vehicleType: string;
+        estimatedDistance: number;
     };
     estimatedCost: {
         laborCost: number;
         materialCost: number;
         travelCost: number;
         totalCost: number;
+        breakdown: {
+            labor: LaborBreakdown[];
+            material: {
+                percentage: number;
+                cost: number;
+            };
+            travel: {
+                distance: number;
+                vehicleType: string;
+                rate: number;
+                cost: number;
+            };
+            jobTypeMultiplier: number;
+            jobType: string;
+        };
     };
     status: "pending" | "approved" | "rejected" | "converted";
     adminNotes?: string;
@@ -115,6 +151,18 @@ function useDebounce<T>(value: T, delay: number): T {
 
     return debouncedValue;
 }
+
+const workerTypeLabels: Record<string, { label: string; icon: any }> = {
+    "team-leader": { label: "Team Leader", icon: Crown },
+    "general-fitter": { label: "General Fitter", icon: Wrench },
+    labourer: { label: "Labourer/Assistant", icon: HardHat },
+};
+
+const vehicleTypeLabels: Record<string, string> = {
+    "luton-van": "Luton Van/Large Van",
+    "medium-van": "Medium Van",
+    "small-van": "Small Van/Car",
+};
 
 export default function JobRequestsPage() {
     const { data: session } = useSession();
@@ -342,6 +390,15 @@ export default function JobRequestsPage() {
         }
     };
 
+    const getSortIcon = (field: string) => {
+        if (sortBy !== field) return <ArrowUpDown className="h-4 w-4" />;
+        return sortOrder === "asc" ? (
+            <ArrowUp className="h-4 w-4" />
+        ) : (
+            <ArrowDown className="h-4 w-4" />
+        );
+    };
+
     const getPageNumbers = () => {
         const pageNumbers = [];
 
@@ -444,7 +501,7 @@ export default function JobRequestsPage() {
                         {/* Filter popover */}
                         <Popover>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" className="gap-2">
+                                <Button variant="outline" className="gap-2 bg-transparent">
                                     <Filter className="h-4 w-4" />
                                     <span className="hidden sm:inline">Filters</span>
                                     {activeFilters.length > 0 && (
@@ -532,7 +589,7 @@ export default function JobRequestsPage() {
                                     {/* Clear filters button */}
                                     <Button
                                         variant="outline"
-                                        className="w-full"
+                                        className="w-full bg-transparent"
                                         onClick={clearFilters}
                                         disabled={activeFilters.length === 0}
                                     >
@@ -578,8 +635,6 @@ export default function JobRequestsPage() {
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="1">1</SelectItem>
-
                                 <SelectItem value="5">5</SelectItem>
                                 <SelectItem value="10">10</SelectItem>
                                 <SelectItem value="25">25</SelectItem>
@@ -656,137 +711,222 @@ export default function JobRequestsPage() {
                     </Card>
                 ) : (
                     <>
-                        <div className="grid gap-6">
-                            {requests.map((request) => (
-                                <Card
-                                    key={request._id}
-                                    className="shadow-sm hover:shadow-md transition-shadow"
-                                >
-                                    <CardHeader>
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <CardTitle className="flex items-center gap-2">
-                                                    <Users className="h-5 w-5" />
-                                                    {isCustomer
-                                                        ? request.jobEstimate.jobType || "Job Request"
-                                                        : request.customerName}
-                                                    {!isCustomer && request.customerCompany && (
-                                                        <span className="text-sm text-muted-foreground">
-                                                            ({request.customerCompany})
-                                                        </span>
-                                                    )}
-                                                </CardTitle>
-                                                <CardDescription className="flex items-center gap-4 mt-2">
-                                                    {!isCustomer && (
-                                                        <>
-                                                            <span className="flex items-center gap-1">
-                                                                <Mail className="h-4 w-4" />
-                                                                {request.customerEmail}
-                                                            </span>
-                                                            <span className="flex items-center gap-1">
-                                                                <Phone className="h-4 w-4" />
-                                                                {request.customerPhone}
-                                                            </span>
-                                                        </>
-                                                    )}
-                                                    {isCustomer && (
-                                                        <span className="flex items-center gap-1">
-                                                            <MapPin className="h-4 w-4" />
-                                                            {request.jobEstimate.jobLocation}
-                                                        </span>
-                                                    )}
-                                                </CardDescription>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {getStatusBadge(request.status)}
-                                                {request.status === "converted" &&
-                                                    request.convertedToJobId && (
-                                                        <Link
-                                                            href={`/job-portal/${request.convertedToJobId}`}
-                                                        >
-                                                            <Button variant="outline" size="sm">
-                                                                <ExternalLink className="h-4 w-4 mr-2" />
-                                                                View Job
-                                                            </Button>
-                                                        </Link>
-                                                    )}
+                        {/* Table */}
+                        <Card>
+                            <CardContent className="p-0">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>
                                                 <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => handleViewRequest(request)}
+                                                    variant="ghost"
+                                                    className="h-auto p-0 font-semibold"
+                                                    onClick={() => handleSort("customerName")}
                                                 >
-                                                    <Eye className="h-4 w-4 mr-2" />
-                                                    View Details
+                                                    {isCustomer ? "Job Type" : "Customer"}
+                                                    {getSortIcon("customerName")}
                                                 </Button>
-                                            </div>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                            <div className="flex items-center gap-2">
-                                                <Clock className="h-4 w-4 text-muted-foreground" />
-                                                <div>
-                                                    <p className="text-sm font-medium">
-                                                        {request.jobEstimate.numberOfWorkers} workers ×{" "}
-                                                        {request.jobEstimate.numberOfHours} hours
-                                                    </p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {format(
-                                                            new Date(request.jobEstimate.jobDate),
-                                                            "MMM d, yyyy"
+                                            </TableHead>
+                                            <TableHead>
+                                                <Button
+                                                    variant="ghost"
+                                                    className="h-auto p-0 font-semibold"
+                                                    onClick={() => handleSort("jobDate")}
+                                                >
+                                                    Job Details
+                                                    {getSortIcon("jobDate")}
+                                                </Button>
+                                            </TableHead>
+                                            <TableHead>Location</TableHead>
+                                            <TableHead>
+                                                <Button
+                                                    variant="ghost"
+                                                    className="h-auto p-0 font-semibold"
+                                                    onClick={() => handleSort("totalCost")}
+                                                >
+                                                    Total Cost
+                                                    {getSortIcon("totalCost")}
+                                                </Button>
+                                            </TableHead>
+                                            <TableHead>
+                                                <Button
+                                                    variant="ghost"
+                                                    className="h-auto p-0 font-semibold"
+                                                    onClick={() => handleSort("status")}
+                                                >
+                                                    Status
+                                                    {getSortIcon("status")}
+                                                </Button>
+                                            </TableHead>
+                                            <TableHead>
+                                                <Button
+                                                    variant="ghost"
+                                                    className="h-auto p-0 font-semibold"
+                                                    onClick={() => handleSort("createdAt")}
+                                                >
+                                                    Submitted
+                                                    {getSortIcon("createdAt")}
+                                                </Button>
+                                            </TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {requests.map((request) => (
+                                            <TableRow key={request._id} className="hover:bg-muted/50">
+                                                <TableCell>
+                                                    <div className="space-y-1">
+                                                        <div className="font-medium">
+                                                            {isCustomer
+                                                                ? request.jobEstimate.jobType || "Job Request"
+                                                                : request.customerName}
+                                                        </div>
+                                                        {!isCustomer && (
+                                                            <div className="text-sm text-muted-foreground space-y-1">
+                                                                <div className="flex items-center gap-1">
+                                                                    <Mail className="h-3 w-3" />
+                                                                    {request.customerEmail}
+                                                                </div>
+                                                                <div className="flex items-center gap-1">
+                                                                    <Phone className="h-3 w-3" />
+                                                                    {request.customerPhone}
+                                                                </div>
+                                                                {request.customerCompany && (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <Building className="h-3 w-3" />
+                                                                        {request.customerCompany}
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         )}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <MapPin className="h-4 w-4 text-muted-foreground" />
-                                                <div>
-                                                    <p className="text-sm font-medium">
-                                                        {request.jobEstimate.jobLocation}
-                                                    </p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {request.jobEstimate.jobType}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-medium">Total Estimate</p>
-                                                <p className="text-lg font-bold text-green-600">
-                                                    £{request.estimatedCost.totalCost.toFixed(2)}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-medium">Submitted</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {format(
-                                                        new Date(request.createdAt),
-                                                        "MMM d, yyyy h:mm a"
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="space-y-1">
+                                                        <div className="flex items-center gap-1 text-sm">
+                                                            <Users className="h-3 w-3" />
+                                                            {request.jobEstimate.numberOfWorkers} workers ×{" "}
+                                                            {request.jobEstimate.numberOfHours} hours
+                                                        </div>
+                                                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                                            <Calendar className="h-3 w-3" />
+                                                            {format(
+                                                                new Date(request.jobEstimate.jobDate),
+                                                                "MMM d, yyyy"
+                                                            )}
+                                                        </div>
+                                                        {request.jobEstimate.workerTypes && (
+                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                                {request.jobEstimate.workerTypes.map(
+                                                                    (type, index) => {
+                                                                        const workerInfo = workerTypeLabels[type];
+                                                                        if (!workerInfo) return null;
+                                                                        const Icon = workerInfo.icon;
+                                                                        return (
+                                                                            <Badge
+                                                                                key={index}
+                                                                                variant="outline"
+                                                                                className="text-xs"
+                                                                            >
+                                                                                <Icon className="h-3 w-3 mr-1" />
+                                                                                {workerInfo.label}
+                                                                            </Badge>
+                                                                        );
+                                                                    }
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="space-y-1">
+                                                        <div className="flex items-center gap-1 text-sm">
+                                                            <MapPin className="h-3 w-3" />
+                                                            {request.jobEstimate.jobLocation}
+                                                        </div>
+                                                        {request.jobEstimate.vehicleType && (
+                                                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                                <Truck className="h-3 w-3" />
+                                                                {
+                                                                    vehicleTypeLabels[
+                                                                    request.jobEstimate.vehicleType
+                                                                    ]
+                                                                }
+                                                            </div>
+                                                        )}
+                                                        {request.jobEstimate.estimatedDistance && (
+                                                            <div className="text-xs text-muted-foreground">
+                                                                {request.jobEstimate.estimatedDistance} miles
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="font-bold text-lg text-green-600">
+                                                        £{request.estimatedCost.totalCost.toFixed(2)}
+                                                    </div>
+                                                    {request.estimatedCost.breakdown && (
+                                                        <div className="text-xs text-muted-foreground space-y-1">
+                                                            <div>
+                                                                Labor: £
+                                                                {request.estimatedCost.laborCost.toFixed(2)}
+                                                            </div>
+                                                            <div>
+                                                                Materials: £
+                                                                {request.estimatedCost.materialCost.toFixed(2)}
+                                                            </div>
+                                                            <div>
+                                                                Travel: £
+                                                                {request.estimatedCost.travelCost.toFixed(2)}
+                                                            </div>
+                                                        </div>
                                                     )}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        {/* Show conversion info if converted */}
-                                        {request.status === "converted" && request.convertedAt && (
-                                            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                                                <p className="text-sm text-blue-800">
-                                                    <strong>Converted to Job:</strong>{" "}
-                                                    {format(
-                                                        new Date(request.convertedAt),
-                                                        "MMM d, yyyy h:mm a"
-                                                    )}
-                                                    {request.convertedToJobId && (
-                                                        <span className="ml-2">
-                                                            (Job ID: {request.convertedToJobId.slice(-8)})
-                                                        </span>
-                                                    )}
-                                                </p>
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="space-y-2">
+                                                        {getStatusBadge(request.status)}
+                                                        {request.status === "converted" &&
+                                                            request.convertedToJobId && (
+                                                                <div>
+                                                                    <Link
+                                                                        href={`/job-portal/${request.convertedToJobId}`}
+                                                                    >
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            className="text-xs bg-transparent"
+                                                                        >
+                                                                            <ExternalLink className="h-3 w-3 mr-1" />
+                                                                            View Job
+                                                                        </Button>
+                                                                    </Link>
+                                                                </div>
+                                                            )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="text-sm text-muted-foreground">
+                                                        {format(new Date(request.createdAt), "MMM d, yyyy")}
+                                                        <br />
+                                                        {format(new Date(request.createdAt), "h:mm a")}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleViewRequest(request)}
+                                                    >
+                                                        <Eye className="h-4 w-4 mr-2" />
+                                                        View Details
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
 
                         {/* Pagination */}
                         {totalPages > 1 && (
@@ -851,9 +991,9 @@ export default function JobRequestsPage() {
                     </>
                 )}
 
-                {/* Request Details Dialog */}
+                {/* Enhanced Request Details Dialog */}
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>Job Request Details</DialogTitle>
                             <DialogDescription>
@@ -933,9 +1073,68 @@ export default function JobRequestsPage() {
                                                         "Not specified"}
                                                 </p>
                                             </div>
+                                            {selectedRequest.jobEstimate.vehicleType && (
+                                                <div>
+                                                    <Label className="text-sm font-medium">
+                                                        Vehicle Type
+                                                    </Label>
+                                                    <p>
+                                                        {
+                                                            vehicleTypeLabels[
+                                                            selectedRequest.jobEstimate.vehicleType
+                                                            ]
+                                                        }
+                                                    </p>
+                                                </div>
+                                            )}
+                                            {selectedRequest.jobEstimate.estimatedDistance && (
+                                                <div>
+                                                    <Label className="text-sm font-medium">
+                                                        Distance
+                                                    </Label>
+                                                    <p>
+                                                        {selectedRequest.jobEstimate.estimatedDistance}{" "}
+                                                        miles
+                                                    </p>
+                                                </div>
+                                            )}
                                         </CardContent>
                                     </Card>
                                 </div>
+
+                                {/* Worker Types */}
+                                {selectedRequest.jobEstimate.workerTypes &&
+                                    selectedRequest.jobEstimate.workerTypes.length > 0 && (
+                                        <Card>
+                                            <CardHeader className="pb-3">
+                                                <CardTitle className="text-lg">
+                                                    Worker Configuration
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                    {selectedRequest.jobEstimate.workerTypes.map(
+                                                        (type, index) => {
+                                                            const workerInfo = workerTypeLabels[type];
+                                                            if (!workerInfo) return null;
+                                                            const Icon = workerInfo.icon;
+                                                            return (
+                                                                <div
+                                                                    key={index}
+                                                                    className="flex items-center gap-2 p-2 border rounded-lg"
+                                                                >
+                                                                    <Icon className="h-4 w-4 text-blue-600" />
+                                                                    <span className="font-medium">
+                                                                        {workerInfo.label}
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        }
+                                                    )}
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    )}
 
                                 {/* Job Description */}
                                 {selectedRequest.jobEstimate.jobDescription && (
@@ -951,44 +1150,215 @@ export default function JobRequestsPage() {
                                     </Card>
                                 )}
 
-                                {/* Cost Breakdown */}
+                                {/* Enhanced Cost Breakdown */}
                                 <Card>
                                     <CardHeader className="pb-3">
-                                        <CardTitle className="text-lg">Cost Estimate</CardTitle>
+                                        <CardTitle className="text-lg">
+                                            Detailed Cost Breakdown
+                                        </CardTitle>
                                     </CardHeader>
                                     <CardContent>
-                                        <div className="space-y-2">
-                                            <div className="flex justify-between">
-                                                <span>Labor Cost:</span>
-                                                <span>
-                                                    £{selectedRequest.estimatedCost.laborCost.toFixed(2)}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span>Material Cost:</span>
-                                                <span>
-                                                    £
-                                                    {selectedRequest.estimatedCost.materialCost.toFixed(
-                                                        2
-                                                    )}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span>Travel Cost:</span>
-                                                <span>
-                                                    £{selectedRequest.estimatedCost.travelCost.toFixed(2)}
-                                                </span>
-                                            </div>
-                                            <div className="border-t pt-2">
-                                                <div className="flex justify-between font-bold text-lg">
-                                                    <span>Total:</span>
-                                                    <span className="text-green-600">
-                                                        £
-                                                        {selectedRequest.estimatedCost.totalCost.toFixed(2)}
-                                                    </span>
+                                        {selectedRequest.estimatedCost.breakdown?.labor ? (
+                                            <div className="space-y-6">
+                                                {/* Labor Breakdown */}
+                                                <div>
+                                                    <h4 className="font-semibold mb-3">Labor Costs</h4>
+                                                    <div className="space-y-3">
+                                                        {selectedRequest.estimatedCost.breakdown.labor.map(
+                                                            (worker, index) => (
+                                                                <div
+                                                                    key={index}
+                                                                    className="p-3 border rounded-lg"
+                                                                >
+                                                                    <div className="flex justify-between items-center mb-2">
+                                                                        <span className="font-medium">
+                                                                            {worker.type}
+                                                                        </span>
+                                                                        <span className="font-bold">
+                                                                            £{worker.cost.toFixed(2)}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="text-sm text-muted-foreground space-y-1">
+                                                                        <div>
+                                                                            Day rate (up to 10hrs): £{worker.dayRate}
+                                                                        </div>
+                                                                        {worker.overtimeHours > 0 && (
+                                                                            <div>
+                                                                                Overtime ({worker.overtimeHours}hrs): £
+                                                                                {worker.overtimeRate}/hr = £
+                                                                                {(
+                                                                                    worker.overtimeHours *
+                                                                                    worker.overtimeRate
+                                                                                ).toFixed(2)}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            )
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <Separator />
+
+                                                {/* Material & Travel */}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <h4 className="font-semibold mb-2">Materials</h4>
+                                                        <div className="p-3 border rounded-lg">
+                                                            <div className="flex justify-between">
+                                                                <span>
+                                                                    {
+                                                                        selectedRequest.estimatedCost.breakdown
+                                                                            .material.percentage
+                                                                    }
+                                                                    % of labor cost
+                                                                </span>
+                                                                <span className="font-bold">
+                                                                    £
+                                                                    {selectedRequest.estimatedCost.breakdown.material.cost.toFixed(
+                                                                        2
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div>
+                                                        <h4 className="font-semibold mb-2">Travel</h4>
+                                                        <div className="p-3 border rounded-lg">
+                                                            <div className="space-y-1 text-sm">
+                                                                <div className="flex justify-between">
+                                                                    <span>Distance:</span>
+                                                                    <span>
+                                                                        {
+                                                                            selectedRequest.estimatedCost.breakdown
+                                                                                .travel.distance
+                                                                        }{" "}
+                                                                        miles
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span>Vehicle:</span>
+                                                                    <span>
+                                                                        {
+                                                                            vehicleTypeLabels[
+                                                                            selectedRequest.estimatedCost.breakdown
+                                                                                .travel.vehicleType
+                                                                            ]
+                                                                        }
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span>Rate:</span>
+                                                                    <span>
+                                                                        £
+                                                                        {
+                                                                            selectedRequest.estimatedCost.breakdown
+                                                                                .travel.rate
+                                                                        }
+                                                                        /mile
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex justify-between font-bold">
+                                                                    <span>Total:</span>
+                                                                    <span>
+                                                                        £
+                                                                        {selectedRequest.estimatedCost.breakdown.travel.cost.toFixed(
+                                                                            2
+                                                                        )}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <Separator />
+
+                                                {/* Total Summary */}
+                                                <div className="space-y-2">
+                                                    <div className="flex justify-between">
+                                                        <span>Total Labor Cost:</span>
+                                                        <span>
+                                                            £
+                                                            {selectedRequest.estimatedCost.laborCost.toFixed(
+                                                                2
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span>Material Cost:</span>
+                                                        <span>
+                                                            £
+                                                            {selectedRequest.estimatedCost.materialCost.toFixed(
+                                                                2
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span>Travel Cost:</span>
+                                                        <span>
+                                                            £
+                                                            {selectedRequest.estimatedCost.travelCost.toFixed(
+                                                                2
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                    <div className="border-t pt-2">
+                                                        <div className="flex justify-between font-bold text-lg">
+                                                            <span>Total Estimate:</span>
+                                                            <span className="text-green-600">
+                                                                £
+                                                                {selectedRequest.estimatedCost.totalCost.toFixed(
+                                                                    2
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
+                                        ) : (
+                                            // Fallback for old format
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between">
+                                                    <span>Labor Cost:</span>
+                                                    <span>
+                                                        £
+                                                        {selectedRequest.estimatedCost.laborCost.toFixed(2)}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span>Material Cost:</span>
+                                                    <span>
+                                                        £
+                                                        {selectedRequest.estimatedCost.materialCost.toFixed(
+                                                            2
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span>Travel Cost:</span>
+                                                    <span>
+                                                        £
+                                                        {selectedRequest.estimatedCost.travelCost.toFixed(
+                                                            2
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="border-t pt-2">
+                                                    <div className="flex justify-between font-bold text-lg">
+                                                        <span>Total:</span>
+                                                        <span className="text-green-600">
+                                                            £
+                                                            {selectedRequest.estimatedCost.totalCost.toFixed(
+                                                                2
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </CardContent>
                                 </Card>
 
