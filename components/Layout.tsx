@@ -87,6 +87,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           },
         ]
         : []),
+      { href: "/estimate", label: "New Estimate", icon: FileText },
+
     ];
   };
 
@@ -97,10 +99,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex h-full flex-col">
       <div
         className={`flex h-14 items-center justify-center border-b px-4 ${isCustomerLayout
-            ? "bg-gradient-to-r from-blue-600 to-indigo-600"
-            : theme !== "dark"
-              ? "bg-black"
-              : ""
+          ? "bg-gradient-to-r from-blue-600 to-indigo-600"
+          : theme !== "dark"
+            ? "bg-black"
+            : ""
           }`}
       >
         <Link

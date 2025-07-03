@@ -1,99 +1,191 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-// Dummy calculation function - you can update these values later
-function calculateJobEstimate(data: any) {
-  const { numberOfWorkers, numberOfHours, jobLocation, jobType } = data;
+interface EstimateRequest {
+  numberOfWorkers: number;
+  numberOfHours: number;
+  jobDate: string;
+  jobLocation: string;
+  jobType: string;
+  jobDescription: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  customerCompany: string;
+  workerTypes: string[];
+  vehicleType: string;
+  estimatedDistance: number;
+}
 
-  // Base rates (these are dummy values - update as needed)
-  const baseHourlyRate = 25; // £25 per hour per worker
-  const materialCostPercentage = 0.15; // 15% of labor cost
-  const travelCostBase = 50; // Base travel cost
-  const travelCostPerMile = 0.45; // Cost per mile (dummy calculation)
+interface LaborBreakdown {
+  type: string;
+  hours: number;
+  dayRate: number;
+  overtimeHours: number;
+  overtimeRate: number;
+  cost: number;
+}
 
-  // Calculate labor cost
-  const laborCost = numberOfWorkers * numberOfHours * baseHourlyRate;
-
-  // Calculate material cost (percentage of labor cost)
-  const materialCost = laborCost * materialCostPercentage;
-
-  // Calculate travel cost (dummy calculation based on location)
-  // In real implementation, you might use Google Maps API for distance
-  const estimatedDistance = jobLocation.length * 2; // Dummy distance calculation
-  const travelCost = travelCostBase + estimatedDistance * travelCostPerMile;
-
-  // Job type multiplier (dummy values)
-  let jobTypeMultiplier = 1;
-  const jobTypeLower = jobType?.toLowerCase() || "";
-  if (jobTypeLower.includes("emergency") || jobTypeLower.includes("urgent")) {
-    jobTypeMultiplier = 1.5;
-  } else if (
-    jobTypeLower.includes("complex") ||
-    jobTypeLower.includes("specialized")
-  ) {
-    jobTypeMultiplier = 1.3;
-  }
-
-  // Apply job type multiplier to labor cost
-  const adjustedLaborCost = laborCost * jobTypeMultiplier;
-
-  // Calculate total
-  const totalCost = adjustedLaborCost + materialCost + travelCost;
-
-  return {
-    laborCost: adjustedLaborCost,
-    materialCost,
-    travelCost,
-    totalCost,
+interface CostEstimate {
+  laborCost: number;
+  materialCost: number;
+  travelCost: number;
+  totalCost: number;
+  breakdown: {
+    labor: LaborBreakdown[];
+    material: {
+      percentage: number;
+      cost: number;
+    };
+    travel: {
+      distance: number;
+      vehicleType: string;
+      rate: number;
+      cost: number;
+    };
+    jobTypeMultiplier: number;
+    jobType: string;
   };
 }
 
+// Updated pricing structure
+const WORKER_RATES = {
+  "team-leader": {
+    dayRate: 240, // £240 per day (0-10 hours)
+    overtimeRate: 24, // £24 per hour after 10 hours
+    label: "Team Leader",
+  },
+  "general-fitter": {
+    dayRate: 220, // £220 per day (0-10 hours)
+    overtimeRate: 22, // £22 per hour after 10 hours
+    label: "General Fitter",
+  },
+  labourer: {
+    dayRate: 200, // £200 per day (0-10 hours)
+    overtimeRate: 20, // £20 per hour after 10 hours
+    label: "Labourer/Assistant Fitter",
+  },
+};
+
+const VEHICLE_RATES = {
+  "luton-van": 0.75, // £0.75 per mile
+  "medium-van": 0.65, // £0.65 per mile
+  "small-van": 0.55, // £0.55 per mile
+};
+
+const JOB_TYPE_MULTIPLIERS = {
+  emergency: 1.5,
+  "out-of-hours": 1.3,
+  complex: 1.2,
+  standard: 1.0,
+};
+
+const MATERIAL_PERCENTAGE = 15; // 15% of labor cost
+
 export async function POST(request: NextRequest) {
   try {
-    const data = await request.json();
+    const body: EstimateRequest = await request.json();
+
+    const {
+      numberOfWorkers,
+      numberOfHours,
+      jobType,
+      workerTypes = [],
+      vehicleType = "medium-van",
+      estimatedDistance = 20,
+    } = body;
 
     // Validate required fields
-    const requiredFields = [
-      "numberOfWorkers",
-      "numberOfHours",
-      "jobDate",
-      "jobLocation",
-    ];
-    for (const field of requiredFields) {
-      if (!data[field]) {
-        return NextResponse.json(
-          { message: `${field} is required` },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Validate numeric fields
-    if (data.numberOfWorkers < 1 || data.numberOfWorkers > 20) {
+    if (!numberOfWorkers || !numberOfHours) {
       return NextResponse.json(
-        { message: "Number of workers must be between 1 and 20" },
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    if (data.numberOfHours < 1 || data.numberOfHours > 24) {
-      return NextResponse.json(
-        { message: "Number of hours must be between 1 and 24" },
-        { status: 400 }
-      );
+    // Ensure we have worker types for each worker
+    const finalWorkerTypes = [...workerTypes];
+    while (finalWorkerTypes.length < numberOfWorkers) {
+      finalWorkerTypes.push("general-fitter"); // Default to general fitter
     }
+    finalWorkerTypes.splice(numberOfWorkers); // Remove excess
 
-    // Calculate estimate
-    const estimate = calculateJobEstimate(data);
+    // Calculate labor costs with detailed breakdown
+    const laborBreakdown: LaborBreakdown[] = [];
+    let totalLaborCost = 0;
+
+    finalWorkerTypes.forEach((workerType) => {
+      const rates = WORKER_RATES[workerType as keyof typeof WORKER_RATES];
+      if (!rates) return;
+
+      const regularHours = Math.min(numberOfHours, 10);
+      const overtimeHours = Math.max(numberOfHours - 10, 0);
+
+      const regularCost = rates.dayRate; // Full day rate for up to 10 hours
+      const overtimeCost = overtimeHours * rates.overtimeRate;
+      const totalWorkerCost = regularCost + overtimeCost;
+
+      laborBreakdown.push({
+        type: rates.label,
+        hours: numberOfHours,
+        dayRate: rates.dayRate,
+        overtimeHours,
+        overtimeRate: rates.overtimeRate,
+        cost: totalWorkerCost,
+      });
+
+      totalLaborCost += totalWorkerCost;
+    });
+
+    // Apply job type multiplier
+    const jobTypeKey =
+      jobType?.toLowerCase().replace(/[^a-z]/g, "") || "standard";
+    const multiplier =
+      JOB_TYPE_MULTIPLIERS[jobTypeKey as keyof typeof JOB_TYPE_MULTIPLIERS] ||
+      1.0;
+    const adjustedLaborCost = totalLaborCost * multiplier;
+
+    // Calculate material cost (percentage of labor)
+    const materialCost = (adjustedLaborCost * MATERIAL_PERCENTAGE) / 100;
+
+    // Calculate travel cost
+    const vehicleRate =
+      VEHICLE_RATES[vehicleType as keyof typeof VEHICLE_RATES] ||
+      VEHICLE_RATES["medium-van"];
+    const travelCost = estimatedDistance * vehicleRate;
+
+    // Calculate total
+    const totalCost = adjustedLaborCost + materialCost + travelCost;
+
+    const estimate: CostEstimate = {
+      laborCost: adjustedLaborCost,
+      materialCost,
+      travelCost,
+      totalCost,
+      breakdown: {
+        labor: laborBreakdown,
+        material: {
+          percentage: MATERIAL_PERCENTAGE,
+          cost: materialCost,
+        },
+        travel: {
+          distance: estimatedDistance,
+          vehicleType,
+          rate: vehicleRate,
+          cost: travelCost,
+        },
+        jobTypeMultiplier: multiplier,
+        jobType: jobType || "Standard",
+      },
+    };
 
     return NextResponse.json({
       success: true,
       estimate,
-      message: "Estimate calculated successfully",
     });
   } catch (error) {
     console.error("Error calculating estimate:", error);
     return NextResponse.json(
-      { message: "Failed to calculate estimate" },
+      { error: "Failed to calculate estimate" },
       { status: 500 }
     );
   }
