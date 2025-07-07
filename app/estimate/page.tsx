@@ -8,7 +8,6 @@ import { format } from "date-fns";
 import {
     Users,
     Calculator,
-    ArrowRight,
     LogIn,
     UserPlus,
     CheckCircle,
@@ -17,7 +16,10 @@ import {
     Wrench,
     HardHat,
     Crown,
-    EyeOff,
+    MapPin,
+    Navigation,
+    Lock,
+    ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,7 +57,6 @@ interface EstimateData {
     numberOfWorkers: number;
     numberOfHours: number;
     jobDate: string;
-    jobLocation: string;
     jobType: string;
     jobDescription: string;
     customerName: string;
@@ -64,7 +65,7 @@ interface EstimateData {
     customerCompany: string;
     workerTypes: string[];
     vehicleType: string;
-    estimatedDistance: number;
+    postcode: string;
 }
 
 interface LaborBreakdown {
@@ -78,20 +79,17 @@ interface LaborBreakdown {
 
 interface CostEstimate {
     laborCost: number;
-    materialCost: number;
     travelCost: number;
     totalCost: number;
     breakdown: {
         labor: LaborBreakdown[];
-        material: {
-            percentage: number;
-            cost: number;
-        };
         travel: {
             distance: number;
             vehicleType: string;
             rate: number;
             cost: number;
+            fromAddress: string;
+            toAddress: string;
         };
         jobTypeMultiplier: number;
         jobType: string;
@@ -99,29 +97,19 @@ interface CostEstimate {
 }
 
 const workerTypeOptions = [
-    { value: "team-leader", label: "Team Leader", icon: Crown, rate: "£240/day" },
-    {
-        value: "general-fitter",
-        label: "General Fitter",
-        icon: Wrench,
-        rate: "£220/day",
-    },
-    {
-        value: "labourer",
-        label: "Labourer/Assistant",
-        icon: HardHat,
-        rate: "£200/day",
-    },
+    { value: "team-leader", label: "Team Leader", icon: Crown },
+    { value: "general-fitter", label: "General Fitter", icon: Wrench },
+    { value: "labourer", label: "Labourer/Assistant", icon: HardHat },
 ];
 
 const vehicleOptions = [
-    { value: "luton-van", label: "Luton Van/Large Van", rate: "£0.75/mile" },
-    { value: "medium-van", label: "Medium Van", rate: "£0.65/mile" },
-    { value: "small-van", label: "Small Van/Car", rate: "£0.55/mile" },
+    { value: "luton-van", label: "Luton Van/Large Van" },
+    { value: "medium-van", label: "Medium Van" },
+    { value: "small-van", label: "Small Van/Car" },
 ];
 
 export default function EstimatePage() {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
     const { theme } = useTheme();
     const router = useRouter();
     const [showEstimate, setShowEstimate] = useState(false);
@@ -131,7 +119,6 @@ export default function EstimatePage() {
         numberOfWorkers: 1,
         numberOfHours: 8,
         jobDate: "",
-        jobLocation: "",
         jobType: "",
         jobDescription: "",
         customerName: "",
@@ -140,7 +127,7 @@ export default function EstimatePage() {
         customerCompany: "",
         workerTypes: ["general-fitter"],
         vehicleType: "medium-van",
-        estimatedDistance: 20,
+        postcode: "",
     });
 
     const [estimate, setEstimate] = useState<CostEstimate | null>(null);
@@ -150,9 +137,16 @@ export default function EstimatePage() {
     const isLoggedIn = !!session?.user;
     const isCustomer = session?.user?.role === "customer";
 
+    // Debug log
+    useEffect(() => {
+        console.log("Current session:", session);
+        console.log("Is logged in:", isLoggedIn);
+        console.log("Is customer:", isCustomer);
+    }, [session, isLoggedIn, isCustomer]);
+
     // Auto-fill customer info if logged in
     useEffect(() => {
-        if (isCustomer) {
+        if (isCustomer && session?.user) {
             setFormData((prev) => ({
                 ...prev,
                 customerName: session.user.name || "",
@@ -200,8 +194,8 @@ export default function EstimatePage() {
         if (!formData.jobDate) {
             errors.push("Job date is required");
         }
-        if (!formData.jobLocation?.trim()) {
-            errors.push("Job location is required");
+        if (!formData.postcode?.trim()) {
+            errors.push("Postcode is required");
         }
         if (!formData.customerName?.trim()) {
             errors.push("Your full name is required");
@@ -221,6 +215,16 @@ export default function EstimatePage() {
             errors.push("Please enter a valid email address");
         }
 
+        // Validate UK postcode format
+        if (
+            formData.postcode &&
+            !/^[A-Z]{1,2}[0-9][A-Z0-9]?\s?[0-9][A-Z]{2}$/i.test(
+                formData.postcode.trim()
+            )
+        ) {
+            errors.push("Please enter a valid UK postcode");
+        }
+
         // Validate date is not in the past
         if (formData.jobDate && new Date(formData.jobDate) < new Date()) {
             errors.push("Job date cannot be in the past");
@@ -236,9 +240,7 @@ export default function EstimatePage() {
         setFormData((prev) => ({
             ...prev,
             [name]:
-                name === "numberOfWorkers" ||
-                    name === "numberOfHours" ||
-                    name === "estimatedDistance"
+                name === "numberOfWorkers" || name === "numberOfHours"
                     ? Number(value)
                     : value,
         }));
@@ -251,6 +253,15 @@ export default function EstimatePage() {
     };
 
     const calculateEstimate = async () => {
+        console.log("Calculate estimate clicked, session:", session);
+
+        // Check if user is logged in first
+        if (!isLoggedIn) {
+            toast.error("Please log in to calculate estimates");
+            setShowLoginDialog(true);
+            return;
+        }
+
         const validationErrors = validateForm();
         if (validationErrors.length > 0) {
             toast.error(
@@ -273,28 +284,30 @@ export default function EstimatePage() {
 
         setIsCalculating(true);
         try {
+            console.log("Making API call to /api/estimate");
             const response = await fetch("/api/estimate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(formData),
             });
 
+            console.log("API response status:", response.status);
             const data = await response.json();
+            console.log("API response data:", data);
 
             if (!response.ok) {
-                throw new Error(data.message || "Failed to calculate estimate");
+                if (response.status === 401) {
+                    // User not authenticated
+                    toast.error("Authentication failed. Please log in again.");
+                    setShowLoginDialog(true);
+                    return;
+                }
+                throw new Error(data.error || "Failed to calculate estimate");
             }
 
             setEstimate(data.estimate);
             setShowEstimate(true);
             toast.success("Estimate calculated successfully!");
-
-            // Show login dialog if user is not logged in
-            if (!isLoggedIn) {
-                setTimeout(() => {
-                    setShowLoginDialog(true);
-                }, 1000);
-            }
         } catch (error: any) {
             console.error("Error calculating estimate:", error);
             toast.error(
@@ -471,8 +484,7 @@ export default function EstimatePage() {
                             }`}
                     >
                         Get accurate, transparent pricing for your project with our
-                        professional estimation tool. Detailed breakdowns and competitive
-                        rates.
+                        professional estimation tool.
                     </p>
                 </div>
 
@@ -502,8 +514,7 @@ export default function EstimatePage() {
                                     theme === "dark" ? "text-slate-300" : "text-slate-600"
                                 }
                             >
-                                Provide detailed information about your project for accurate
-                                pricing
+                                Provide detailed information about your project
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="p-6 space-y-6">
@@ -536,8 +547,8 @@ export default function EstimatePage() {
                                             value={formData.numberOfWorkers}
                                             onChange={handleInputChange}
                                             className={`mt-1 ${theme === "dark"
-                                                    ? "bg-slate-700 border-slate-600 text-white"
-                                                    : "bg-white border-slate-300"
+                                                    ? "bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                                                    : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
                                                 }`}
                                             required
                                         />
@@ -560,8 +571,8 @@ export default function EstimatePage() {
                                             value={formData.numberOfHours}
                                             onChange={handleInputChange}
                                             className={`mt-1 ${theme === "dark"
-                                                    ? "bg-slate-700 border-slate-600 text-white"
-                                                    : "bg-white border-slate-300"
+                                                    ? "bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                                                    : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
                                                 }`}
                                             required
                                         />
@@ -599,7 +610,7 @@ export default function EstimatePage() {
                                                     <SelectTrigger
                                                         className={`flex-1 ${theme === "dark"
                                                                 ? "bg-slate-700 border-slate-600 text-white"
-                                                                : "bg-white border-slate-300"
+                                                                : "bg-white border-slate-300 text-slate-900"
                                                             }`}
                                                     >
                                                         <SelectValue />
@@ -613,9 +624,6 @@ export default function EstimatePage() {
                                                                 <div className="flex items-center space-x-2">
                                                                     <option.icon className="h-4 w-4" />
                                                                     <span>{option.label}</span>
-                                                                    <Badge variant="secondary" className="ml-2">
-                                                                        {option.rate}
-                                                                    </Badge>
                                                                 </div>
                                                             </SelectItem>
                                                         ))}
@@ -644,7 +652,7 @@ export default function EstimatePage() {
                                             onChange={handleInputChange}
                                             className={`mt-1 ${theme === "dark"
                                                     ? "bg-slate-700 border-slate-600 text-white"
-                                                    : "bg-white border-slate-300"
+                                                    : "bg-white border-slate-300 text-slate-900"
                                                 }`}
                                             min={format(new Date(), "yyyy-MM-dd")}
                                             required
@@ -652,87 +660,69 @@ export default function EstimatePage() {
                                     </div>
                                     <div>
                                         <Label
-                                            htmlFor="estimatedDistance"
+                                            htmlFor="vehicleType"
                                             className={
                                                 theme === "dark" ? "text-slate-200" : "text-slate-700"
                                             }
                                         >
-                                            Distance (miles)
+                                            Vehicle Type
                                         </Label>
-                                        <Input
-                                            id="estimatedDistance"
-                                            name="estimatedDistance"
-                                            type="number"
-                                            min="1"
-                                            value={formData.estimatedDistance}
-                                            onChange={handleInputChange}
-                                            className={`mt-1 ${theme === "dark"
-                                                    ? "bg-slate-700 border-slate-600 text-white"
-                                                    : "bg-white border-slate-300"
-                                                }`}
-                                        />
+                                        <Select
+                                            value={formData.vehicleType}
+                                            onValueChange={(value) =>
+                                                setFormData((prev) => ({ ...prev, vehicleType: value }))
+                                            }
+                                        >
+                                            <SelectTrigger
+                                                className={`mt-1 ${theme === "dark"
+                                                        ? "bg-slate-700 border-slate-600 text-white"
+                                                        : "bg-white border-slate-300 text-slate-900"
+                                                    }`}
+                                            >
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {vehicleOptions.map((option) => (
+                                                    <SelectItem key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                 </div>
 
                                 <div>
                                     <Label
-                                        htmlFor="vehicleType"
+                                        htmlFor="postcode"
                                         className={
                                             theme === "dark" ? "text-slate-200" : "text-slate-700"
                                         }
                                     >
-                                        Vehicle Type
+                                        Job Postcode *
                                     </Label>
-                                    <Select
-                                        value={formData.vehicleType}
-                                        onValueChange={(value) =>
-                                            setFormData((prev) => ({ ...prev, vehicleType: value }))
-                                        }
-                                    >
-                                        <SelectTrigger
-                                            className={`mt-1 ${theme === "dark"
-                                                    ? "bg-slate-700 border-slate-600 text-white"
-                                                    : "bg-white border-slate-300"
+                                    <div className="relative">
+                                        <Input
+                                            id="postcode"
+                                            name="postcode"
+                                            placeholder="e.g., NN1 1AA"
+                                            value={formData.postcode}
+                                            onChange={handleInputChange}
+                                            className={`mt-1 pl-10 ${theme === "dark"
+                                                    ? "bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                                                    : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
                                                 }`}
-                                        >
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {vehicleOptions.map((option) => (
-                                                <SelectItem key={option.value} value={option.value}>
-                                                    <div className="flex items-center justify-between w-full">
-                                                        <span>{option.label}</span>
-                                                        <Badge variant="outline" className="ml-2">
-                                                            {option.rate}
-                                                        </Badge>
-                                                    </div>
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div>
-                                    <Label
-                                        htmlFor="jobLocation"
-                                        className={
-                                            theme === "dark" ? "text-slate-200" : "text-slate-700"
-                                        }
-                                    >
-                                        Job Location *
-                                    </Label>
-                                    <Input
-                                        id="jobLocation"
-                                        name="jobLocation"
-                                        placeholder="Enter job location"
-                                        value={formData.jobLocation}
-                                        onChange={handleInputChange}
-                                        className={`mt-1 ${theme === "dark"
-                                                ? "bg-slate-700 border-slate-600 text-white"
-                                                : "bg-white border-slate-300"
+                                            required
+                                        />
+                                        <Navigation className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                    </div>
+                                    <p
+                                        className={`text-xs mt-1 ${theme === "dark" ? "text-slate-400" : "text-slate-500"
                                             }`}
-                                        required
-                                    />
+                                    >
+                                        Distance calculated automatically from our Northampton
+                                        office
+                                    </p>
                                 </div>
 
                                 <div>
@@ -751,8 +741,8 @@ export default function EstimatePage() {
                                         value={formData.jobType}
                                         onChange={handleInputChange}
                                         className={`mt-1 ${theme === "dark"
-                                                ? "bg-slate-700 border-slate-600 text-white"
-                                                : "bg-white border-slate-300"
+                                                ? "bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                                                : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
                                             }`}
                                     />
                                 </div>
@@ -773,8 +763,8 @@ export default function EstimatePage() {
                                         value={formData.jobDescription}
                                         onChange={handleInputChange}
                                         className={`mt-1 ${theme === "dark"
-                                                ? "bg-slate-700 border-slate-600 text-white"
-                                                : "bg-white border-slate-300"
+                                                ? "bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                                                : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
                                             }`}
                                         rows={3}
                                     />
@@ -808,8 +798,8 @@ export default function EstimatePage() {
                                             value={formData.customerName}
                                             onChange={handleInputChange}
                                             className={`mt-1 ${theme === "dark"
-                                                    ? "bg-slate-700 border-slate-600 text-white"
-                                                    : "bg-white border-slate-300"
+                                                    ? "bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                                                    : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
                                                 }`}
                                             disabled={isCustomer}
                                             required
@@ -833,8 +823,8 @@ export default function EstimatePage() {
                                             value={formData.customerEmail}
                                             onChange={handleInputChange}
                                             className={`mt-1 ${theme === "dark"
-                                                    ? "bg-slate-700 border-slate-600 text-white"
-                                                    : "bg-white border-slate-300"
+                                                    ? "bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                                                    : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
                                                 }`}
                                             disabled={isCustomer}
                                             required
@@ -858,8 +848,8 @@ export default function EstimatePage() {
                                             value={formData.customerPhone}
                                             onChange={handleInputChange}
                                             className={`mt-1 ${theme === "dark"
-                                                    ? "bg-slate-700 border-slate-600 text-white"
-                                                    : "bg-white border-slate-300"
+                                                    ? "bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                                                    : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
                                                 }`}
                                             required
                                         />
@@ -881,8 +871,8 @@ export default function EstimatePage() {
                                             value={formData.customerCompany}
                                             onChange={handleInputChange}
                                             className={`mt-1 ${theme === "dark"
-                                                    ? "bg-slate-700 border-slate-600 text-white"
-                                                    : "bg-white border-slate-300"
+                                                    ? "bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                                                    : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
                                                 }`}
                                         />
                                     </div>
@@ -905,199 +895,158 @@ export default function EstimatePage() {
 
                     {/* Right Column */}
                     <div className="space-y-6">
-                        {/* Pricing Information */}
+                        {/* Company Address Info */}
                         <Card
                             className={`shadow-xl border-0 ${theme === "dark"
                                     ? "bg-slate-800/50 backdrop-blur-sm"
                                     : "bg-white/80 backdrop-blur-sm"
                                 }`}
                         >
-                            <CardHeader
-                                className={`${theme === "dark"
-                                        ? "bg-gradient-to-r from-blue-700 to-indigo-700"
-                                        : "bg-gradient-to-r from-blue-600 to-indigo-600"
-                                    } text-white rounded-t-lg`}
-                            >
-                                <CardTitle className="flex items-center">
-                                    <Crown className="h-5 w-5 mr-2" />
-                                    Our Professional Rates
+                            <CardHeader>
+                                <CardTitle
+                                    className={`flex items-center ${theme === "dark" ? "text-white" : "text-slate-900"
+                                        }`}
+                                >
+                                    <MapPin className="h-5 w-5 mr-2" />
+                                    Our Location
                                 </CardTitle>
-                                <CardDescription className="text-blue-100">
-                                    Transparent, competitive pricing structure
-                                </CardDescription>
                             </CardHeader>
-                            <CardContent className="p-6">
-                                <div className="space-y-4">
-                                    {workerTypeOptions.map((worker) => (
-                                        <div
-                                            key={worker.value}
-                                            className={`flex items-center justify-between p-3 rounded-lg ${theme === "dark" ? "bg-slate-700/50" : "bg-slate-50"
-                                                }`}
-                                        >
-                                            <div className="flex items-center space-x-3">
-                                                <worker.icon
-                                                    className={`h-5 w-5 ${theme === "dark" ? "text-blue-400" : "text-blue-600"
-                                                        }`}
-                                                />
-                                                <span
-                                                    className={`font-medium ${theme === "dark" ? "text-white" : "text-slate-900"
-                                                        }`}
-                                                >
-                                                    {worker.label}
-                                                </span>
-                                            </div>
-                                            <Badge variant="secondary">{worker.rate}</Badge>
-                                        </div>
-                                    ))}
-
-                                    <Separator className="my-4" />
-
-                                    <div
-                                        className={`text-sm space-y-2 ${theme === "dark" ? "text-slate-300" : "text-slate-600"
-                                            }`}
-                                    >
-                                        <p>
-                                            <strong>Day Rate:</strong> 0-10 hours (full day rate)
-                                        </p>
-                                        <p>
-                                            <strong>Overtime:</strong> £24/£22/£20 per hour after 10
-                                            hours
-                                        </p>
-                                        <p>
-                                            <strong>Materials:</strong> 15% of labor cost
-                                        </p>
-                                        <p>
-                                            <strong>Travel:</strong> Based on vehicle type and
-                                            distance
-                                        </p>
-                                    </div>
+                            <CardContent>
+                                <div
+                                    className={`text-sm ${theme === "dark" ? "text-slate-300" : "text-slate-600"
+                                        }`}
+                                >
+                                    <p className="font-medium mb-2">Travel calculated from:</p>
+                                    <p>Unit 7, Matts Lodge Farm</p>
+                                    <p>Grooms Lane, Northampton</p>
+                                    <p>NN6 8NN</p>
+                                    <p className="mt-2 text-xs">
+                                        Distance automatically calculated using your postcode via
+                                        Google Maps
+                                    </p>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        {/* Estimate Results */}
+                        {/* Estimate Results - Show actual pricing for logged in users */}
                         {showEstimate && estimate && (
-                            <div className="relative">
-                                {/* Blur overlay for non-logged-in users */}
-                                {!isLoggedIn && (
-                                    <div className="absolute inset-0 z-20 bg-black/10 backdrop-blur-sm rounded-lg" />
-                                )}
-
-                                <Card
-                                    className={`shadow-xl border-2 ${theme === "dark"
-                                            ? "border-green-400 bg-slate-800/90"
-                                            : "border-green-500 bg-gradient-to-br from-green-50 to-emerald-50"
-                                        } ${!isLoggedIn ? "filter blur-[2px]" : ""}`}
+                            <Card
+                                className={`shadow-xl border-2 ${theme === "dark"
+                                        ? "border-green-400 bg-slate-800/90"
+                                        : "border-green-500 bg-gradient-to-br from-green-50 to-emerald-50"
+                                    }`}
+                            >
+                                <CardHeader
+                                    className={`${theme === "dark"
+                                            ? "bg-gradient-to-r from-green-700 to-emerald-700"
+                                            : "bg-gradient-to-r from-green-600 to-emerald-600"
+                                        } text-white rounded-t-lg`}
                                 >
-                                    <CardHeader
-                                        className={`${theme === "dark"
-                                                ? "bg-gradient-to-r from-green-700 to-emerald-700"
-                                                : "bg-gradient-to-r from-green-600 to-emerald-600"
-                                            } text-white rounded-t-lg`}
+                                    <CardTitle className="flex items-center text-xl">
+                                        <CheckCircle className="h-6 w-6 mr-2" />
+                                        Professional Estimate
+                                    </CardTitle>
+                                    <CardDescription className="text-green-100">
+                                        Detailed breakdown of your project costs
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="p-6">
+                                    {/* Job Summary */}
+                                    <div
+                                        className={`mb-6 p-4 rounded-lg border ${theme === "dark"
+                                                ? "bg-slate-700/50 border-slate-600"
+                                                : "bg-white border-green-200"
+                                            }`}
                                     >
-                                        <CardTitle className="flex items-center text-xl">
-                                            <CheckCircle className="h-6 w-6 mr-2" />
-                                            Professional Estimate
-                                        </CardTitle>
-                                        <CardDescription className="text-green-100">
-                                            Detailed breakdown of your project costs
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="p-6">
-                                        {/* Job Summary */}
-                                        <div
-                                            className={`mb-6 p-4 rounded-lg border ${theme === "dark"
-                                                    ? "bg-slate-700/50 border-slate-600"
-                                                    : "bg-white border-green-200"
+                                        <h4
+                                            className={`font-semibold mb-3 flex items-center ${theme === "dark" ? "text-white" : "text-slate-900"
                                                 }`}
                                         >
-                                            <h4
-                                                className={`font-semibold mb-3 flex items-center ${theme === "dark" ? "text-white" : "text-slate-900"
-                                                    }`}
-                                            >
-                                                <AlertCircle className="h-4 w-4 mr-2 text-blue-600" />
-                                                Job Summary
-                                            </h4>
-                                            <div className="grid grid-cols-2 gap-3 text-sm">
-                                                <div className="flex justify-between">
-                                                    <span
-                                                        className={
-                                                            theme === "dark"
-                                                                ? "text-slate-300"
-                                                                : "text-slate-600"
-                                                        }
-                                                    >
-                                                        Workers:
-                                                    </span>
-                                                    <span
-                                                        className={`font-medium ${theme === "dark" ? "text-white" : "text-slate-900"
-                                                            }`}
-                                                    >
-                                                        {formData.numberOfWorkers}
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span
-                                                        className={
-                                                            theme === "dark"
-                                                                ? "text-slate-300"
-                                                                : "text-slate-600"
-                                                        }
-                                                    >
-                                                        Hours:
-                                                    </span>
-                                                    <span
-                                                        className={`font-medium ${theme === "dark" ? "text-white" : "text-slate-900"
-                                                            }`}
-                                                    >
-                                                        {formData.numberOfHours}
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span
-                                                        className={
-                                                            theme === "dark"
-                                                                ? "text-slate-300"
-                                                                : "text-slate-600"
-                                                        }
-                                                    >
-                                                        Date:
-                                                    </span>
-                                                    <span
-                                                        className={`font-medium ${theme === "dark" ? "text-white" : "text-slate-900"
-                                                            }`}
-                                                    >
-                                                        {format(new Date(formData.jobDate), "MMM d, yyyy")}
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span
-                                                        className={
-                                                            theme === "dark"
-                                                                ? "text-slate-300"
-                                                                : "text-slate-600"
-                                                        }
-                                                    >
-                                                        Type:
-                                                    </span>
-                                                    <span
-                                                        className={`font-medium ${theme === "dark" ? "text-white" : "text-slate-900"
-                                                            }`}
-                                                    >
-                                                        {estimate.breakdown.jobType}
-                                                    </span>
-                                                </div>
+                                            <AlertCircle className="h-4 w-4 mr-2 text-blue-600" />
+                                            Job Summary
+                                        </h4>
+                                        <div className="grid grid-cols-2 gap-3 text-sm">
+                                            <div className="flex justify-between">
+                                                <span
+                                                    className={
+                                                        theme === "dark"
+                                                            ? "text-slate-300"
+                                                            : "text-slate-600"
+                                                    }
+                                                >
+                                                    Workers:
+                                                </span>
+                                                <span
+                                                    className={`font-medium ${theme === "dark" ? "text-white" : "text-slate-900"
+                                                        }`}
+                                                >
+                                                    {formData.numberOfWorkers}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span
+                                                    className={
+                                                        theme === "dark"
+                                                            ? "text-slate-300"
+                                                            : "text-slate-600"
+                                                    }
+                                                >
+                                                    Hours:
+                                                </span>
+                                                <span
+                                                    className={`font-medium ${theme === "dark" ? "text-white" : "text-slate-900"
+                                                        }`}
+                                                >
+                                                    {formData.numberOfHours}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span
+                                                    className={
+                                                        theme === "dark"
+                                                            ? "text-slate-300"
+                                                            : "text-slate-600"
+                                                    }
+                                                >
+                                                    Date:
+                                                </span>
+                                                <span
+                                                    className={`font-medium ${theme === "dark" ? "text-white" : "text-slate-900"
+                                                        }`}
+                                                >
+                                                    {format(new Date(formData.jobDate), "MMM d, yyyy")}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span
+                                                    className={
+                                                        theme === "dark"
+                                                            ? "text-slate-300"
+                                                            : "text-slate-600"
+                                                    }
+                                                >
+                                                    Distance:
+                                                </span>
+                                                <span
+                                                    className={`font-medium ${theme === "dark" ? "text-white" : "text-slate-900"
+                                                        }`}
+                                                >
+                                                    {estimate.breakdown.travel.distance} miles
+                                                </span>
                                             </div>
                                         </div>
+                                    </div>
 
-                                        {/* Detailed Labor Breakdown */}
-                                        <div className="space-y-4 mb-6">
-                                            <h4
-                                                className={`font-semibold ${theme === "dark" ? "text-white" : "text-slate-900"
-                                                    }`}
-                                            >
-                                                Labor Breakdown
-                                            </h4>
+                                    {/* Labor Breakdown */}
+                                    <div className="mb-6">
+                                        <h4
+                                            className={`font-semibold mb-3 flex items-center ${theme === "dark" ? "text-white" : "text-slate-900"
+                                                }`}
+                                        >
+                                            <Users className="h-4 w-4 mr-2 text-blue-600" />
+                                            Labor Breakdown
+                                        </h4>
+                                        <div className="space-y-2">
                                             {estimate.breakdown.labor.map((worker, index) => (
                                                 <div
                                                     key={index}
@@ -1115,176 +1064,142 @@ export default function EstimatePage() {
                                                         >
                                                             {worker.type}
                                                         </span>
-                                                        <span className="font-bold text-lg">
+                                                        <span className="font-semibold text-lg">
                                                             £{worker.cost.toFixed(2)}
                                                         </span>
                                                     </div>
-                                                    <div
-                                                        className={`text-xs space-y-1 ${theme === "dark"
-                                                                ? "text-slate-400"
-                                                                : "text-slate-500"
-                                                            }`}
-                                                    >
-                                                        <div>Day rate (up to 10hrs): £{worker.dayRate}</div>
+                                                    <div className="text-xs space-y-1">
+                                                        <div className="flex justify-between">
+                                                            <span
+                                                                className={
+                                                                    theme === "dark"
+                                                                        ? "text-slate-400"
+                                                                        : "text-slate-500"
+                                                                }
+                                                            >
+                                                                Day Rate (up to 10 hours):
+                                                            </span>
+                                                            <span>£{worker.dayRate.toFixed(2)}</span>
+                                                        </div>
                                                         {worker.overtimeHours > 0 && (
-                                                            <div>
-                                                                Overtime ({worker.overtimeHours}hrs): £
-                                                                {worker.overtimeRate}/hr = £
-                                                                {(
-                                                                    worker.overtimeHours * worker.overtimeRate
-                                                                ).toFixed(2)}
+                                                            <div className="flex justify-between">
+                                                                <span
+                                                                    className={
+                                                                        theme === "dark"
+                                                                            ? "text-slate-400"
+                                                                            : "text-slate-500"
+                                                                    }
+                                                                >
+                                                                    Overtime ({worker.overtimeHours}h @ £
+                                                                    {worker.overtimeRate}/h):
+                                                                </span>
+                                                                <span>
+                                                                    £
+                                                                    {(
+                                                                        worker.overtimeHours * worker.overtimeRate
+                                                                    ).toFixed(2)}
+                                                                </span>
                                                             </div>
                                                         )}
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
+                                    </div>
 
-                                        {/* Cost Summary */}
-                                        <div className="space-y-3">
-                                            <div
-                                                className={`flex justify-between items-center p-3 rounded-lg border ${theme === "dark"
-                                                        ? "bg-slate-700/30 border-slate-600"
-                                                        : "bg-white border-slate-200"
-                                                    }`}
-                                            >
-                                                <div className="flex items-center">
-                                                    <Users className="h-4 w-4 mr-2 text-blue-600" />
-                                                    <span
-                                                        className={
-                                                            theme === "dark"
-                                                                ? "text-slate-200"
-                                                                : "text-slate-700"
-                                                        }
-                                                    >
-                                                        Total Labor Cost
-                                                    </span>
-                                                </div>
-                                                <span className="font-semibold text-lg">
-                                                    £{estimate.laborCost.toFixed(2)}
-                                                </span>
-                                            </div>
-
-                                            <div
-                                                className={`flex justify-between items-center p-3 rounded-lg border ${theme === "dark"
-                                                        ? "bg-slate-700/30 border-slate-600"
-                                                        : "bg-white border-slate-200"
-                                                    }`}
-                                            >
-                                                <div className="flex items-center">
-                                                    <Calculator className="h-4 w-4 mr-2 text-purple-600" />
-                                                    <span
-                                                        className={
-                                                            theme === "dark"
-                                                                ? "text-slate-200"
-                                                                : "text-slate-700"
-                                                        }
-                                                    >
-                                                        Materials ({estimate.breakdown.material.percentage}
-                                                        %)
-                                                    </span>
-                                                </div>
-                                                <span className="font-semibold text-lg">
-                                                    £{estimate.materialCost.toFixed(2)}
-                                                </span>
-                                            </div>
-
-                                            <div
-                                                className={`flex justify-between items-center p-3 rounded-lg border ${theme === "dark"
-                                                        ? "bg-slate-700/30 border-slate-600"
-                                                        : "bg-white border-slate-200"
-                                                    }`}
-                                            >
-                                                <div className="flex items-center">
-                                                    <Truck className="h-4 w-4 mr-2 text-orange-600" />
-                                                    <span
-                                                        className={
-                                                            theme === "dark"
-                                                                ? "text-slate-200"
-                                                                : "text-slate-700"
-                                                        }
-                                                    >
-                                                        Travel ({estimate.breakdown.travel.distance} miles)
-                                                    </span>
-                                                </div>
-                                                <span className="font-semibold text-lg">
-                                                    £{estimate.travelCost.toFixed(2)}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <Separator className="my-4" />
-
+                                    {/* Cost Summary */}
+                                    <div className="space-y-3">
                                         <div
-                                            className={`flex justify-between items-center p-4 rounded-lg ${theme === "dark"
-                                                    ? "bg-gradient-to-r from-green-700 to-emerald-700"
-                                                    : "bg-gradient-to-r from-green-600 to-emerald-600"
-                                                } text-white`}
+                                            className={`flex justify-between items-center p-3 rounded-lg border ${theme === "dark"
+                                                    ? "bg-slate-700/30 border-slate-600"
+                                                    : "bg-white border-slate-200"
+                                                }`}
                                         >
-                                            <span className="text-xl font-bold">Total Estimate:</span>
-                                            <span className="text-3xl font-bold">
-                                                £{estimate.totalCost.toFixed(2)}
+                                            <div className="flex items-center">
+                                                <Users className="h-4 w-4 mr-2 text-blue-600" />
+                                                <span
+                                                    className={
+                                                        theme === "dark"
+                                                            ? "text-slate-200"
+                                                            : "text-slate-700"
+                                                    }
+                                                >
+                                                    Labor Cost
+                                                </span>
+                                            </div>
+                                            <span className="font-semibold text-lg">
+                                                £{estimate.laborCost.toFixed(2)}
                                             </span>
                                         </div>
 
-                                        {/* Action Buttons */}
-                                        <div className="space-y-3 pt-6">
-                                            <Button
-                                                onClick={handleBookNow}
-                                                disabled={isBooking}
-                                                className={`w-full ${theme === "dark"
-                                                        ? "bg-gradient-to-r from-green-700 to-emerald-700 hover:from-green-800 hover:to-emerald-800"
-                                                        : "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-                                                    } text-white`}
-                                                size="lg"
-                                            >
-                                                {isBooking
-                                                    ? "Submitting..."
-                                                    : isCustomer
-                                                        ? "Submit Job Request"
-                                                        : "Login to Book"}
-                                                <ArrowRight className="h-4 w-4 ml-2" />
-                                            </Button>
-
-                                            {!session?.user && (
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        className="w-full bg-transparent"
-                                                        onClick={() => handleLoginRedirect("login")}
-                                                    >
-                                                        <LogIn className="h-4 w-4 mr-2" />
-                                                        Login
-                                                    </Button>
-                                                    <Button
-                                                        variant="outline"
-                                                        className="w-full bg-transparent"
-                                                        onClick={() => handleLoginRedirect("signup")}
-                                                    >
-                                                        <UserPlus className="h-4 w-4 mr-2" />
-                                                        Sign Up
-                                                    </Button>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Disclaimer */}
                                         <div
-                                            className={`mt-4 p-3 rounded-lg border ${theme === "dark"
-                                                    ? "bg-blue-900/20 border-blue-700 text-blue-200"
-                                                    : "bg-blue-50 border-blue-200 text-blue-800"
+                                            className={`flex justify-between items-center p-3 rounded-lg border ${theme === "dark"
+                                                    ? "bg-slate-700/30 border-slate-600"
+                                                    : "bg-white border-slate-200"
                                                 }`}
                                         >
-                                            <p className="text-xs">
-                                                <strong>Note:</strong> This is a professional estimate
-                                                based on standard rates. Final pricing may vary based on
-                                                site conditions and specific requirements. Quote valid
-                                                for 30 days.
-                                            </p>
+                                            <div className="flex items-center">
+                                                <Truck className="h-4 w-4 mr-2 text-orange-600" />
+                                                <span
+                                                    className={
+                                                        theme === "dark"
+                                                            ? "text-slate-200"
+                                                            : "text-slate-700"
+                                                    }
+                                                >
+                                                    Travel Cost ({estimate.breakdown.travel.distance}{" "}
+                                                    miles @ £{estimate.breakdown.travel.rate}
+                                                    /mile)
+                                                </span>
+                                            </div>
+                                            <span className="font-semibold text-lg">
+                                                £{estimate.travelCost.toFixed(2)}
+                                            </span>
                                         </div>
-                                    </CardContent>
-                                </Card>
-                            </div>
+                                    </div>
+
+                                    <Separator className="my-4" />
+
+                                    <div
+                                        className={`flex justify-between items-center p-4 rounded-lg ${theme === "dark"
+                                                ? "bg-gradient-to-r from-green-700 to-emerald-700"
+                                                : "bg-gradient-to-r from-green-600 to-emerald-600"
+                                            } text-white`}
+                                    >
+                                        <span className="text-xl font-bold">Total Estimate:</span>
+                                        <span className="text-3xl font-bold">
+                                            £{estimate.totalCost.toFixed(2)}
+                                        </span>
+                                    </div>
+
+                                    {/* Book Now Button */}
+                                    <div className="mt-6">
+                                        <Button
+                                            onClick={handleBookNow}
+                                            disabled={isBooking}
+                                            className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
+                                            size="lg"
+                                        >
+                                            {isBooking ? "Submitting..." : "Submit Job Request"}
+                                            <ArrowRight className="h-5 w-5 ml-2" />
+                                        </Button>
+                                    </div>
+
+                                    {/* Disclaimer */}
+                                    <div
+                                        className={`mt-4 p-3 rounded-lg border ${theme === "dark"
+                                                ? "bg-blue-900/20 border-blue-700 text-blue-200"
+                                                : "bg-blue-50 border-blue-200 text-blue-800"
+                                            }`}
+                                    >
+                                        <p className="text-xs">
+                                            <strong>Note:</strong> Professional estimate with
+                                            transparent pricing. Materials handled as expenses during
+                                            job execution. Quote valid for 30 days.
+                                        </p>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         )}
 
                         {/* Why Choose Us */}
@@ -1335,7 +1250,7 @@ export default function EstimatePage() {
                 </div>
             </div>
 
-            {/* Login Dialog for non-logged-in users */}
+            {/* Login Dialog */}
             <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
                 <DialogContent
                     className={`sm:max-w-md ${theme === "dark"
@@ -1348,14 +1263,15 @@ export default function EstimatePage() {
                             className={`flex items-center ${theme === "dark" ? "text-white" : "text-slate-900"
                                 }`}
                         >
-                            <EyeOff className="h-5 w-5 mr-2" />
-                            Login to View Full Estimate
+                            <Lock className="h-5 w-5 mr-2" />
+                            Authentication Required
                         </DialogTitle>
                         <DialogDescription
                             className={theme === "dark" ? "text-slate-300" : "text-slate-600"}
                         >
-                            Sign in to see the complete pricing breakdown and submit your
-                            booking request.
+                            Please log in to calculate estimates and view pricing details. Our
+                            pricing information is confidential and only available to
+                            registered customers.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 pt-4">
@@ -1379,7 +1295,7 @@ export default function EstimatePage() {
                             variant="ghost"
                             className="w-full"
                         >
-                            Continue Without Login
+                            Continue Without Pricing
                         </Button>
                     </div>
                 </DialogContent>
