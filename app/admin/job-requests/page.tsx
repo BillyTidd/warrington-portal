@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
+    Clock,
     Users,
     MapPin,
     Phone,
@@ -23,10 +24,11 @@ import {
     ArrowUpDown,
     ArrowUp,
     ArrowDown,
+    Navigation,
+    Truck,
     Crown,
     Wrench,
     HardHat,
-    Truck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -71,20 +73,10 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Layout } from "@/components/Layout";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-
-interface LaborBreakdown {
-    type: string;
-    hours: number;
-    dayRate: number;
-    overtimeHours: number;
-    overtimeRate: number;
-    cost: number;
-}
 
 interface BookingRequest {
     _id: string;
@@ -100,26 +92,31 @@ interface BookingRequest {
         jobLocation: string;
         jobType: string;
         jobDescription: string;
-        workerTypes: string[];
-        vehicleType: string;
-        estimatedDistance: number;
+        workerTypes?: string[];
+        vehicleType?: string;
+        postcode?: string;
     };
     estimatedCost: {
         laborCost: number;
-        materialCost: number;
+        materialCost?: number;
         travelCost: number;
         totalCost: number;
-        breakdown: {
-            labor: LaborBreakdown[];
-            material: {
-                percentage: number;
+        breakdown?: {
+            labor: Array<{
+                type: string;
+                hours: number;
+                dayRate: number;
+                overtimeHours: number;
+                overtimeRate: number;
                 cost: number;
-            };
+            }>;
             travel: {
                 distance: number;
                 vehicleType: string;
                 rate: number;
                 cost: number;
+                fromAddress: string;
+                toAddress: string;
             };
             jobTypeMultiplier: number;
             jobType: string;
@@ -152,16 +149,30 @@ function useDebounce<T>(value: T, delay: number): T {
     return debouncedValue;
 }
 
-const workerTypeLabels: Record<string, { label: string; icon: any }> = {
-    "team-leader": { label: "Team Leader", icon: Crown },
-    "general-fitter": { label: "General Fitter", icon: Wrench },
-    labourer: { label: "Labourer/Assistant", icon: HardHat },
+const getWorkerIcon = (workerType: string) => {
+    switch (workerType) {
+        case "team-leader":
+            return Crown;
+        case "general-fitter":
+            return Wrench;
+        case "labourer":
+            return HardHat;
+        default:
+            return Users;
+    }
 };
 
-const vehicleTypeLabels: Record<string, string> = {
-    "luton-van": "Luton Van/Large Van",
-    "medium-van": "Medium Van",
-    "small-van": "Small Van/Car",
+const getWorkerLabel = (workerType: string) => {
+    switch (workerType) {
+        case "team-leader":
+            return "Team Leader";
+        case "general-fitter":
+            return "General Fitter";
+        case "labourer":
+            return "Labourer/Assistant";
+        default:
+            return workerType;
+    }
 };
 
 export default function JobRequestsPage() {
@@ -198,7 +209,6 @@ export default function JobRequestsPage() {
     // Update active filters when filter values change
     useEffect(() => {
         const newActiveFilters: string[] = [];
-
         if (debouncedSearchTerm) {
             newActiveFilters.push(`Search: ${debouncedSearchTerm}`);
         }
@@ -211,7 +221,6 @@ export default function JobRequestsPage() {
         if (endDate) {
             newActiveFilters.push(`To: ${format(endDate, "MMM dd, yyyy")}`);
         }
-
         setActiveFilters(newActiveFilters);
     }, [debouncedSearchTerm, statusFilter, startDate, endDate]);
 
@@ -229,11 +238,9 @@ export default function JobRequestsPage() {
             if (debouncedSearchTerm) {
                 params.append("search", debouncedSearchTerm);
             }
-
             if (startDate) {
                 params.append("startDate", startDate.toISOString());
             }
-
             if (endDate) {
                 params.append("endDate", endDate.toISOString());
             }
@@ -308,7 +315,6 @@ export default function JobRequestsPage() {
             if (!response.ok) throw new Error("Failed to update request");
 
             const result = await response.json();
-
             if (result.jobCreated && result.jobId) {
                 toast.success(
                     `Request ${status} and job created successfully! Job ID: ${result.jobId}`
@@ -401,14 +407,12 @@ export default function JobRequestsPage() {
 
     const getPageNumbers = () => {
         const pageNumbers = [];
-
         if (totalPages <= 7) {
             for (let i = 1; i <= totalPages; i++) {
                 pageNumbers.push(i);
             }
         } else {
             pageNumbers.push(1);
-
             if (currentPage <= 3) {
                 pageNumbers.push(2, 3, 4, "...", totalPages);
             } else if (currentPage >= totalPages - 2) {
@@ -430,7 +434,6 @@ export default function JobRequestsPage() {
                 );
             }
         }
-
         return pageNumbers;
     };
 
@@ -561,6 +564,7 @@ export default function JobRequestsPage() {
                                                     />
                                                 </PopoverContent>
                                             </Popover>
+
                                             <Popover>
                                                 <PopoverTrigger asChild>
                                                     <Button
@@ -711,19 +715,19 @@ export default function JobRequestsPage() {
                     </Card>
                 ) : (
                     <>
-                        {/* Table */}
-                        <Card>
-                            <CardContent className="p-0">
+                        {/* Table View */}
+                        <Card className="shadow-sm">
+                            <div className="overflow-x-auto">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>
+                                            <TableHead className="w-[200px]">
                                                 <Button
                                                     variant="ghost"
                                                     className="h-auto p-0 font-semibold"
                                                     onClick={() => handleSort("customerName")}
                                                 >
-                                                    {isCustomer ? "Job Type" : "Customer"}
+                                                    Customer
                                                     {getSortIcon("customerName")}
                                                 </Button>
                                             </TableHead>
@@ -737,14 +741,14 @@ export default function JobRequestsPage() {
                                                     {getSortIcon("jobDate")}
                                                 </Button>
                                             </TableHead>
-                                            <TableHead>Location</TableHead>
+                                            <TableHead>Workers & Vehicle</TableHead>
                                             <TableHead>
                                                 <Button
                                                     variant="ghost"
                                                     className="h-auto p-0 font-semibold"
                                                     onClick={() => handleSort("totalCost")}
                                                 >
-                                                    Total Cost
+                                                    Estimate
                                                     {getSortIcon("totalCost")}
                                                 </Button>
                                             </TableHead>
@@ -782,135 +786,154 @@ export default function JobRequestsPage() {
                                                                 : request.customerName}
                                                         </div>
                                                         {!isCustomer && (
-                                                            <div className="text-sm text-muted-foreground space-y-1">
-                                                                <div className="flex items-center gap-1">
+                                                            <>
+                                                                <div className="text-sm text-muted-foreground flex items-center gap-1">
                                                                     <Mail className="h-3 w-3" />
                                                                     {request.customerEmail}
                                                                 </div>
-                                                                <div className="flex items-center gap-1">
+                                                                <div className="text-sm text-muted-foreground flex items-center gap-1">
                                                                     <Phone className="h-3 w-3" />
                                                                     {request.customerPhone}
                                                                 </div>
                                                                 {request.customerCompany && (
-                                                                    <div className="flex items-center gap-1">
+                                                                    <div className="text-sm text-muted-foreground flex items-center gap-1">
                                                                         <Building className="h-3 w-3" />
                                                                         {request.customerCompany}
                                                                     </div>
                                                                 )}
-                                                            </div>
+                                                            </>
                                                         )}
                                                     </div>
                                                 </TableCell>
+
                                                 <TableCell>
                                                     <div className="space-y-1">
                                                         <div className="flex items-center gap-1 text-sm">
-                                                            <Users className="h-3 w-3" />
-                                                            {request.jobEstimate.numberOfWorkers} workers ×{" "}
-                                                            {request.jobEstimate.numberOfHours} hours
-                                                        </div>
-                                                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                                            <Calendar className="h-3 w-3" />
+                                                            <Clock className="h-3 w-3" />
                                                             {format(
                                                                 new Date(request.jobEstimate.jobDate),
                                                                 "MMM d, yyyy"
                                                             )}
                                                         </div>
+                                                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                                            <MapPin className="h-3 w-3" />
+                                                            {request.jobEstimate.jobLocation}
+                                                        </div>
+                                                        {request.jobEstimate.postcode && (
+                                                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                                                <Navigation className="h-3 w-3" />
+                                                                {request.jobEstimate.postcode}
+                                                            </div>
+                                                        )}
+                                                        {request.jobEstimate.jobType && (
+                                                            <Badge variant="outline" className="text-xs">
+                                                                {request.jobEstimate.jobType}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+
+                                                <TableCell>
+                                                    <div className="space-y-2">
+                                                        <div className="text-sm">
+                                                            {request.jobEstimate.numberOfWorkers} workers ×{" "}
+                                                            {request.jobEstimate.numberOfHours} hours
+                                                        </div>
                                                         {request.jobEstimate.workerTypes && (
-                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                            <div className="flex flex-wrap gap-1">
                                                                 {request.jobEstimate.workerTypes.map(
                                                                     (type, index) => {
-                                                                        const workerInfo = workerTypeLabels[type];
-                                                                        if (!workerInfo) return null;
-                                                                        const Icon = workerInfo.icon;
+                                                                        const IconComponent = getWorkerIcon(type);
                                                                         return (
                                                                             <Badge
                                                                                 key={index}
-                                                                                variant="outline"
-                                                                                className="text-xs"
+                                                                                variant="secondary"
+                                                                                className="text-xs flex items-center gap-1"
                                                                             >
-                                                                                <Icon className="h-3 w-3 mr-1" />
-                                                                                {workerInfo.label}
+                                                                                <IconComponent className="h-3 w-3" />
+                                                                                {getWorkerLabel(type)}
                                                                             </Badge>
                                                                         );
                                                                     }
                                                                 )}
                                                             </div>
                                                         )}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center gap-1 text-sm">
-                                                            <MapPin className="h-3 w-3" />
-                                                            {request.jobEstimate.jobLocation}
-                                                        </div>
                                                         {request.jobEstimate.vehicleType && (
                                                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                                                 <Truck className="h-3 w-3" />
-                                                                {
-                                                                    vehicleTypeLabels[
-                                                                    request.jobEstimate.vehicleType
-                                                                    ]
-                                                                }
+                                                                {request.jobEstimate.vehicleType
+                                                                    .replace("-", " ")
+                                                                    .replace(/\b\w/g, (l) => l.toUpperCase())}
                                                             </div>
                                                         )}
-                                                        {request.jobEstimate.estimatedDistance && (
+                                                        {request.estimatedCost.breakdown?.travel && (
                                                             <div className="text-xs text-muted-foreground">
-                                                                {request.jobEstimate.estimatedDistance} miles
+                                                                {
+                                                                    request.estimatedCost.breakdown.travel
+                                                                        .distance
+                                                                }{" "}
+                                                                miles
                                                             </div>
                                                         )}
                                                     </div>
                                                 </TableCell>
+
                                                 <TableCell>
-                                                    <div className="font-bold text-lg text-green-600">
-                                                        £{request.estimatedCost.totalCost.toFixed(2)}
-                                                    </div>
-                                                    {request.estimatedCost.breakdown && (
-                                                        <div className="text-xs text-muted-foreground space-y-1">
+                                                    <div className="space-y-1">
+                                                        <div className="font-bold text-lg text-green-600">
+                                                            £{request.estimatedCost.totalCost.toFixed(2)}
+                                                        </div>
+                                                        <div className="text-xs text-muted-foreground space-y-0.5">
                                                             <div>
                                                                 Labor: £
                                                                 {request.estimatedCost.laborCost.toFixed(2)}
                                                             </div>
                                                             <div>
-                                                                Materials: £
-                                                                {request.estimatedCost.materialCost.toFixed(2)}
-                                                            </div>
-                                                            <div>
                                                                 Travel: £
                                                                 {request.estimatedCost.travelCost.toFixed(2)}
                                                             </div>
+                                                            {request.estimatedCost.materialCost && (
+                                                                <div>
+                                                                    Materials: £
+                                                                    {request.estimatedCost.materialCost.toFixed(
+                                                                        2
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    )}
+                                                    </div>
                                                 </TableCell>
+
                                                 <TableCell>
                                                     <div className="space-y-2">
                                                         {getStatusBadge(request.status)}
                                                         {request.status === "converted" &&
                                                             request.convertedToJobId && (
-                                                                <div>
-                                                                    <Link
-                                                                        href={`/job-portal/${request.convertedToJobId}`}
+                                                                <Link
+                                                                    href={`/job-portal/${request.convertedToJobId}`}
+                                                                >
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="w-full bg-transparent"
                                                                     >
-                                                                        <Button
-                                                                            variant="outline"
-                                                                            size="sm"
-                                                                            className="text-xs bg-transparent"
-                                                                        >
-                                                                            <ExternalLink className="h-3 w-3 mr-1" />
-                                                                            View Job
-                                                                        </Button>
-                                                                    </Link>
-                                                                </div>
+                                                                        <ExternalLink className="h-3 w-3 mr-1" />
+                                                                        View Job
+                                                                    </Button>
+                                                                </Link>
                                                             )}
                                                     </div>
                                                 </TableCell>
+
                                                 <TableCell>
-                                                    <div className="text-sm text-muted-foreground">
+                                                    <div className="text-sm">
                                                         {format(new Date(request.createdAt), "MMM d, yyyy")}
-                                                        <br />
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground">
                                                         {format(new Date(request.createdAt), "h:mm a")}
                                                     </div>
                                                 </TableCell>
+
                                                 <TableCell className="text-right">
                                                     <Button
                                                         variant="outline"
@@ -925,7 +948,7 @@ export default function JobRequestsPage() {
                                         ))}
                                     </TableBody>
                                 </Table>
-                            </CardContent>
+                            </div>
                         </Card>
 
                         {/* Pagination */}
@@ -945,7 +968,6 @@ export default function JobRequestsPage() {
                                                 }
                                             />
                                         </PaginationItem>
-
                                         {getPageNumbers().map((pageNum, i) => (
                                             <PaginationItem key={i}>
                                                 {pageNum === "..." ? (
@@ -961,7 +983,6 @@ export default function JobRequestsPage() {
                                                 )}
                                             </PaginationItem>
                                         ))}
-
                                         <PaginationItem>
                                             <PaginationNext
                                                 onClick={() =>
@@ -991,9 +1012,9 @@ export default function JobRequestsPage() {
                     </>
                 )}
 
-                {/* Enhanced Request Details Dialog */}
+                {/* Request Details Dialog */}
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>Job Request Details</DialogTitle>
                             <DialogDescription>
@@ -1066,6 +1087,14 @@ export default function JobRequestsPage() {
                                                 <Label className="text-sm font-medium">Location</Label>
                                                 <p>{selectedRequest.jobEstimate.jobLocation}</p>
                                             </div>
+                                            {selectedRequest.jobEstimate.postcode && (
+                                                <div>
+                                                    <Label className="text-sm font-medium">
+                                                        Postcode
+                                                    </Label>
+                                                    <p>{selectedRequest.jobEstimate.postcode}</p>
+                                                </div>
+                                            )}
                                             <div>
                                                 <Label className="text-sm font-medium">Job Type</Label>
                                                 <p>
@@ -1073,65 +1102,98 @@ export default function JobRequestsPage() {
                                                         "Not specified"}
                                                 </p>
                                             </div>
-                                            {selectedRequest.jobEstimate.vehicleType && (
-                                                <div>
-                                                    <Label className="text-sm font-medium">
-                                                        Vehicle Type
-                                                    </Label>
-                                                    <p>
-                                                        {
-                                                            vehicleTypeLabels[
-                                                            selectedRequest.jobEstimate.vehicleType
-                                                            ]
-                                                        }
-                                                    </p>
-                                                </div>
-                                            )}
-                                            {selectedRequest.jobEstimate.estimatedDistance && (
-                                                <div>
-                                                    <Label className="text-sm font-medium">
-                                                        Distance
-                                                    </Label>
-                                                    <p>
-                                                        {selectedRequest.jobEstimate.estimatedDistance}{" "}
-                                                        miles
-                                                    </p>
-                                                </div>
-                                            )}
                                         </CardContent>
                                     </Card>
                                 </div>
 
-                                {/* Worker Types */}
-                                {selectedRequest.jobEstimate.workerTypes &&
-                                    selectedRequest.jobEstimate.workerTypes.length > 0 && (
+                                {/* Worker Configuration */}
+                                {selectedRequest.jobEstimate.workerTypes && (
+                                    <Card>
+                                        <CardHeader className="pb-3">
+                                            <CardTitle className="text-lg">
+                                                Worker Configuration
+                                            </CardTitle>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                {selectedRequest.jobEstimate.workerTypes.map(
+                                                    (type, index) => {
+                                                        const IconComponent = getWorkerIcon(type);
+                                                        return (
+                                                            <div
+                                                                key={index}
+                                                                className="flex items-center gap-2 p-2 border rounded-lg"
+                                                            >
+                                                                <IconComponent className="h-5 w-5 text-blue-600" />
+                                                                <span className="font-medium">
+                                                                    {getWorkerLabel(type)}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    }
+                                                )}
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                )}
+
+                                {/* Vehicle and Travel Info */}
+                                {(selectedRequest.jobEstimate.vehicleType ||
+                                    selectedRequest.estimatedCost.breakdown?.travel) && (
                                         <Card>
                                             <CardHeader className="pb-3">
                                                 <CardTitle className="text-lg">
-                                                    Worker Configuration
+                                                    Travel Information
                                                 </CardTitle>
                                             </CardHeader>
-                                            <CardContent>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                    {selectedRequest.jobEstimate.workerTypes.map(
-                                                        (type, index) => {
-                                                            const workerInfo = workerTypeLabels[type];
-                                                            if (!workerInfo) return null;
-                                                            const Icon = workerInfo.icon;
-                                                            return (
-                                                                <div
-                                                                    key={index}
-                                                                    className="flex items-center gap-2 p-2 border rounded-lg"
-                                                                >
-                                                                    <Icon className="h-4 w-4 text-blue-600" />
-                                                                    <span className="font-medium">
-                                                                        {workerInfo.label}
-                                                                    </span>
-                                                                </div>
-                                                            );
-                                                        }
-                                                    )}
-                                                </div>
+                                            <CardContent className="space-y-3">
+                                                {selectedRequest.jobEstimate.vehicleType && (
+                                                    <div>
+                                                        <Label className="text-sm font-medium">
+                                                            Vehicle Type
+                                                        </Label>
+                                                        <p className="flex items-center gap-2">
+                                                            <Truck className="h-4 w-4" />
+                                                            {selectedRequest.jobEstimate.vehicleType
+                                                                .replace("-", " ")
+                                                                .replace(/\b\w/g, (l) => l.toUpperCase())}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {selectedRequest.estimatedCost.breakdown?.travel && (
+                                                    <>
+                                                        <div>
+                                                            <Label className="text-sm font-medium">
+                                                                Distance
+                                                            </Label>
+                                                            <p>
+                                                                {
+                                                                    selectedRequest.estimatedCost.breakdown.travel
+                                                                        .distance
+                                                                }{" "}
+                                                                miles
+                                                            </p>
+                                                        </div>
+                                                        <div>
+                                                            <Label className="text-sm font-medium">From</Label>
+                                                            <p>
+                                                                {
+                                                                    selectedRequest.estimatedCost.breakdown.travel
+                                                                        .fromAddress
+                                                                }
+                                                            </p>
+                                                        </div>
+                                                        <div>
+                                                            <Label className="text-sm font-medium">To</Label>
+                                                            <p>
+                                                                {
+                                                                    selectedRequest.estimatedCost.breakdown.travel
+                                                                        .toAddress
+                                                                }
+                                                            </p>
+                                                        </div>
+                                                    </>
+                                                )}
                                             </CardContent>
                                         </Card>
                                     )}
@@ -1153,140 +1215,100 @@ export default function JobRequestsPage() {
                                 {/* Enhanced Cost Breakdown */}
                                 <Card>
                                     <CardHeader className="pb-3">
-                                        <CardTitle className="text-lg">
-                                            Detailed Cost Breakdown
-                                        </CardTitle>
+                                        <CardTitle className="text-lg">Cost Breakdown</CardTitle>
                                     </CardHeader>
                                     <CardContent>
                                         {selectedRequest.estimatedCost.breakdown?.labor ? (
-                                            <div className="space-y-6">
+                                            <div className="space-y-4">
                                                 {/* Labor Breakdown */}
                                                 <div>
-                                                    <h4 className="font-semibold mb-3">Labor Costs</h4>
-                                                    <div className="space-y-3">
+                                                    <h4 className="font-medium mb-2">Labor Costs</h4>
+                                                    <div className="space-y-2">
                                                         {selectedRequest.estimatedCost.breakdown.labor.map(
                                                             (worker, index) => (
                                                                 <div
                                                                     key={index}
-                                                                    className="p-3 border rounded-lg"
+                                                                    className="flex justify-between items-center p-2 border rounded"
                                                                 >
-                                                                    <div className="flex justify-between items-center mb-2">
+                                                                    <div>
                                                                         <span className="font-medium">
                                                                             {worker.type}
                                                                         </span>
-                                                                        <span className="font-bold">
-                                                                            £{worker.cost.toFixed(2)}
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="text-sm text-muted-foreground space-y-1">
-                                                                        <div>
-                                                                            Day rate (up to 10hrs): £{worker.dayRate}
+                                                                        <div className="text-xs text-muted-foreground">
+                                                                            Day rate: £{worker.dayRate}
+                                                                            {worker.overtimeHours > 0 &&
+                                                                                ` + ${worker.overtimeHours}h overtime @ £${worker.overtimeRate}/h`}
                                                                         </div>
-                                                                        {worker.overtimeHours > 0 && (
-                                                                            <div>
-                                                                                Overtime ({worker.overtimeHours}hrs): £
-                                                                                {worker.overtimeRate}/hr = £
-                                                                                {(
-                                                                                    worker.overtimeHours *
-                                                                                    worker.overtimeRate
-                                                                                ).toFixed(2)}
-                                                                            </div>
-                                                                        )}
                                                                     </div>
+                                                                    <span className="font-bold">
+                                                                        £{worker.cost.toFixed(2)}
+                                                                    </span>
                                                                 </div>
                                                             )
                                                         )}
                                                     </div>
                                                 </div>
 
-                                                <Separator />
-
-                                                {/* Material & Travel */}
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    <div>
-                                                        <h4 className="font-semibold mb-2">Materials</h4>
-                                                        <div className="p-3 border rounded-lg">
-                                                            <div className="flex justify-between">
-                                                                <span>
-                                                                    {
-                                                                        selectedRequest.estimatedCost.breakdown
-                                                                            .material.percentage
-                                                                    }
-                                                                    % of labor cost
-                                                                </span>
-                                                                <span className="font-bold">
-                                                                    £
-                                                                    {selectedRequest.estimatedCost.breakdown.material.cost.toFixed(
-                                                                        2
-                                                                    )}
-                                                                </span>
+                                                {/* Travel Costs */}
+                                                <div>
+                                                    <h4 className="font-medium mb-2">Travel Costs</h4>
+                                                    <div className="flex justify-between items-center p-2 border rounded">
+                                                        <div>
+                                                            <span>
+                                                                {
+                                                                    selectedRequest.estimatedCost.breakdown.travel
+                                                                        .distance
+                                                                }{" "}
+                                                                miles @ £
+                                                                {
+                                                                    selectedRequest.estimatedCost.breakdown.travel
+                                                                        .rate
+                                                                }
+                                                                /mile
+                                                            </span>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                {selectedRequest.estimatedCost.breakdown.travel.vehicleType
+                                                                    .replace("-", " ")
+                                                                    .replace(/\b\w/g, (l) => l.toUpperCase())}
                                                             </div>
                                                         </div>
-                                                    </div>
-
-                                                    <div>
-                                                        <h4 className="font-semibold mb-2">Travel</h4>
-                                                        <div className="p-3 border rounded-lg">
-                                                            <div className="space-y-1 text-sm">
-                                                                <div className="flex justify-between">
-                                                                    <span>Distance:</span>
-                                                                    <span>
-                                                                        {
-                                                                            selectedRequest.estimatedCost.breakdown
-                                                                                .travel.distance
-                                                                        }{" "}
-                                                                        miles
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex justify-between">
-                                                                    <span>Vehicle:</span>
-                                                                    <span>
-                                                                        {
-                                                                            vehicleTypeLabels[
-                                                                            selectedRequest.estimatedCost.breakdown
-                                                                                .travel.vehicleType
-                                                                            ]
-                                                                        }
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex justify-between">
-                                                                    <span>Rate:</span>
-                                                                    <span>
-                                                                        £
-                                                                        {
-                                                                            selectedRequest.estimatedCost.breakdown
-                                                                                .travel.rate
-                                                                        }
-                                                                        /mile
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex justify-between font-bold">
-                                                                    <span>Total:</span>
-                                                                    <span>
-                                                                        £
-                                                                        {selectedRequest.estimatedCost.breakdown.travel.cost.toFixed(
-                                                                            2
-                                                                        )}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <Separator />
-
-                                                {/* Total Summary */}
-                                                <div className="space-y-2">
-                                                    <div className="flex justify-between">
-                                                        <span>Total Labor Cost:</span>
-                                                        <span>
+                                                        <span className="font-bold">
                                                             £
-                                                            {selectedRequest.estimatedCost.laborCost.toFixed(
+                                                            {selectedRequest.estimatedCost.travelCost.toFixed(
                                                                 2
                                                             )}
                                                         </span>
                                                     </div>
+                                                </div>
+
+                                                {/* Job Type Multiplier */}
+                                                {selectedRequest.estimatedCost.breakdown
+                                                    .jobTypeMultiplier !== 1 && (
+                                                        <div className="p-2 bg-blue-50 border border-blue-200 rounded">
+                                                            <span className="text-sm">
+                                                                Job type multiplier (
+                                                                {selectedRequest.estimatedCost.breakdown.jobType}
+                                                                ):{" "}
+                                                                {
+                                                                    selectedRequest.estimatedCost.breakdown
+                                                                        .jobTypeMultiplier
+                                                                }
+                                                                x
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                            </div>
+                                        ) : (
+                                            // Fallback for older requests without detailed breakdown
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between">
+                                                    <span>Labor Cost:</span>
+                                                    <span>
+                                                        £
+                                                        {selectedRequest.estimatedCost.laborCost.toFixed(2)}
+                                                    </span>
+                                                </div>
+                                                {selectedRequest.estimatedCost.materialCost && (
                                                     <div className="flex justify-between">
                                                         <span>Material Cost:</span>
                                                         <span>
@@ -1296,47 +1318,7 @@ export default function JobRequestsPage() {
                                                             )}
                                                         </span>
                                                     </div>
-                                                    <div className="flex justify-between">
-                                                        <span>Travel Cost:</span>
-                                                        <span>
-                                                            £
-                                                            {selectedRequest.estimatedCost.travelCost.toFixed(
-                                                                2
-                                                            )}
-                                                        </span>
-                                                    </div>
-                                                    <div className="border-t pt-2">
-                                                        <div className="flex justify-between font-bold text-lg">
-                                                            <span>Total Estimate:</span>
-                                                            <span className="text-green-600">
-                                                                £
-                                                                {selectedRequest.estimatedCost.totalCost.toFixed(
-                                                                    2
-                                                                )}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            // Fallback for old format
-                                            <div className="space-y-2">
-                                                <div className="flex justify-between">
-                                                    <span>Labor Cost:</span>
-                                                    <span>
-                                                        £
-                                                        {selectedRequest.estimatedCost.laborCost.toFixed(2)}
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span>Material Cost:</span>
-                                                    <span>
-                                                        £
-                                                        {selectedRequest.estimatedCost.materialCost.toFixed(
-                                                            2
-                                                        )}
-                                                    </span>
-                                                </div>
+                                                )}
                                                 <div className="flex justify-between">
                                                     <span>Travel Cost:</span>
                                                     <span>
@@ -1346,19 +1328,17 @@ export default function JobRequestsPage() {
                                                         )}
                                                     </span>
                                                 </div>
-                                                <div className="border-t pt-2">
-                                                    <div className="flex justify-between font-bold text-lg">
-                                                        <span>Total:</span>
-                                                        <span className="text-green-600">
-                                                            £
-                                                            {selectedRequest.estimatedCost.totalCost.toFixed(
-                                                                2
-                                                            )}
-                                                        </span>
-                                                    </div>
-                                                </div>
                                             </div>
                                         )}
+
+                                        <div className="border-t pt-2 mt-4">
+                                            <div className="flex justify-between font-bold text-lg">
+                                                <span>Total:</span>
+                                                <span className="text-green-600">
+                                                    £{selectedRequest.estimatedCost.totalCost.toFixed(2)}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </CardContent>
                                 </Card>
 
