@@ -65,3 +65,23 @@ export interface Job {
   vehicleType: string;
   bookingRequestId?: string;
 }
+export interface Worker {
+  userId: string;
+  workerName: string;
+  paymentRate?: number;
+  hourlyRate?: number;
+}
+
+export interface JobProgressLog {
+  _id?: string;
+  timestamp: string | Date;
+  updatedBy: string;
+  updatedByName: string;
+  details: string;
+  cost?: number;
+  hours?: number;
+  overtimeHours?: number;
+  overtimeCost?: number;
+  statusChange?: boolean;
+  newStatus?: string | null;
+}
