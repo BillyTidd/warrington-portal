@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import clientPromise from "@/lib/mongodb";
-import { authOptions } from "@/lib/auth";
 import { ObjectId } from "mongodb";
 
 export async function POST(
@@ -9,7 +8,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     if (!session?.user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
@@ -24,6 +23,7 @@ export async function POST(
       cost,
       overtimeHours,
       overtimeCost,
+      vehicleUsage,
       statusChange,
       newStatus,
     } = await request.json();
@@ -37,6 +37,7 @@ export async function POST(
       cost,
       overtimeHours,
       overtimeCost,
+      vehicleUsage, // Store vehicle usage data
       statusChange,
       newStatus: statusChange ? newStatus : null,
     };
@@ -48,7 +49,7 @@ export async function POST(
     const result = await db.collection("jobs").updateOne(
       { _id: new ObjectId(jobId) },
       {
-        $push: { progressLogs: progressLog } as any,
+        $push: { progressLogs: progressLog },
         ...(statusChange
           ? {
               $set: {
@@ -95,7 +96,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     if (!session?.user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
