@@ -1,70 +1,97 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/lib/auth"
-import clientPromise from "@/lib/mongodb"
-import { ObjectId } from "mongodb"
+import { type NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
+import clientPromise from "@/lib/mongodb";
+import { ObjectId } from "mongodb";
+import type { BookingRequest, EstimatedCost } from "@/types/booking";
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getServerSession(authOptions);
     if (!session?.user || session.user.role !== "admin") {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const { status, adminNotes, reviewedBy, reviewedByName } = await request.json()
-
-    if (!["approved", "rejected", "converted"].includes(status)) {
-      return NextResponse.json({ message: "Invalid status" }, { status: 400 })
-    }
-
-    const client = await clientPromise
-    const db = client.db()
+    const { status, adminNotes, estimatedCost } = await request.json();
+    const client = await clientPromise;
+    const db = client.db();
+    const bookingRequestId = new ObjectId(params.id);
 
     // Get the booking request first
-    const bookingRequest = await db.collection("booking-requests").findOne({ _id: new ObjectId(params.id) })
+    const bookingRequest = await db
+      .collection<BookingRequest>("booking-requests")
+      .findOne({ _id: bookingRequestId });
 
     if (!bookingRequest) {
-      return NextResponse.json({ message: "Booking request not found" }, { status: 404 })
+      return NextResponse.json(
+        { message: "Booking request not found" },
+        { status: 404 }
+      );
     }
 
-    // Update the booking request status
-    const updateResult = await db.collection("booking-requests").updateOne(
-      { _id: new ObjectId(params.id) },
-      {
-        $set: {
-          status,
-          adminNotes: adminNotes || null,
-          reviewedBy,
-          reviewedByName,
-          updatedAt: new Date(),
-        },
-      },
-    )
-
-    if (updateResult.matchedCount === 0) {
-      return NextResponse.json({ message: "Booking request not found" }, { status: 404 })
+    // Validate status
+    if (!["approved", "rejected"].includes(status)) {
+      return NextResponse.json({ message: "Invalid status" }, { status: 400 });
     }
 
-    let jobId = null
+    // Prepare update fields
+    const updateFields: { [key: string]: any } = {
+      status,
+      adminNotes: adminNotes || null,
+      reviewedBy: session.user.id,
+      reviewedByName: session.user.name,
+      updatedAt: new Date(),
+    };
 
-    // If approved, create a job in the job portal
+    // Determine which estimated cost to use
+    let finalEstimatedCost: EstimatedCost;
+
+    if (estimatedCost) {
+      // Admin updated the costs - use the new values
+      finalEstimatedCost = {
+        laborCost: Number.parseFloat(estimatedCost.laborCost) || 0,
+        materialCost: Number.parseFloat(estimatedCost.materialCost) || 0,
+        travelCost: Number.parseFloat(estimatedCost.travelCost) || 0,
+        totalCost: Number.parseFloat(estimatedCost.totalCost) || 0,
+        breakdown: bookingRequest.estimatedCost.breakdown, // Preserve existing breakdown
+      };
+      updateFields.estimatedCost = finalEstimatedCost;
+      console.log("Using updated estimated cost:", finalEstimatedCost);
+    } else {
+      // No cost changes - use existing costs but ensure materialCost is defined
+      finalEstimatedCost = {
+        ...bookingRequest.estimatedCost,
+        materialCost: bookingRequest.estimatedCost.materialCost || 0,
+      };
+      console.log("Using original estimated cost:", finalEstimatedCost);
+    }
+
+    let jobId = null;
+    let jobCreated = false;
+
+    // If approved, create a job
     if (status === "approved") {
       try {
-        // Find the customer in the users collection
+        // Find the customer
         const customer = await db.collection("users").findOne({
           email: bookingRequest.customerEmail,
-        })
+        });
 
-        // Create job data from booking request
+        // Create job data
         const jobData = {
-          jobName: `${bookingRequest.jobEstimate.jobType || "Service"} - ${bookingRequest.customerName}`,
+          jobName: `${bookingRequest.jobEstimate.jobType || "Service"} - ${
+            bookingRequest.customerName
+          }`,
           assignDate: bookingRequest.jobEstimate.jobDate,
-          expireDate: bookingRequest.jobEstimate.jobDate, // Same day for now, admin can edit later
+          expireDate: bookingRequest.jobEstimate.jobDate,
           status: "pending",
           description:
             bookingRequest.jobEstimate.jobDescription ||
             `${bookingRequest.jobEstimate.jobType} job for ${bookingRequest.customerName}`,
-          clientPrice: bookingRequest.estimatedCost.totalCost,
+          clientPrice: finalEstimatedCost.totalCost,
 
           // Client information
           clientId: customer?._id?.toString() || null,
@@ -73,69 +100,83 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
           clientPhone: bookingRequest.customerPhone,
           clientCompany: bookingRequest.customerCompany || null,
 
-          // Job details from estimate
+          // Job details
           estimatedWorkers: bookingRequest.jobEstimate.numberOfWorkers,
           estimatedHours: bookingRequest.jobEstimate.numberOfHours,
           jobLocation: bookingRequest.jobEstimate.jobLocation,
           jobType: bookingRequest.jobEstimate.jobType,
 
-          // Cost breakdown
+          // Cost breakdown - use the final estimated cost
           estimatedCosts: {
-            laborCost: bookingRequest.estimatedCost.laborCost,
-            materialCost: bookingRequest.estimatedCost.materialCost,
-            travelCost: bookingRequest.estimatedCost.travelCost,
-            totalCost: bookingRequest.estimatedCost.totalCost,
+            laborCost: finalEstimatedCost.laborCost,
+            materialCost: finalEstimatedCost.materialCost || 0,
+            travelCost: finalEstimatedCost.travelCost,
+            totalCost: finalEstimatedCost.totalCost,
           },
 
-          // Workers array (empty initially, admin can assign later)
+          // Workers array (empty initially)
           workers: [],
 
           // Metadata
-          createdBy: reviewedBy,
-          createdByName: reviewedByName,
+          createdBy: session.user.id,
+          createdByName: session.user.name,
           createdAt: new Date(),
           updatedAt: new Date(),
           progressLogs: [],
 
           // Link back to original booking request
           bookingRequestId: params.id,
-
-          // Admin notes from approval
           adminNotes: adminNotes || null,
-        }
+        };
 
         // Insert the job
-        const jobResult = await db.collection("jobs").insertOne(jobData)
-        jobId = jobResult.insertedId.toString()
+        const jobResult = await db.collection("jobs").insertOne(jobData);
+        jobId = jobResult.insertedId.toString();
 
-        // Update the booking request to mark it as converted and link to job
-        await db.collection("booking-requests").updateOne(
-          { _id: new ObjectId(params.id) },
-          {
-            $set: {
-              status: "converted",
-              convertedToJobId: jobId,
-              convertedAt: new Date(),
-            },
-          },
-        )
+        // Update booking request to converted status
+        updateFields.status = "converted";
+        updateFields.convertedToJobId = jobId;
+        updateFields.convertedAt = new Date();
 
-        console.log(`Successfully created job ${jobId} from booking request ${params.id}`)
+        jobCreated = true;
+        console.log(
+          `Successfully created job ${jobId} from booking request ${params.id} with total cost: £${finalEstimatedCost.totalCost}`
+        );
       } catch (jobCreationError) {
-        console.error("Error creating job from booking request:", jobCreationError)
-        // Don't fail the entire request if job creation fails
-        // The booking request is still marked as approved
+        console.error(
+          "Error creating job from booking request:",
+          jobCreationError
+        );
+        // Continue with the booking request update even if job creation fails
       }
+    }
+
+    // Update the booking request
+    const updateResult = await db
+      .collection("booking-requests")
+      .updateOne({ _id: bookingRequestId }, { $set: updateFields });
+
+    if (updateResult.matchedCount === 0) {
+      return NextResponse.json(
+        { message: "Booking request not found" },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json({
       success: true,
-      message: `Booking request ${status} successfully`,
+      message: estimatedCost
+        ? `Booking request ${status} with updated pricing`
+        : `Booking request ${status} successfully`,
       jobId: jobId,
-      jobCreated: status === "approved" && jobId !== null,
-    })
+      jobCreated: jobCreated,
+      priceUpdated: !!estimatedCost,
+    });
   } catch (error) {
-    console.error("Error updating booking request:", error)
-    return NextResponse.json({ message: "Failed to update booking request" }, { status: 500 })
+    console.error("Error updating booking request:", error);
+    return NextResponse.json(
+      { message: "Failed to update booking request" },
+      { status: 500 }
+    );
   }
 }
