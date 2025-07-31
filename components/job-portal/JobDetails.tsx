@@ -20,7 +20,7 @@ import { useRouter } from "next/navigation";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface JobDetailsProps {
-  job: Job;
+  job: any;
   onEdit: () => void;
   onDelete: () => void;
 }
@@ -99,7 +99,7 @@ export function JobDetails({ job, onEdit, onDelete }: JobDetailsProps) {
             {job.workers && job.workers.length > 0 ? (
               <ScrollArea className="max-h-24">
                 <div className="flex flex-wrap gap-2">
-                  {job.workers.map((worker) => (
+                  {job.workers.map((worker: any) => (
                     <Badge key={worker.userId} variant="outline">
                       {worker.workerName}
                     </Badge>

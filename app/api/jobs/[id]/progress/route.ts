@@ -49,23 +49,13 @@ export async function POST(
     const result = await db.collection("jobs").updateOne(
       { _id: new ObjectId(jobId) },
       {
-        $push: { progressLogs: progressLog },
-        ...(statusChange
-          ? {
-              $set: {
-                status: newStatus,
-                updatedBy: session.user.id,
-                updatedByName: session.user.name,
-                updatedAt: new Date(),
-              },
-            }
-          : {
-              $set: {
-                updatedBy: session.user.id,
-                updatedByName: session.user.name,
-                updatedAt: new Date(),
-              },
-            }),
+        $push: { progressLogs: progressLog } as any,
+        $set: {
+          updatedBy: session.user.id,
+          updatedByName: session.user.name,
+          updatedAt: new Date(),
+          ...(statusChange ? { status: newStatus } : {}),
+        },
       }
     );
 

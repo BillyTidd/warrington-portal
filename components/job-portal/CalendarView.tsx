@@ -58,7 +58,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
 interface CalendarViewProps {
-  jobs: Job[];
+  jobs: any[];
   currentDate: Date;
   onViewDetails: (job: Job) => void;
   onNewJob: (date?: string) => void;
@@ -144,9 +144,9 @@ export function CalendarView({
 
   // Group jobs by date
   const jobsByDate = useMemo(() => {
-    const byDate: Record<string, Job[]> = {};
+    const byDate: Record<string, any[]> = {};
 
-    jobs.forEach((job) => {
+    jobs.forEach((job: any) => {
       // Use either the assign date or expire date based on display mode
       const dateKey =
         displayMode === "assign" ? job.assignDate : job.expireDate;
@@ -164,7 +164,7 @@ export function CalendarView({
 
   // Group jobs by hour for day view
   const jobsByHour = useMemo(() => {
-    const byHour: Record<string, Job[]> = {};
+    const byHour: Record<string, any[]> = {};
 
     if (viewType !== "day") return byHour;
 
@@ -199,7 +199,7 @@ export function CalendarView({
   };
 
   // Get job status color class
-  const getJobStatusClass = (job: Job) => {
+  const getJobStatusClass = (job: any) => {
     if (job.status === "completed") {
       return "bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-sm shadow-emerald-200 dark:shadow-emerald-900/20";
     }
@@ -216,7 +216,7 @@ export function CalendarView({
   };
 
   // Get job status icon
-  const getJobStatusIcon = (job: Job) => {
+  const getJobStatusIcon = (job: any) => {
     if (job.status === "completed") {
       return <CheckCircle2 className="h-3 w-3 mr-1 flex-shrink-0" />;
     }
