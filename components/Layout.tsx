@@ -20,6 +20,7 @@ import {
   Package,
   LayoutDashboard,
   ClipboardList,
+  TruckIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import Image from "next/image";
@@ -80,15 +81,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
         : []),
       ...(userRole === "admin"
         ? [
-          {
-            href: "/admin/job-requests",
-            label: "Job Requests",
-            icon: Package,
-          },
-        ]
+            {
+              href: "/admin/job-requests",
+              label: "Job Requests",
+              icon: Package,
+            },
+          ]
         : []),
-      { href: "/estimate", label: "New Estimate", icon: FileText },
-
+      ...(userRole === "admin"
+        ? [{ href: "/admin/estimates", label: "Estimates", icon: FileText }]
+        : []),
+      // ...(userRole === "admin"
+      //   ? [{ href: "/admin/vehicles", label: "Vehicles", icon: TruckIcon }]
+      //   : []),
     ];
   };
 
@@ -98,16 +103,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const SidebarContent = () => (
     <div className="flex h-full flex-col">
       <div
-        className={`flex h-14 items-center justify-center border-b px-4 ${isCustomerLayout
-          ? "bg-gradient-to-r from-blue-600 to-indigo-600"
-          : theme !== "dark"
+        className={`flex h-14 items-center justify-center border-b px-4 ${
+          isCustomerLayout
+            ? "bg-gradient-to-r from-blue-600 to-indigo-600"
+            : theme !== "dark"
             ? "bg-black"
             : ""
-          }`}
+        }`}
       >
         <Link
-          className={`flex items-center gap-2 font-semibold ${isCustomerLayout ? "text-white" : ""
-            }`}
+          className={`flex items-center gap-2 font-semibold ${
+            isCustomerLayout ? "text-white" : ""
+          }`}
           href={isCustomerLayout ? "/customer/dashboard" : "/"}
         >
           {isCustomerLayout ? (
