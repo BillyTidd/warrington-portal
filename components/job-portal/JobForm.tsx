@@ -22,13 +22,13 @@ import { X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface JobFormProps {
-  currentJob: Partial<Job>;
+  currentJob: Partial<any>;
   workers: any[];
   isEditMode: boolean;
   onSubmit: (e: React.FormEvent) => Promise<void>;
   onDelete?: () => void;
   isSaving: boolean;
-  setCurrentJob: React.Dispatch<React.SetStateAction<Partial<Job>>>;
+  setCurrentJob: React.Dispatch<React.SetStateAction<Partial<any>>>;
 }
 
 export function JobForm({
@@ -93,7 +93,7 @@ export function JobForm({
 
     // Check if worker is already assigned
     const isAlreadyAssigned = currentJob.workers?.some(
-      (worker) => worker.userId === workerId
+      (worker: any) => worker.userId === workerId
     );
     if (isAlreadyAssigned) return;
 
@@ -110,8 +110,9 @@ export function JobForm({
     setCurrentJob({
       ...currentJob,
       workers:
-        currentJob.workers?.filter((worker) => worker.userId !== workerId) ||
-        [],
+        currentJob.workers?.filter(
+          (worker: any) => worker.userId !== workerId
+        ) || [],
     });
   };
 
@@ -214,7 +215,7 @@ export function JobForm({
                     .filter(
                       (worker) =>
                         !currentJob.workers?.some(
-                          (assigned) => assigned.userId === worker._id
+                          (assigned: any) => assigned.userId === worker._id
                         )
                     )
                     .map((worker) => (
@@ -229,7 +230,7 @@ export function JobForm({
                 {currentJob.workers && currentJob.workers.length > 0 ? (
                   <ScrollArea className="max-h-32">
                     <div className="flex flex-wrap gap-2 p-1">
-                      {currentJob.workers.map((worker) => (
+                      {currentJob.workers.map((worker: any) => (
                         <Badge
                           key={worker.userId}
                           variant="secondary"

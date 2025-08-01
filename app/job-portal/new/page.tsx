@@ -17,7 +17,7 @@ import { JobFormFields } from "@/components/job-portal/JobFormFields";
 export default function NewJobPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  const [job, setJob] = useState<Partial<Job>>({
+  const [job, setJob] = useState<Partial<any>>({
     jobName: "",
     assignDate: format(new Date(), "yyyy-MM-dd"),
     expireDate: format(
@@ -143,11 +143,11 @@ export default function NewJobPage() {
     if (!worker) return;
 
     // Check if worker is already selected
-    if (job.workers?.some((w) => w.userId === workerId)) {
+    if (job.workers?.some((w: any) => w.userId === workerId)) {
       // Remove worker
       setJob((prev) => ({
         ...prev,
-        workers: prev.workers?.filter((w) => w.userId !== workerId) || [],
+        workers: prev.workers?.filter((w: any) => w.userId !== workerId) || [],
       }));
     } else {
       // Add worker

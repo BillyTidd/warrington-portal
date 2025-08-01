@@ -71,7 +71,7 @@ import { PDFButton } from "@/components/job-portal/PDFButton";
 export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { data: session } = useSession();
-  const [job, setJob] = useState<Job | null>(null);
+  const [job, setJob] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editedJob, setEditedJob] = useState<Partial<Job>>({});
@@ -90,12 +90,12 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
   // Check if current user is assigned to this job (works with both old and new format)
   const isAssignedToMe = job?.workers
-    ? job.workers.some((worker) => worker.userId === session?.user?.id)
+    ? job.workers.some((worker: any) => worker.userId === session?.user?.id)
     : job?.userId === session?.user?.id; // Backward compatibility
 
   // Get the current worker's payment information
   const currentWorker = job?.workers?.find(
-    (worker) => worker.userId === session?.user?.id
+    (worker: any) => worker.userId === session?.user?.id
   );
   const workerPaymentRate =
     currentWorker?.paymentRate || job?.workerPaymentRate;
@@ -468,7 +468,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
     // Calculate total payment for all workers
     const totalWorkerPayments = job.workers.reduce(
-      (sum, worker) => sum + (worker.paymentRate || 0),
+      (sum: any, worker: any) => sum + (worker.paymentRate || 0),
       0
     );
 
@@ -494,7 +494,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {job.workers.map((worker) => (
+              {job.workers.map((worker: any) => (
                 <TableRow key={worker.userId}>
                   <TableCell className="font-medium">
                     {worker.workerName}
@@ -557,10 +557,16 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
     const clientPrice = job.clientPrice || 0;
     const totalWorkerPayments = job.workers
-      ? job.workers.reduce((sum, worker) => sum + (worker.paymentRate || 0), 0)
+      ? job.workers.reduce(
+          (sum: any, worker: any) => sum + (worker.paymentRate || 0),
+          0
+        )
       : job.workerPaymentRate || 0;
     const additionalCosts =
-      job.progressLogs?.reduce((sum, log) => sum + (log.cost || 0), 0) || 0;
+      job.progressLogs?.reduce(
+        (sum: any, log: any) => sum + (log.cost || 0),
+        0
+      ) || 0;
     const totalCosts = totalWorkerPayments + additionalCosts;
     const profit = clientPrice - totalCosts;
     const profitMargin = clientPrice > 0 ? (profit / clientPrice) * 100 : 0;
@@ -669,7 +675,10 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const progressPercentage =
     job.status === "completed" ? 100 : job.status === "in-progress" ? 50 : 0;
   const totalCost =
-    job.progressLogs?.reduce((sum, log) => sum + (log.cost || 0), 0) || 0;
+    job.progressLogs?.reduce(
+      (sum: any, log: any) => sum + (log.cost || 0),
+      0
+    ) || 0;
   const profit = (job.clientPrice || 0) - totalCost;
 
   return (
@@ -825,7 +834,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                               </p>
                               <Button onClick={() => setShowProgressForm(true)}>
                                 <Plus className="mr-2 h-4 w-4" />
-                                Add Progress Update
+                                Add Expense
                               </Button>
                             </div>
                           </CardContent>
