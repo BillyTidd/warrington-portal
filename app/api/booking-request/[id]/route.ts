@@ -79,6 +79,14 @@ export async function PATCH(
         const customer = await db.collection("users").findOne({
           email: bookingRequest.customerEmail,
         });
+        const toAddress =
+          bookingRequest?.estimatedCost?.breakdown?.travel?.toAddress || "";
+        const postcodeMatch = toAddress.match(
+          /([A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2})$/i
+        );
+        const postCode = postcodeMatch
+          ? postcodeMatch[0].toUpperCase()
+          : undefined;
 
         // Create job data
         const jobData = {
@@ -111,7 +119,7 @@ export async function PATCH(
             laborCost: finalEstimatedCost.laborCost,
             materialCost: finalEstimatedCost.materialCost || 0,
             travelCost: finalEstimatedCost.travelCost,
-            totalCost: finalEstimatedCost.totalCost,
+            postCode,
           },
 
           // Workers array (empty initially)
@@ -128,8 +136,6 @@ export async function PATCH(
           bookingRequestId: params.id,
           adminNotes: adminNotes || null,
         };
-
-        // Insert the job
         const jobResult = await db.collection("jobs").insertOne(jobData);
         jobId = jobResult.insertedId.toString();
 
