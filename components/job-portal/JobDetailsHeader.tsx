@@ -231,7 +231,7 @@ export function JobDetailsHeader({
                   {canUpdateJob && (
                     <DropdownMenuItem onClick={() => setShowProgressForm(true)}>
                       <Plus className="mr-2 h-4 w-4" />
-                      Add Progress
+                      Add Expenses/Progress
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem

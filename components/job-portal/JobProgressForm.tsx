@@ -59,7 +59,6 @@ export function JobProgressForm({
   workerHourlyRate,
 }: JobProgressFormProps) {
   const router = useRouter();
-
   // Internal state for when external state is not provided
   const [internalProgressDescription, setInternalProgressDescription] =
     useState("");
@@ -157,7 +156,7 @@ export function JobProgressForm({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          fromPostcode: COMPANY_ADDRESS, // Fixed origin
+          fromPostcode: job.estimatedCosts.postCode, // Fixed origin
           toPostcode: toPostcode,
         }),
       });
@@ -173,7 +172,7 @@ export function JobProgressForm({
           vehicleName: selectedVehicle.name,
           vehicleType: selectedVehicle.type,
           pricePerMile: selectedVehicle.pricePerMile,
-          fromPostcode: COMPANY_ADDRESS,
+          fromPostcode: job.estimatedCosts.postCode,
           toPostcode,
           distance,
           totalCost: vehicleCost,
@@ -205,10 +204,10 @@ export function JobProgressForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!progressDescription.trim()) {
-      toast.error("Please provide a description of the progress");
-      return;
-    }
+    // if (!progressDescription.trim()) {
+    //   toast.error("Please provide a description of the progress");
+    //   return;
+    // }
 
     // If extra hours are selected but no hourly rate is set
     if (workType === "extra" && !hourlyRate) {
@@ -278,7 +277,6 @@ export function JobProgressForm({
               placeholder="Describe the progress made..."
               rows={4}
               className="mt-1"
-              required
             />
           </div>
 
@@ -383,6 +381,22 @@ export function JobProgressForm({
               {selectedVehicle && (
                 <>
                   <div>
+                    <Label htmlFor="toPostcode">From</Label>
+                    <div className="relative mt-1">
+                      <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                      <Input
+                        id="FromPostcode"
+                        value={job.estimatedCosts.postCode}
+                        // onChange={(e) =>
+                        //   setToPostcode(e.target.value.toUpperCase())
+                        // }
+                        placeholder="e.g., M1 1AA"
+                        className="pl-8"
+                        disabled
+                      />
+                    </div>
+                  </div>
+                  <div>
                     <Label htmlFor="toPostcode">Destination Postcode</Label>
                     <div className="relative mt-1">
                       <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
@@ -396,9 +410,6 @@ export function JobProgressForm({
                         className="pl-8"
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Origin will be set to company address: {COMPANY_ADDRESS}
-                    </p>
                   </div>
 
                   <Button

@@ -146,7 +146,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
       // Filter approved workers
       const approvedWorkers = workersData.filter(
-        (user: any) => user.isApproved
+        (user: any) => user.isApproved && user.role === "employee"
       );
 
       setWorkers(approvedWorkers);
@@ -810,6 +810,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                         isSubmitting={isSubmittingProgress}
                         workerHourlyRate={workerHourlyRate}
                         currencySymbol="£"
+                        job={job}
                       />
                     ) : (
                       <div>
