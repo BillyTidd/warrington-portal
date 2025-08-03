@@ -145,9 +145,9 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
       const clientsData = await clientsRes.json();
 
       // Filter approved workers
-      const approvedWorkers = workersData.filter(
-        (user: any) => user.isApproved && user.role === "employee"
-      );
+      const approvedWorkers = workersData
+        .filter((user: any) => user.isApproved && user.role === "employee")
+        .sort((a: any, b: any) => a.name.localeCompare(b.name)); // Sort by name
 
       setWorkers(approvedWorkers);
       setClients(clientsData);
