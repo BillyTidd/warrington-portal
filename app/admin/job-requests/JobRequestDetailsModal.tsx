@@ -123,7 +123,6 @@ export function JobRequestDetailsModal({
   const [laborCost, setLaborCost] = useState<string>("");
   const [materialCost, setMaterialCost] = useState<string>("");
   const [travelCost, setTravelCost] = useState<string>("");
-
   // Track original values to detect changes
   const [originalLaborCost, setOriginalLaborCost] = useState<string>("");
   const [originalMaterialCost, setOriginalMaterialCost] = useState<string>("");
@@ -369,7 +368,19 @@ export function JobRequestDetailsModal({
                 </div>
               )}
             </div>
-
+            {request.jobEstimate.postcode && (
+              <>
+                <Separator />
+                <div className="space-y-3">
+                  <h3 className="text-lg font-semibold">Postcode</h3>
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <p className="text-sm whitespace-pre-wrap">
+                      {request.jobEstimate.postcode}
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
             {/* Job Description */}
             {request.jobEstimate.jobDescription && (
               <>
@@ -410,12 +421,12 @@ export function JobRequestDetailsModal({
                     <div>
                       <Label
                         htmlFor="laborCost"
-                        className="text-sm font-medium"
+                        className="text-sm font-medium dark:text-black"
                       >
                         Labor Cost
                       </Label>
                       <div className="relative mt-1">
-                        <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
+                        <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-gray-500 dark:text-black" />
                         <Input
                           id="laborCost"
                           type="number"
@@ -423,19 +434,19 @@ export function JobRequestDetailsModal({
                           min="0"
                           value={laborCost}
                           onChange={(e) => setLaborCost(e.target.value)}
-                          className="pl-10 bg-background text-foreground border-input"
+                          className="pl-10 bg-background text-foreground border-input dark:text-black"
                         />
                       </div>
                     </div>
                     <div>
                       <Label
                         htmlFor="materialCost"
-                        className="text-sm font-medium"
+                        className="text-sm font-medium dark:text-black"
                       >
                         Material Cost
                       </Label>
                       <div className="relative mt-1">
-                        <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
+                        <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-gray-500 dark:text-black" />
                         <Input
                           id="materialCost"
                           type="number"
@@ -443,19 +454,19 @@ export function JobRequestDetailsModal({
                           min="0"
                           value={materialCost}
                           onChange={(e) => setMaterialCost(e.target.value)}
-                          className="pl-10 bg-background text-foreground border-input"
+                          className="pl-10 bg-background text-foreground border-input dark:text-black"
                         />
                       </div>
                     </div>
                     <div>
                       <Label
                         htmlFor="travelCost"
-                        className="text-sm font-medium"
+                        className="text-sm font-medium dark:text-black"
                       >
                         Travel Cost
                       </Label>
                       <div className="relative mt-1">
-                        <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
+                        <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-gray-500 dark:text-black" />
                         <Input
                           id="travelCost"
                           type="number"
@@ -463,7 +474,7 @@ export function JobRequestDetailsModal({
                           min="0"
                           value={travelCost}
                           onChange={(e) => setTravelCost(e.target.value)}
-                          className="pl-10 bg-background text-foreground border-input"
+                          className="pl-10 bg-background text-foreground border-input dark:text-black"
                         />
                       </div>
                     </div>
