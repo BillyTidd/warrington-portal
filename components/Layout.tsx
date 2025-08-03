@@ -89,7 +89,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           ]
         : []),
       ...(userRole === "admin"
-        ? [{ href: "/admin/estimates", label: "Estimates", icon: FileText }]
+        ? [{ href: "/estimate", label: "Estimates", icon: FileText }]
         : []),
       ...(userRole === "admin"
         ? [{ href: "/admin/vehicles", label: "Vehicles", icon: TruckIcon }]
