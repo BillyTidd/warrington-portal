@@ -40,6 +40,7 @@ export interface EstimatedCost {
     travel?: TravelBreakdown;
     jobType?: string; // The job type that was used for multiplier
     jobTypeMultiplier?: number; // The multiplier applied
+    toAddress?: string; // The address for travel cost calculation
   };
 }
 
