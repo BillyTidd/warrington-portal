@@ -204,11 +204,6 @@ export function JobProgressForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // if (!progressDescription.trim()) {
-    //   toast.error("Please provide a description of the progress");
-    //   return;
-    // }
-
     // If extra hours are selected but no hourly rate is set
     if (workType === "extra" && !hourlyRate) {
       toast.error("Cannot calculate extra hours cost. No hourly rate is set.");
@@ -231,10 +226,19 @@ export function JobProgressForm({
       );
       return;
     }
-
+    let description = progressDescription?.trim();
+    if (!description) {
+      if (workType === "extra") {
+        description = `Extra work of ${overtimeHours} hour(s)`;
+      } else if (workType === "vehicle") {
+        description = `Vehicle usage to ${toPostcode}`;
+      } else {
+        description = "Regular work";
+      }
+    }
     // Prepare data to submit
     const progressData = {
-      description: progressDescription,
+      description: description,
       amount: progressAmount ? Number.parseFloat(progressAmount) : 0,
       status,
       workType,
@@ -384,6 +388,22 @@ export function JobProgressForm({
                     <Label htmlFor="toPostcode">From</Label>
                     <div className="relative mt-1">
                       <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+
+                      <Input
+                        id="toPostcode"
+                        value={toPostcode}
+                        onChange={(e) =>
+                          setToPostcode(e.target.value.toUpperCase())
+                        }
+                        placeholder="e.g., M1 1AA"
+                        className="pl-8"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="toPostcode">Destination Postcode</Label>
+                    <div className="relative mt-1">
+                      <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
                       <Input
                         id="FromPostcode"
                         value={job.estimatedCosts.postCode}
@@ -393,21 +413,6 @@ export function JobProgressForm({
                         placeholder="e.g., M1 1AA"
                         className="pl-8"
                         disabled
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="toPostcode">Destination Postcode</Label>
-                    <div className="relative mt-1">
-                      <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
-                      <Input
-                        id="toPostcode"
-                        value={toPostcode}
-                        onChange={(e) =>
-                          setToPostcode(e.target.value.toUpperCase())
-                        }
-                        placeholder="e.g., M1 1AA"
-                        className="pl-8"
                       />
                     </div>
                   </div>
@@ -443,8 +448,8 @@ export function JobProgressForm({
                           {vehicleUsage.totalCost.toFixed(2)}
                         </p>
                         <p>
-                          <strong>Route:</strong> {vehicleUsage.fromPostcode} →{" "}
-                          {vehicleUsage.toPostcode}
+                          <strong>Route:</strong> {vehicleUsage.toPostcode} →{" "}
+                          {vehicleUsage.fromPostcode}
                         </p>
                       </div>
                     </div>

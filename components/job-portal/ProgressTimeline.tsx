@@ -47,7 +47,6 @@ export function ProgressTimeline({
   const [localLogs, setLocalLogs] = useState<JobProgressLog[] | undefined>(
     progressLogs
   );
-
   // Sort logs by timestamp, newest first
   const sortedLogs = [...(localLogs || [])].sort((a, b) => {
     return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
@@ -186,7 +185,7 @@ export function ProgressTimeline({
                     <p className="mb-2 whitespace-pre-wrap">{log.details}</p>
 
                     {/* Overtime details section */}
-                    {log.overtimeHours && (
+                    {log.overtimeHours && isAdmin && (
                       <div className="mt-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-md">
                         <div className="flex items-center text-sm text-blue-700 dark:text-blue-300 font-medium mb-1">
                           <Clock className="h-3.5 w-3.5 mr-1.5" />

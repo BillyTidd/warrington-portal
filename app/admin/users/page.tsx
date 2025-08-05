@@ -283,6 +283,9 @@ export default function AdminUsers() {
                                           <SelectValue placeholder="Select role" />
                                         </SelectTrigger>
                                         <SelectContent>
+                                          <SelectItem value="customer">
+                                            Customer
+                                          </SelectItem>
                                           <SelectItem value="employee">
                                             Employee
                                           </SelectItem>
