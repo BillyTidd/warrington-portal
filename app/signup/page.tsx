@@ -70,7 +70,7 @@ function SignupForm() {
       }
 
       toast.success("Account created successfully! Please login.");
-      router.push(`/auth/login${isCustomerSignup ? "?type=customer" : ""}`);
+      router.push(`/login${isCustomerSignup ? "?type=customer" : ""}`);
     } catch (error) {
       console.error("Signup error:", error);
       toast.error(
