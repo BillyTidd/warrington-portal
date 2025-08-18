@@ -92,8 +92,40 @@ function estimateDistanceByPostcode(postcode: string): number {
 
 export async function POST(request: NextRequest) {
   try {
-    const { toPostcode, fromPostcode } = await request.json();
+    const { calculationMethod, miles, toPostcode, fromPostcode } =
+      await request.json();
 
+    // Handle direct miles calculation
+    if (calculationMethod === "miles") {
+      if (!miles || isNaN(Number.parseFloat(miles))) {
+        return NextResponse.json(
+          { message: "Missing or invalid miles value" },
+          { status: 400 }
+        );
+      }
+
+      const distance = Number.parseFloat(miles);
+      return NextResponse.json({ distance });
+    }
+
+    // Handle postcode-based calculation (existing logic)
+    if (calculationMethod === "postcode") {
+      if (!toPostcode) {
+        return NextResponse.json(
+          { message: "Missing required field: toPostcode" },
+          { status: 400 }
+        );
+      }
+
+      // Use provided fromPostcode or default to COMPANY_ADDRESS
+      const origin = fromPostcode || COMPANY_ADDRESS;
+
+      const distance = await calculateDistance(origin, toPostcode.trim());
+
+      return NextResponse.json({ distance });
+    }
+
+    // Fallback for backward compatibility (when no calculationMethod is specified)
     if (!toPostcode) {
       return NextResponse.json(
         { message: "Missing required field: toPostcode" },

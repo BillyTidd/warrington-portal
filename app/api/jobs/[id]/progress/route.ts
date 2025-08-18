@@ -2,13 +2,14 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
+import { authOptions } from "@/lib/auth";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
@@ -20,12 +21,14 @@ export async function POST(
 
     const {
       details,
+      workType,
       cost,
       overtimeHours,
       overtimeCost,
       vehicleUsage,
       statusChange,
       newStatus,
+      jobStatus = "pending", // Default to pending for new progress entries
     } = await request.json();
 
     const progressLog = {
@@ -34,12 +37,14 @@ export async function POST(
       updatedBy: session.user.id,
       updatedByName: session.user.name,
       details,
+      workType,
       cost,
       overtimeHours,
       overtimeCost,
       vehicleUsage, // Store vehicle usage data
       statusChange,
       newStatus: statusChange ? newStatus : null,
+      jobStatus: statusChange ? null : jobStatus, // Don't set jobStatus for status change entries
     };
 
     const client = await clientPromise;
@@ -81,12 +86,86 @@ export async function POST(
   }
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    // Only admins can edit progress
+    if (session.user.role !== "admin") {
+      return NextResponse.json(
+        { message: "Only admins can edit progress entries" },
+        { status: 403 }
+      );
+    }
+
+    const jobId = params.id;
+    if (!jobId || !ObjectId.isValid(jobId)) {
+      return NextResponse.json({ message: "Invalid job ID" }, { status: 400 });
+    }
+
+    const { logId, cost, jobStatus } = await request.json();
+
+    if (!logId) {
+      return NextResponse.json(
+        { message: "Log ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const client = await clientPromise;
+    const db = client.db();
+
+    // Find and update the specific progress log
+    const result = await db.collection("jobs").updateOne(
+      {
+        _id: new ObjectId(jobId),
+        "progressLogs._id": logId,
+      },
+      {
+        $set: {
+          "progressLogs.$.cost": cost,
+          "progressLogs.$.jobStatus": jobStatus,
+          updatedBy: session.user.id,
+          updatedByName: session.user.name,
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    if (result.modifiedCount === 0) {
+      return NextResponse.json(
+        { message: "Progress log not found or failed to update" },
+        { status: 404 }
+      );
+    }
+
+    // Get the updated job
+    const updatedJob = await db
+      .collection("jobs")
+      .findOne({ _id: new ObjectId(jobId) });
+
+    return NextResponse.json(updatedJob);
+  } catch (error) {
+    console.error("Error updating progress log:", error);
+    return NextResponse.json(
+      { message: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }

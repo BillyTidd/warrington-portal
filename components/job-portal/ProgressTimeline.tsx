@@ -3,7 +3,7 @@
 import { format, parseISO } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, User, DollarSign, Trash2, Loader2 } from "lucide-react";
+import { Clock, User, DollarSign, Trash2, Loader2, Edit } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,10 @@ interface ProgressTimelineProps {
   progressLogs?: JobProgressLog[];
   canUpdateJob?: boolean;
   handleDeleteProgress?: (logId: string) => Promise<void>;
+  handleEditProgress?: (
+    logId: string,
+    updates: { cost?: number; jobStatus: string }
+  ) => Promise<void>;
   setShowProgressForm?: (show: boolean) => void;
   currencySymbol?: string;
   jobId?: string;
@@ -34,6 +38,7 @@ export function ProgressTimeline({
   progressLogs,
   canUpdateJob,
   handleDeleteProgress,
+  handleEditProgress,
   setShowProgressForm,
   currencySymbol = "£",
   jobId,
@@ -47,8 +52,17 @@ export function ProgressTimeline({
   const [localLogs, setLocalLogs] = useState<JobProgressLog[] | undefined>(
     progressLogs
   );
+  const isClient = session?.user?.role === "customer";
+
   // Sort logs by timestamp, newest first
-  const sortedLogs = [...(localLogs || [])].sort((a, b) => {
+  const filteredLogs = (localLogs || []).filter((log) => {
+    if (isClient) {
+      return log.jobStatus === "approved";
+    }
+    return true; // show all for non-clients
+  });
+
+  const sortedLogs = [...filteredLogs].sort((a, b) => {
     return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
   });
 
@@ -73,6 +87,7 @@ export function ProgressTimeline({
     );
 
     setIsDeleting(true);
+
     try {
       // Get the identifier to use for deletion
       const identifier = logToDelete._id || logToDelete.timestamp.toString();
@@ -98,7 +113,6 @@ export function ProgressTimeline({
     } catch (error) {
       console.error("Error deleting log:", error);
       toast.error("Failed to delete progress log");
-
       // Restore the logs if deletion failed
       setLocalLogs(progressLogs);
     } finally {
@@ -114,21 +128,53 @@ export function ProgressTimeline({
     setIsAlertOpen(true);
   };
 
-  // Function to render cost badge consistently
-  const renderCostBadge = (cost: number | undefined) => {
-    if (cost === undefined || cost <= 0) return null;
+  // Function to handle edit progress
+  const handleEdit = (log: JobProgressLog) => {
+    if (handleEditProgress) {
+      // This will be handled by the parent component to open the edit modal
+      const editEvent = new CustomEvent("editProgress", { detail: log });
+      window.dispatchEvent(editEvent);
+    }
+  };
 
-    const isCustomer = session?.user?.role === "customer";
-    const displayCost = isCustomer ? cost * 1.1 : cost;
+  // Function to render status badge
+  const renderStatusBadge = (status?: string) => {
+    if (!status) status = "pending";
+
+    const statusConfig = {
+      pending: { color: "border-yellow-500 text-yellow-500", label: "Pending" },
+      approved: { color: "border-green-500 text-green-500", label: "Approved" },
+      rejected: { color: "border-red-500 text-red-500", label: "Rejected" },
+    };
+
+    const config =
+      statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
 
     return (
-      <Badge
-        variant="outline"
-        className="border-violet-500 text-violet-500 flex items-center"
-      >
+      <Badge variant="outline" className={config.color}>
+        {config.label}
+      </Badge>
+    );
+  };
+
+  // Function to render cost badge
+  const renderCostBadge = (cost: number | undefined, status?: string) => {
+    if (cost === undefined || cost <= 0) return null;
+
+    let badgeClass = "border-violet-500 text-violet-500";
+    if (status === "approved") {
+      badgeClass = "border-green-500 text-green-500";
+    } else if (status === "rejected") {
+      badgeClass = "border-red-500 text-red-500";
+    } else if (status === "pending") {
+      badgeClass = "border-yellow-500 text-yellow-500";
+    }
+
+    return (
+      <Badge variant="outline" className={`${badgeClass} flex items-center`}>
         <DollarSign className="h-3 w-3 mr-1" />
-        Cost: {currencySymbol}
-        {displayCost.toFixed(2)}
+        {currencySymbol}
+        {cost.toFixed(2)}
       </Badge>
     );
   };
@@ -167,6 +213,19 @@ export function ProgressTimeline({
                           </p>
                         </div>
 
+                        {/* Edit button - only visible for admins and non-status-change entries */}
+                        {isAdmin && !log.statusChange && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-blue-500 hover:text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/20"
+                            onClick={() => handleEdit(log)}
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                            <span className="sr-only">Edit entry</span>
+                          </Button>
+                        )}
+
                         {/* Delete button - only visible for admins or the user who created the entry */}
                         {(isAdmin || log.updatedBy === currentUserId) && (
                           <Button
@@ -182,6 +241,7 @@ export function ProgressTimeline({
                         )}
                       </div>
                     </div>
+
                     <p className="mb-2 whitespace-pre-wrap">{log.details}</p>
 
                     {/* Overtime details section */}
@@ -232,11 +292,24 @@ export function ProgressTimeline({
                         </Badge>
                       )}
 
-                      {/* Render cost badge for regular costs */}
-                      {!log.overtimeHours && renderCostBadge(log.cost)}
+                      {/* Approval status badge - only show for non-status-change entries */}
+                      {!log.statusChange && renderStatusBadge(log.jobStatus)}
 
-                      {/* Render cost badge for overtime costs */}
-                      {log.overtimeHours && renderCostBadge(log.overtimeCost)}
+                      {/* Render cost badge based on work type and approval status */}
+                      {!log.statusChange && (
+                        <>
+                          {log.vehicleUsage &&
+                            renderCostBadge(
+                              log.vehicleUsage.totalCost,
+                              log.jobStatus
+                            )}
+                          {log.overtimeCost &&
+                            renderCostBadge(log.overtimeCost, log.jobStatus)}
+                          {!log.vehicleUsage &&
+                            !log.overtimeCost &&
+                            renderCostBadge(log.cost, log.jobStatus)}
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
