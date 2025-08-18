@@ -23,7 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Clock, PoundSterling, Car, MapPin } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Clock, PoundSterling, Car, MapPin, Route } from "lucide-react";
 import { toast } from "sonner";
 import type { Vehicle, VehicleUsage } from "@/types/vehicle";
 
@@ -89,6 +90,10 @@ export function JobProgressForm({
   // Vehicle-related state
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [calculationMethod, setCalculationMethod] = useState<
+    "miles" | "postcode"
+  >("miles");
+  const [manualMiles, setManualMiles] = useState<string>("");
   const [toPostcode, setToPostcode] = useState(""); // Only "to" postcode from user
   const [vehicleUsage, setVehicleUsage] = useState<VehicleUsage | null>(null);
   const [isCalculatingDistance, setIsCalculatingDistance] = useState(false);
@@ -125,9 +130,27 @@ export function JobProgressForm({
     setProgressAmount(""); // Always reset amount when work type changes
     setOvertimeHours(undefined); // Reset overtime hours
     setSelectedVehicle(null); // Reset selected vehicle
+    setCalculationMethod("miles"); // Reset to default calculation method
+    setManualMiles(""); // Reset manual miles
     setToPostcode(""); // Reset postcode
     setVehicleUsage(null); // Reset vehicle usage details
   }, [workType, setProgressAmount]);
+
+  // Reset vehicle-related fields when vehicle changes
+  useEffect(() => {
+    setVehicleUsage(null); // Reset usage when vehicle changes
+    setProgressAmount(""); // Clear amount when vehicle changes
+    setManualMiles(""); // Reset manual miles
+    setToPostcode(""); // Reset postcode
+  }, [selectedVehicle, setProgressAmount]);
+
+  // Reset fields when calculation method changes
+  useEffect(() => {
+    setVehicleUsage(null);
+    setProgressAmount("");
+    setManualMiles("");
+    setToPostcode("");
+  }, [calculationMethod, setProgressAmount]);
 
   // Update calculated amount whenever overtime hours change (only for 'extra' workType)
   useEffect(() => {
@@ -139,62 +162,85 @@ export function JobProgressForm({
     }
   }, [workType, overtimeHours, hourlyRate, setProgressAmount]);
 
-  // Calculate distance and vehicle cost
+  // Calculate vehicle cost based on selected method
   const calculateVehicleCost = async () => {
-    if (!selectedVehicle || !toPostcode) {
-      toast.error("Please select a vehicle and enter the destination postcode");
+    if (!selectedVehicle) {
+      toast.error("Please select a vehicle");
+      return;
+    }
+
+    if (calculationMethod === "miles" && !manualMiles) {
+      toast.error("Please enter the number of miles");
+      return;
+    }
+
+    if (calculationMethod === "postcode" && !toPostcode) {
+      toast.error("Please enter the destination postcode");
       return;
     }
 
     setIsCalculatingDistance(true);
 
     try {
-      // Call the new dedicated distance API
-      const response = await fetch("/api/distance", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          fromPostcode: job.estimatedCosts.postCode, // Fixed origin
-          toPostcode: toPostcode,
-        }),
-      });
+      let distance = 0;
+      let fromLocation = "";
+      let toLocation = "";
 
-      if (response.ok) {
-        const data = await response.json();
-        const distance = data.distance || 0;
-
-        const vehicleCost = distance * selectedVehicle.pricePerMile;
-
-        const usage: VehicleUsage = {
-          vehicleId: selectedVehicle._id,
-          vehicleName: selectedVehicle.name,
-          vehicleType: selectedVehicle.type,
-          pricePerMile: selectedVehicle.pricePerMile,
-          fromPostcode: job.estimatedCosts.postCode,
-          toPostcode,
-          distance,
-          totalCost: vehicleCost,
-        };
-
-        setVehicleUsage(usage);
-        setProgressAmount(vehicleCost.toFixed(2)); // Set amount directly for vehicle usage
-
-        toast.success(
-          `Distance calculated: ${distance} miles, Cost: £${vehicleCost.toFixed(
-            2
-          )}`
-        );
+      if (calculationMethod === "miles") {
+        // Use manual miles directly
+        distance = Number.parseFloat(manualMiles);
+        fromLocation = "Manual Entry";
+        toLocation = "Manual Entry";
       } else {
-        const error = await response.json();
-        toast.error(error.message || "Failed to calculate distance");
-        setProgressAmount(""); // Clear amount on error
+        // Call the distance API for postcode calculation
+        const response = await fetch("/api/distance", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            calculationMethod: "postcode",
+            fromPostcode: job.estimatedCosts.postCode,
+            toPostcode: toPostcode,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          distance = data.distance || 0;
+          fromLocation = job.estimatedCosts.postCode;
+          toLocation = toPostcode;
+        } else {
+          const error = await response.json();
+          toast.error(error.message || "Failed to calculate distance");
+          setProgressAmount("");
+          return;
+        }
       }
+
+      const vehicleCost = distance * selectedVehicle.pricePerMile;
+
+      const usage: VehicleUsage = {
+        vehicleId: selectedVehicle._id,
+        vehicleName: selectedVehicle.name,
+        vehicleType: selectedVehicle.type,
+        pricePerMile: selectedVehicle.pricePerMile,
+        fromPostcode: fromLocation,
+        toPostcode: toLocation,
+        distance,
+        totalCost: vehicleCost,
+      };
+
+      setVehicleUsage(usage);
+      setProgressAmount(vehicleCost.toFixed(2));
+
+      toast.success(
+        `Distance: ${distance} miles, Cost: £${vehicleCost.toFixed(2)}`
+      );
     } catch (error) {
-      console.error("Error calculating distance:", error);
-      toast.error("Failed to calculate distance");
-      setProgressAmount(""); // Clear amount on error
+      console.error("Error calculating vehicle cost:", error);
+      toast.error("Failed to calculate vehicle cost");
+      setProgressAmount("");
     } finally {
       setIsCalculatingDistance(false);
     }
@@ -216,26 +262,27 @@ export function JobProgressForm({
       return;
     }
 
-    // If vehicle usage is selected but no vehicle or postcode is entered
-    if (
-      workType === "vehicle" &&
-      (!selectedVehicle || !toPostcode || !vehicleUsage)
-    ) {
-      toast.error(
-        "Please select a vehicle, enter destination postcode, and calculate cost."
-      );
+    // If vehicle usage is selected but no vehicle or calculation is done
+    if (workType === "vehicle" && (!selectedVehicle || !vehicleUsage)) {
+      toast.error("Please select a vehicle and calculate the cost.");
       return;
     }
+
     let description = progressDescription?.trim();
     if (!description) {
       if (workType === "extra") {
         description = `Extra work of ${overtimeHours} hour(s)`;
       } else if (workType === "vehicle") {
-        description = `Vehicle usage to ${toPostcode}`;
+        if (calculationMethod === "miles") {
+          description = `Vehicle usage - ${manualMiles} miles`;
+        } else {
+          description = `Vehicle usage to ${toPostcode}`;
+        }
       } else {
         description = "Regular work";
       }
     }
+
     // Prepare data to submit
     const progressData = {
       description: description,
@@ -261,6 +308,8 @@ export function JobProgressForm({
     setOvertimeHours(undefined);
     setStatus("In Progress");
     setSelectedVehicle(null);
+    setCalculationMethod("miles");
+    setManualMiles("");
     setToPostcode("");
     setVehicleUsage(null);
   };
@@ -354,8 +403,6 @@ export function JobProgressForm({
                   onValueChange={(value) => {
                     const vehicle = vehicles.find((v) => v._id === value);
                     setSelectedVehicle(vehicle || null);
-                    setVehicleUsage(null); // Reset usage when vehicle changes
-                    setProgressAmount(""); // Clear amount when vehicle changes
                   }}
                 >
                   <SelectTrigger id="vehicle" className="mt-1">
@@ -385,48 +432,105 @@ export function JobProgressForm({
               {selectedVehicle && (
                 <>
                   <div>
-                    <Label htmlFor="toPostcode">From</Label>
-                    <div className="relative mt-1">
-                      <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                    <Label>Calculation Method</Label>
+                    <RadioGroup
+                      value={calculationMethod}
+                      onValueChange={(value: "miles" | "postcode") =>
+                        setCalculationMethod(value)
+                      }
+                      className="flex gap-6 mt-2"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="miles" id="miles" />
+                        <Label
+                          htmlFor="miles"
+                          className="flex items-center gap-2"
+                        >
+                          <Route className="h-4 w-4" />
+                          Miles
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="postcode" id="postcode" />
+                        <Label
+                          htmlFor="postcode"
+                          className="flex items-center gap-2"
+                        >
+                          <MapPin className="h-4 w-4" />
+                          Postal Code
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
 
-                      <Input
-                        id="toPostcode"
-                        value={toPostcode}
-                        onChange={(e) =>
-                          setToPostcode(e.target.value.toUpperCase())
-                        }
-                        placeholder="e.g., M1 1AA"
-                        className="pl-8"
-                      />
+                  {calculationMethod === "miles" && (
+                    <div>
+                      <Label htmlFor="manualMiles">Enter Miles</Label>
+                      <div className="relative mt-1">
+                        <Route className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                        <Input
+                          id="manualMiles"
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={manualMiles}
+                          onChange={(e) => setManualMiles(e.target.value)}
+                          placeholder="Enter miles traveled"
+                          className="pl-8"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="toPostcode">Destination Postcode</Label>
-                    <div className="relative mt-1">
-                      <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
-                      <Input
-                        id="FromPostcode"
-                        value={job.estimatedCosts.postCode}
-                        // onChange={(e) =>
-                        //   setToPostcode(e.target.value.toUpperCase())
-                        // }
-                        placeholder="e.g., M1 1AA"
-                        className="pl-8"
-                        disabled
-                      />
-                    </div>
-                  </div>
+                  )}
+
+                  {calculationMethod === "postcode" && (
+                    <>
+                      <div>
+                        <Label htmlFor="fromPostcode">
+                          From (Job Location)
+                        </Label>
+                        <div className="relative mt-1">
+                          <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                          <Input
+                            id="fromPostcode"
+                            value={job.estimatedCosts.postCode}
+                            placeholder="e.g., M1 1AA"
+                            className="pl-8"
+                            disabled
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="toPostcode">To (Destination)</Label>
+                        <div className="relative mt-1">
+                          <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                          <Input
+                            id="toPostcode"
+                            value={toPostcode}
+                            onChange={(e) =>
+                              setToPostcode(e.target.value.toUpperCase())
+                            }
+                            placeholder="e.g., M1 1AA"
+                            className="pl-8"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   <Button
                     type="button"
                     variant="outline"
                     onClick={calculateVehicleCost}
-                    disabled={!toPostcode || isCalculatingDistance}
+                    disabled={
+                      (calculationMethod === "miles" && !manualMiles) ||
+                      (calculationMethod === "postcode" && !toPostcode) ||
+                      isCalculatingDistance
+                    }
                     className="w-full bg-transparent"
                   >
                     {isCalculatingDistance
                       ? "Calculating..."
-                      : "Calculate Distance & Cost"}
+                      : "Calculate Cost"}
                   </Button>
 
                   {vehicleUsage && (
@@ -447,10 +551,17 @@ export function JobProgressForm({
                           <strong>Total Cost:</strong> £
                           {vehicleUsage.totalCost.toFixed(2)}
                         </p>
-                        <p>
-                          <strong>Route:</strong> {vehicleUsage.toPostcode} →{" "}
-                          {vehicleUsage.fromPostcode}
-                        </p>
+                        {calculationMethod === "postcode" && (
+                          <p>
+                            <strong>Route:</strong> {vehicleUsage.fromPostcode}{" "}
+                            → {vehicleUsage.toPostcode}
+                          </p>
+                        )}
+                        {calculationMethod === "miles" && (
+                          <p>
+                            <strong>Method:</strong> Manual Miles Entry
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
