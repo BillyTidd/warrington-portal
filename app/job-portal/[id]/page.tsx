@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { parseISO, differenceInDays, format } from "date-fns";
+import { parseISO, differenceInDays } from "date-fns";
 import {
   Loader2,
   AlertTriangle,
@@ -16,7 +16,6 @@ import {
   PoundSterling,
   Clock,
   Info,
-  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -32,7 +31,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Job, Worker } from "@/types/job";
+import type { Job, Worker, JobProgressLog } from "@/types/job";
 import {
   Card,
   CardContent,
@@ -43,7 +42,6 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -63,10 +61,12 @@ import { JobStatusCard } from "@/components/job-portal/JobStatusCard";
 import { JobProgressForm } from "@/components/job-portal/JobProgressForm";
 import { ProgressSummary } from "@/components/job-portal/ProgressSummary";
 import { ProgressTimeline } from "@/components/job-portal/ProgressTimeline";
+// import { ProgressEditModal } from "@/components/job-portal/ProgressEditModal";
 import { FinancialSummary } from "@/components/job-portal/FinancialSummary";
 import { CostBreakdown } from "@/components/job-portal/CostBreakdown";
 import { generateJobPDF } from "@/lib/excelGenerator";
 import { PDFButton } from "@/components/job-portal/PDFButton";
+import { ProgressEditModal } from "@/components/job-portal/ProgressEditModal";
 
 export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -86,7 +86,14 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const [activeTab, setActiveTab] = useState("details");
   const [showProgressForm, setShowProgressForm] = useState(false);
 
+  // Progress edit modal state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingProgress, setEditingProgress] = useState<JobProgressLog | null>(
+    null
+  );
+
   const isAdmin = session?.user?.role === "admin";
+  const isClient = session?.user?.role === "customer";
 
   // Check if current user is assigned to this job (works with both old and new format)
   const isAssignedToMe = job?.workers
@@ -111,6 +118,18 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
       fetchWorkersAndClients();
     }
   }, [params.id, isAdmin]);
+
+  // Listen for edit progress events
+  useEffect(() => {
+    const handleEditProgress = (event: any) => {
+      const progressLog = event.detail;
+      setEditingProgress(progressLog);
+      setIsEditModalOpen(true);
+    };
+
+    window.addEventListener("editProgress", handleEditProgress);
+    return () => window.removeEventListener("editProgress", handleEditProgress);
+  }, []);
 
   const fetchJobDetails = async () => {
     setIsLoading(true);
@@ -229,9 +248,12 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
       // Prepare the data for the API
       const apiData = {
         details: progressData.description,
+        workType: progressData.workType,
         cost:
           progressData.workType === "extra"
             ? progressData.overtimeHours * workerHourlyRate
+            : progressData.workType === "vehicle"
+            ? progressData.vehicleUsage?.totalCost
             : progressData.amount
             ? Number.parseFloat(progressData.amount.toString())
             : undefined,
@@ -242,6 +264,8 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           workerHourlyRate
             ? progressData.overtimeHours * workerHourlyRate
             : undefined,
+        vehicleUsage: progressData.vehicleUsage,
+        jobStatus: "pending", // All new progress starts as pending
       };
 
       const response = await fetch(`/api/jobs/${params.id}/progress`, {
@@ -259,7 +283,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
       await fetchJobDetails(); // Refresh job data
       setShowProgressForm(false);
-      toast.success("Progress added successfully");
+      toast.success("Progress added successfully and is pending approval");
     } catch (error: any) {
       console.error("Error adding progress:", error);
       toast.error(error.message || "Failed to add progress");
@@ -290,13 +314,42 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
         throw new Error(errorData.message || "Failed to delete progress log");
       }
 
-      const updatedJob = await response.json();
+      await fetchJobDetails(); // Refresh job data
       console.log("Job updated successfully after delete");
-      setJob(updatedJob);
       toast.success("Progress log deleted successfully");
     } catch (error: any) {
       console.error("Error deleting progress log:", error);
       toast.error(error.message || "Failed to delete progress log");
+    }
+  };
+
+  const handleEditProgress = async (
+    logId: string,
+    updates: { cost?: number; jobStatus: string }
+  ) => {
+    try {
+      const response = await fetch(`/api/jobs/${params.id}/progress`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          logId,
+          ...updates,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to update progress");
+      }
+
+      await fetchJobDetails(); // Refresh job data
+      toast.success("Progress updated successfully");
+    } catch (error: any) {
+      console.error("Error updating progress:", error);
+      toast.error(error.message || "Failed to update progress");
+      throw error;
     }
   };
 
@@ -341,9 +394,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
         throw new Error("Failed to log status change");
       }
 
-      const updatedJob = await progressResponse.json();
-      setJob(updatedJob);
-      setEditedJob(updatedJob);
+      await fetchJobDetails(); // Refresh job data
       toast.success("Status updated successfully");
     } catch (error: any) {
       console.error("Error updating status:", error);
@@ -461,6 +512,18 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
     );
   };
 
+  // Calculate approved costs only for financial summaries
+  const getApprovedCosts = () => {
+    if (!job?.progressLogs) return 0;
+    return job.progressLogs
+      .filter((log: any) => log.jobStatus === "approved" && !log.statusChange)
+      .reduce((sum: any, log: any) => {
+        const cost =
+          log.overtimeCost || log.vehicleUsage?.totalCost || log.cost || 0;
+        return sum + cost;
+      }, 0);
+  };
+
   // Render detailed worker payment information for admin view
   const renderAdminWorkerPayments = () => {
     if (!isAdmin || !job || !job.workers || job.workers.length === 0)
@@ -562,14 +625,16 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           0
         )
       : job.workerPaymentRate || 0;
-    const additionalCosts =
-      job.progressLogs?.reduce(
-        (sum: any, log: any) => sum + (log.cost || 0),
-        0
-      ) || 0;
-    const totalCosts = totalWorkerPayments + additionalCosts;
+    const approvedCosts = getApprovedCosts(); // Only approved costs
+    const totalCosts = totalWorkerPayments + approvedCosts;
     const profit = clientPrice - totalCosts;
     const profitMargin = clientPrice > 0 ? (profit / clientPrice) * 100 : 0;
+
+    // Count pending approvals
+    const pendingCount =
+      job.progressLogs?.filter(
+        (log: any) => log.jobStatus === "pending" && !log.statusChange
+      ).length || 0;
 
     return (
       <Card className="mb-6 border-none shadow-lg overflow-hidden">
@@ -594,9 +659,9 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
               </p>
             </div>
             <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Additional Costs</p>
+              <p className="text-sm text-muted-foreground">Approved Costs</p>
               <p className="text-xl font-bold text-red-500">
-                -£{additionalCosts.toFixed(2)}
+                -£{approvedCosts.toFixed(2)}
               </p>
             </div>
             <div className="space-y-1">
@@ -632,6 +697,52 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
     );
   };
 
+  const renderClientFinancialOverview = () => {
+    const clientPrice = job.clientPrice || 0;
+    const totalWorkerPayments = job.workers
+      ? job.workers.reduce(
+          (sum: any, worker: any) => sum + (worker.paymentRate || 0),
+          0
+        )
+      : job.workerPaymentRate || 0;
+    const approvedCosts = getApprovedCosts(); // Only approved costs
+    const totalCosts = totalWorkerPayments + approvedCosts;
+    const profit = clientPrice - totalCosts;
+
+    // Count pending approvals
+    const pendingCount =
+      job.progressLogs?.filter(
+        (log: any) => log.jobStatus === "pending" && !log.statusChange
+      ).length || 0;
+
+    return (
+      <Card className="mb-6 border-none shadow-lg overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/40 dark:to-violet-950/40 pb-3">
+          <CardTitle className="text-lg flex items-center">
+            <BarChart3 className="h-5 w-5 mr-2 text-purple-500" />
+            Financial Overview
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Price</p>
+              <p className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                £{clientPrice.toFixed(2)}
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Approved Costs</p>
+              <p className="text-xl font-bold text-red-500">
+                -£{approvedCosts.toFixed(2)}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
   if (isLoading) {
     return (
       <Layout>
@@ -674,12 +785,8 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const isOverdue = daysRemaining < 0 && job.status !== "completed";
   const progressPercentage =
     job.status === "completed" ? 100 : job.status === "in-progress" ? 50 : 0;
-  const totalCost =
-    job.progressLogs?.reduce(
-      (sum: any, log: any) => sum + (log.cost || 0),
-      0
-    ) || 0;
-  const profit = (job.clientPrice || 0) - totalCost;
+  const approvedCosts = getApprovedCosts();
+  const profit = (job.clientPrice || 0) - approvedCosts;
 
   return (
     <Layout>
@@ -721,7 +828,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
         {/* Admin Financial Overview (visible only to admins) */}
         {isAdmin && !isEditing && renderAdminFinancialOverview()}
-
+        {isClient && renderClientFinancialOverview()}
         {/* Admin Worker Payments (visible only to admins) */}
         {isAdmin && !isEditing && renderAdminWorkerPayments()}
 
@@ -845,7 +952,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
                     <ProgressSummary
                       progressLogs={job.progressLogs}
-                      totalCost={totalCost}
+                      totalCost={approvedCosts} // Only show approved costs
                       currencySymbol="£"
                     />
                   </>
@@ -857,7 +964,8 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                 <ProgressTimeline
                   progressLogs={job.progressLogs}
                   canUpdateJob={canUpdateJob}
-                  handleDeleteProgress={handleDeleteProgress} // Ensure this is passed correctly
+                  handleDeleteProgress={handleDeleteProgress}
+                  handleEditProgress={handleEditProgress}
                   setShowProgressForm={setShowProgressForm}
                   currencySymbol="£"
                 />
@@ -871,7 +979,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                 <div className="lg:col-span-1 space-y-6">
                   {/* <FinancialSummary
                     clientPrice={job.clientPrice || 0}
-                    totalCost={totalCost}
+                    totalCost={approvedCosts} // Only approved costs
                     profit={profit}
                     currencySymbol="£"
                   /> */}
@@ -879,8 +987,10 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
                 <div className="lg:col-span-2">
                   <CostBreakdown
-                    progressLogs={job.progressLogs}
-                    totalCost={totalCost}
+                    progressLogs={job.progressLogs?.filter(
+                      (log: any) => log.jobStatus === "approved"
+                    )} // Only approved logs
+                    totalCost={approvedCosts}
                     profit={profit}
                     currencySymbol="£"
                   />
@@ -889,6 +999,18 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
             </TabsContent>
           )}
         </Tabs>
+
+        {/* Progress Edit Modal */}
+        <ProgressEditModal
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setEditingProgress(null);
+          }}
+          progressLog={editingProgress}
+          onUpdate={handleEditProgress}
+          currencySymbol="£"
+        />
 
         <AlertDialog
           open={isDeleteDialogOpen}
