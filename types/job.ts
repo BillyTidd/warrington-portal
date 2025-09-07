@@ -18,7 +18,8 @@ export interface JobProgressLog {
   statusChange?: boolean;
   newStatus?: string | null;
   vehicleUsage?: any;
-  jobStatus?: string; // Added for job status tracking
+  jobStatus?: string;
+  workType?: string; // Added for job status tracking
 }
 
 export interface Job {

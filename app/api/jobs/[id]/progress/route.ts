@@ -109,7 +109,7 @@ export async function PATCH(
       return NextResponse.json({ message: "Invalid job ID" }, { status: 400 });
     }
 
-    const { logId, cost, jobStatus } = await request.json();
+    const { logId, cost, jobStatus, details, workType, overtimeHours, overtimeCost, vehicleUsage } = await request.json();
 
     if (!logId) {
       return NextResponse.json(
@@ -121,6 +121,36 @@ export async function PATCH(
     const client = await clientPromise;
     const db = client.db();
 
+    // Build the update object dynamically based on provided fields
+    const updateFields: any = {
+      updatedBy: session.user.id,
+      updatedByName: session.user.name,
+      updatedAt: new Date(),
+    };
+
+    // Only update fields that are provided
+    if (cost !== undefined) {
+      updateFields["progressLogs.$.cost"] = cost;
+    }
+    if (jobStatus !== undefined) {
+      updateFields["progressLogs.$.jobStatus"] = jobStatus;
+    }
+    if (details !== undefined) {
+      updateFields["progressLogs.$.details"] = details;
+    }
+    if (workType !== undefined) {
+      updateFields["progressLogs.$.workType"] = workType;
+    }
+    if (overtimeHours !== undefined) {
+      updateFields["progressLogs.$.overtimeHours"] = overtimeHours;
+    }
+    if (overtimeCost !== undefined) {
+      updateFields["progressLogs.$.overtimeCost"] = overtimeCost;
+    }
+    if (vehicleUsage !== undefined) {
+      updateFields["progressLogs.$.vehicleUsage"] = vehicleUsage;
+    }
+
     // Find and update the specific progress log
     const result = await db.collection("jobs").updateOne(
       {
@@ -128,13 +158,7 @@ export async function PATCH(
         "progressLogs._id": logId,
       },
       {
-        $set: {
-          "progressLogs.$.cost": cost,
-          "progressLogs.$.jobStatus": jobStatus,
-          updatedBy: session.user.id,
-          updatedByName: session.user.name,
-          updatedAt: new Date(),
-        },
+        $set: updateFields,
       }
     );
 

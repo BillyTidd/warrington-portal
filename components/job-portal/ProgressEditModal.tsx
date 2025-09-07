@@ -31,7 +31,7 @@ interface ProgressEditModalProps {
   progressLog: JobProgressLog | null;
   onUpdate: (
     logId: string,
-    updates: { cost?: number; jobStatus: string }
+    updates: { cost?: number; jobStatus: string; overtimeCost?: number; vehicleUsage?: any }
   ) => Promise<void>;
   currencySymbol?: string;
 }
@@ -66,10 +66,22 @@ export function ProgressEditModal({
 
     setIsUpdating(true);
     try {
-      const updates = {
-        cost: Number.parseFloat(cost) || 0,
+      const costValue = Number.parseFloat(cost) || 0;
+      const updates: any = {
         jobStatus,
       };
+
+      // Update the appropriate cost field based on the work type or existing structure
+      if (progressLog.workType === "extra" && progressLog.overtimeHours) {
+        updates.overtimeCost = costValue;
+      } else if (progressLog.workType === "vehicle" && progressLog.vehicleUsage) {
+        updates.vehicleUsage = {
+          ...progressLog.vehicleUsage,
+          totalCost: costValue,
+        };
+      } else {
+        updates.cost = costValue;
+      }
 
       await onUpdate(
         progressLog._id || progressLog.timestamp.toString(),

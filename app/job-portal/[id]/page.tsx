@@ -325,7 +325,12 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
   const handleEditProgress = async (
     logId: string,
-    updates: { cost?: number; jobStatus: string }
+    updates: {
+      cost?: number;
+      jobStatus: string;
+      overtimeCost?: number;
+      vehicleUsage?: any;
+    }
   ) => {
     try {
       const response = await fetch(`/api/jobs/${params.id}/progress`, {
@@ -343,7 +348,6 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
         const errorData = await response.json();
         throw new Error(errorData.message || "Failed to update progress");
       }
-
       await fetchJobDetails(); // Refresh job data
       toast.success("Progress updated successfully");
     } catch (error: any) {
