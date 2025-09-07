@@ -200,8 +200,8 @@ export function JobProgressForm({
           },
           body: JSON.stringify({
             calculationMethod: "postcode",
-            fromPostcode: job.estimatedCosts.postCode,
-            toPostcode: toPostcode,
+            fromPostcode: toPostcode,
+            toPostcode: job.estimatedCosts.postCode,
           }),
         });
 
@@ -492,10 +492,12 @@ export function JobProgressForm({
                           <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
                           <Input
                             id="fromPostcode"
-                            value={job.estimatedCosts.postCode}
+                            value={toPostcode}
+                            onChange={(e) =>
+                              setToPostcode(e.target.value.toUpperCase())
+                            }
                             placeholder="e.g., M1 1AA"
                             className="pl-8"
-                            disabled
                           />
                         </div>
                       </div>
@@ -505,12 +507,10 @@ export function JobProgressForm({
                           <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
                           <Input
                             id="toPostcode"
-                            value={toPostcode}
-                            onChange={(e) =>
-                              setToPostcode(e.target.value.toUpperCase())
-                            }
+                            value={job.estimatedCosts?.postCode}
                             placeholder="e.g., M1 1AA"
                             className="pl-8"
+                            disabled
                           />
                         </div>
                       </div>

@@ -160,6 +160,8 @@ export function ProgressTimeline({
   // Function to render cost badge
   const renderCostBadge = (cost: number | undefined, status?: string) => {
     if (cost === undefined || cost <= 0) return null;
+    const isCustomer = session?.user?.role === "customer";
+    const displayCost = isCustomer ? cost * 1.1 : cost;
 
     let badgeClass = "border-violet-500 text-violet-500";
     if (status === "approved") {
@@ -174,7 +176,7 @@ export function ProgressTimeline({
       <Badge variant="outline" className={`${badgeClass} flex items-center`}>
         <DollarSign className="h-3 w-3 mr-1" />
         {currencySymbol}
-        {cost.toFixed(2)}
+        {displayCost.toFixed(2)}
       </Badge>
     );
   };
