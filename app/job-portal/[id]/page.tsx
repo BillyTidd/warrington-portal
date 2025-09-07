@@ -703,21 +703,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
   const renderClientFinancialOverview = () => {
     const clientPrice = job.clientPrice || 0;
-    const totalWorkerPayments = job.workers
-      ? job.workers.reduce(
-          (sum: any, worker: any) => sum + (worker.paymentRate || 0),
-          0
-        )
-      : job.workerPaymentRate || 0;
     const approvedCosts = getApprovedCosts(); // Only approved costs
-    const totalCosts = totalWorkerPayments + approvedCosts;
-    const profit = clientPrice - totalCosts;
-
-    // Count pending approvals
-    const pendingCount =
-      job.progressLogs?.filter(
-        (log: any) => log.jobStatus === "pending" && !log.statusChange
-      ).length || 0;
 
     return (
       <Card className="mb-6 border-none shadow-lg overflow-hidden">
@@ -732,14 +718,15 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Price</p>
               <p className="text-xl font-bold text-purple-600 dark:text-purple-400">
-                £{clientPrice.toFixed(2)}
+                {/* £{clientPrice.toFixed(2) * 1.1} */}£
+                {Number((clientPrice * 1.1).toFixed(1))}
               </p>
             </div>
 
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Approved Costs</p>
               <p className="text-xl font-bold text-red-500">
-                -£{approvedCosts.toFixed(2)}
+                -£{Number((approvedCosts * 1.1).toFixed(1))}
               </p>
             </div>
           </div>
