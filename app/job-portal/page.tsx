@@ -427,16 +427,16 @@ export default function JobPortalPage() {
         <div className="flex flex-col sm:flex-row gap-2">
           {/* Search input with debounce */}
           <div className="relative flex-grow">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-gray-400" />
             <Input
               placeholder="Search jobs..."
               value={searchInputValue}
               onChange={(e) => setSearchInputValue(e.target.value)}
-              className="pl-9"
+              className="pl-9 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400"
             />
             {searchInputValue !== searchTerm && (
               <div className="absolute right-2.5 top-2.5">
-                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-gray-700 text-xs text-white">
+                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-gray-700 dark:bg-gray-600 text-xs text-white dark:text-gray-200">
                   <span className="animate-pulse">⋯</span>
                 </span>
               </div>
@@ -458,11 +458,11 @@ export default function JobPortalPage() {
             </PopoverTrigger>
             <PopoverContent className="w-80">
               <div className="space-y-4">
-                <h4 className="font-medium">Filter Jobs</h4>
+                <h4 className="font-medium text-gray-900 dark:text-gray-100">Filter Jobs</h4>
 
                 {/* Status filter */}
                 <div className="space-y-2">
-                  <label htmlFor="status" className="text-sm font-medium">
+                  <label htmlFor="status" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Status
                   </label>
                   <Select value={status} onValueChange={setStatus}>
@@ -482,7 +482,7 @@ export default function JobPortalPage() {
                 {/* Client filter (admin only) */}
                 {session?.user?.role === "admin" && (
                   <div className="space-y-2">
-                    <label htmlFor="client" className="text-sm font-medium">
+                    <label htmlFor="client" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       Client
                     </label>
                     <Select value={clientId} onValueChange={setClientId}>
@@ -503,7 +503,7 @@ export default function JobPortalPage() {
 
                 {/* Date range filters */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Date Range</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Date Range</label>
                   <div className="grid grid-cols-2 gap-2">
                     <Popover>
                       <PopoverTrigger asChild>
@@ -600,16 +600,16 @@ export default function JobPortalPage() {
   const renderEmptyState = () => {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-        <div className="rounded-full bg-gray-800 p-3 mb-4">
-          <Search className="h-6 w-6 text-gray-400" />
+        <div className="rounded-full bg-gray-800 dark:bg-gray-700 p-3 mb-4">
+          <Search className="h-6 w-6 text-gray-400 dark:text-gray-500" />
         </div>
-        <h3 className="text-lg font-medium text-white mb-2">No jobs found</h3>
-        <p className="text-gray-400 max-w-md mb-6">
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No jobs found</h3>
+        <p className="text-gray-600 dark:text-gray-400 max-w-md mb-6">
           {viewMode === "calendar"
             ? `No jobs found for ${format(
-              currentDate,
-              "MMMM yyyy"
-            )}. Try another month or create a new job.`
+                currentDate,
+                "MMMM yyyy"
+              )}. Try another month or create a new job.`
             : "No jobs match your current filters. Try adjusting your search criteria or create a new job."}
         </p>
         <div className="flex gap-3">
@@ -630,7 +630,7 @@ export default function JobPortalPage() {
   return (
     <Layout>
       <div className="container mx-auto py-4 sm:py-10 px-2 sm:px-4">
-        <div className="bg-gray-950 rounded-lg shadow-xl overflow-hidden">
+        <div className="dark:bg-gray-950 rounded-lg shadow-xl overflow-hidden">
           <JobHeader
             currentDate={currentDate}
             onNavigate={handleNavigate}
@@ -643,7 +643,7 @@ export default function JobPortalPage() {
 
           {/* Filters section (only for list view) */}
           {viewMode === "list" && (
-            <div className="p-4 bg-gray-900 border-b border-gray-800">
+            <div className="p-4 dark:bg-gray-900 border-b border-gray-800">
               {renderJobFilters()}
             </div>
           )}
@@ -651,7 +651,7 @@ export default function JobPortalPage() {
           {isLoading ? (
             <div className="flex justify-center items-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-2 text-gray-400">Loading jobs...</span>
+              <span className="ml-2 text-gray-600 dark:text-gray-400">Loading jobs...</span>
             </div>
           ) : jobs.length === 0 ? (
             renderEmptyState()
@@ -667,7 +667,7 @@ export default function JobPortalPage() {
               />
 
               {/* Pagination controls */}
-              <div className="mt-4 flex justify-center p-4 bg-gray-900 border-t border-gray-800">
+              <div className="mt-4 flex justify-center p-4 dark:bg-gray-900 border-t border-gray-800">
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem>
@@ -717,7 +717,7 @@ export default function JobPortalPage() {
               </div>
 
               {/* Pagination info */}
-              <div className="text-center text-sm text-gray-400 pb-4 bg-gray-900">
+              <div className="text-center text-sm text-gray-600 dark:text-gray-400 pb-4 dark:bg-gray-900">
                 Showing{" "}
                 {Math.min((currentPage - 1) * entriesPerPage + 1, totalItems)}{" "}
                 to {Math.min(currentPage * entriesPerPage, totalItems)} of{" "}
