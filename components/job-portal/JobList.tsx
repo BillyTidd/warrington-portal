@@ -160,8 +160,9 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
           {jobs.map((job) => (
             <TableRow
               key={job._id}
+              onClick={() => router.push(`/job-portal/${job._id}`)}
               className={cn(
-                "hover:bg-gray-50 dark:hover:bg-gray-900/50 border-b dark:border-gray-800",
+                "hover:bg-gray-50 dark:hover:bg-gray-900/50 border-b dark:border-gray-800 cursor-pointer transition-colors",
                 job.status === "completed" &&
                   "bg-green-50/30 dark:bg-green-900/10",
                 isPast(parseISO(job.expireDate)) &&
@@ -169,13 +170,13 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
                   "bg-red-50/30 dark:bg-red-900/10"
               )}
             >
-              <TableCell className="font-medium">{job.jobName}</TableCell>
-              <TableCell>{job.clientName}</TableCell>
-              <TableCell>{getWorkerDisplay(job)}</TableCell>
-              <TableCell>
+              <TableCell className="font-medium text-gray-900 dark:text-gray-100">{job.jobName}</TableCell>
+              <TableCell className="text-gray-700 dark:text-gray-300">{job.clientName}</TableCell>
+              <TableCell className="text-gray-700 dark:text-gray-300">{getWorkerDisplay(job)}</TableCell>
+              <TableCell className="text-gray-700 dark:text-gray-300">
                 {format(parseISO(job.assignDate), "MMM d, yyyy")}
               </TableCell>
-              <TableCell>
+              <TableCell className="text-gray-700 dark:text-gray-300">
                 {format(parseISO(job.expireDate), "MMM d, yyyy")}
               </TableCell>
               <TableCell>
@@ -186,7 +187,10 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => router.push(`/job-portal/${job._id}`)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/job-portal/${job._id}`);
+                    }}
                     title="View Details"
                     className="hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
                   >
@@ -197,7 +201,10 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => router.push(`/job-portal/${job._id}`)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/job-portal/${job._id}`);
+                        }}
                         title="Edit Job"
                         className="hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
                       >
@@ -207,7 +214,10 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => onDeleteJob(job)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteJob(job);
+                        }}
                         title="Delete Job"
                         className="hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-500 text-gray-700 dark:text-gray-300"
                       >
