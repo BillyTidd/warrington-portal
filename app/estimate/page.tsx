@@ -52,6 +52,7 @@ import { toast } from "sonner";
 import { redirect, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTheme } from "next-themes";
+import Image from "next/image";
 
 interface EstimateData {
   numberOfWorkers: number;
@@ -494,12 +495,19 @@ export default function EstimatePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Hero Section */}
         <div className="text-center mb-12">
+          <Image
+            src={theme === "dark" ? "/logo-light.png" : "/logo-dark.jpg"}
+            alt="Logo"
+            width={350}
+            height={250}
+            className="mb-8 mx-auto"
+          />
           <h1
             className={`text-5xl font-bold mb-4 ${
               theme === "dark" ? "text-white" : "text-slate-900"
             }`}
           >
-            Professional Job Estimation
+            Warrington Job Estimation
           </h1>
           <p
             className={`text-xl max-w-3xl mx-auto ${
@@ -547,7 +555,7 @@ export default function EstimatePage() {
               {/* Job Details */}
               <div className="space-y-4">
                 <h3
-                  className={`text-lg font-semibold flex items-center ${
+                  className={`text-lg font-semibold flex items-center pt-4 ${
                     theme === "dark" ? "text-white" : "text-slate-900"
                   }`}
                 >
