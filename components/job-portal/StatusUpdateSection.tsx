@@ -31,49 +31,61 @@ export function StatusUpdateSection({
             variant={jobStatus === "pending" ? "default" : "outline"}
             onClick={() => handleStatusChange("pending")}
             disabled={isSaving || jobStatus === "pending"}
-            className="relative overflow-hidden group"
+            className={`relative overflow-hidden group ${
+              jobStatus === "pending"
+                ? "bg-yellow-500 hover:bg-yellow-600 text-white dark:bg-yellow-600 dark:hover:bg-yellow-700"
+                : ""
+            }`}
           >
             <span
               className={`absolute inset-0 bg-yellow-100 dark:bg-yellow-900/20 ${
                 jobStatus === "pending"
-                  ? "opacity-100"
+                  ? "opacity-0"
                   : "opacity-0 group-hover:opacity-10"
               } transition-opacity`}
             ></span>
-            <AlertTriangle className="mr-2 h-4 w-4" />
-            Pending
+            <AlertTriangle className="mr-2 h-4 w-4 relative z-10" />
+            <span className="relative z-10">Pending</span>
           </Button>
           <Button
             variant={jobStatus === "in-progress" ? "default" : "outline"}
             onClick={() => handleStatusChange("in-progress")}
             disabled={isSaving || jobStatus === "in-progress"}
-            className="relative overflow-hidden group"
+            className={`relative overflow-hidden group ${
+              jobStatus === "in-progress"
+                ? "bg-blue-500 hover:bg-blue-600 text-white dark:bg-blue-600 dark:hover:bg-blue-700"
+                : ""
+            }`}
           >
             <span
               className={`absolute inset-0 bg-blue-100 dark:bg-blue-900/20 ${
                 jobStatus === "in-progress"
-                  ? "opacity-100"
+                  ? "opacity-0"
                   : "opacity-0 group-hover:opacity-10"
               } transition-opacity`}
             ></span>
-            <Clock className="mr-2 h-4 w-4" />
-            In Progress
+            <Clock className="mr-2 h-4 w-4 relative z-10" />
+            <span className="relative z-10">In Progress</span>
           </Button>
           <Button
             variant={jobStatus === "completed" ? "default" : "outline"}
             onClick={() => handleStatusChange("completed")}
             disabled={isSaving || jobStatus === "completed"}
-            className="relative overflow-hidden group"
+            className={`relative overflow-hidden group ${
+              jobStatus === "completed"
+                ? "bg-green-500 hover:bg-green-600 text-white dark:bg-green-600 dark:hover:bg-green-700"
+                : ""
+            }`}
           >
             <span
               className={`absolute inset-0 bg-green-100 dark:bg-green-900/20 ${
                 jobStatus === "completed"
-                  ? "opacity-100"
+                  ? "opacity-0"
                   : "opacity-0 group-hover:opacity-10"
               } transition-opacity`}
             ></span>
-            <CheckCircle className="mr-2 h-4 w-4" />
-            Completed
+            <CheckCircle className="mr-2 h-4 w-4 relative z-10" />
+            <span className="relative z-10">Completed</span>
           </Button>
         </div>
       </CardContent>
