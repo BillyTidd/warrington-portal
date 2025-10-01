@@ -120,8 +120,9 @@ export async function POST(request: NextRequest) {
       // Use provided fromPostcode or default to COMPANY_ADDRESS
       const origin = fromPostcode || COMPANY_ADDRESS;
 
-      const distance = await calculateDistance(origin, toPostcode.trim());
-
+      const distanceOneWay = await calculateDistance(origin, toPostcode.trim());
+      const distanceReturn = await calculateDistance(toPostcode.trim(), origin);
+      const distance = distanceOneWay + distanceReturn;
       return NextResponse.json({ distance });
     }
 

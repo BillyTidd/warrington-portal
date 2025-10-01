@@ -188,7 +188,7 @@ export function JobProgressForm({
 
       if (calculationMethod === "miles") {
         // Use manual miles directly
-        distance = Number.parseFloat(manualMiles);
+        distance = Number.parseFloat(manualMiles) * 2;
         fromLocation = "Manual Entry";
         toLocation = "Manual Entry";
       } else {
