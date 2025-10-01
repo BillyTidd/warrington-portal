@@ -189,6 +189,7 @@ export function JobProgressForm({
       if (calculationMethod === "miles") {
         // Use manual miles directly
         distance = Number.parseFloat(manualMiles) * 2;
+        setManualMiles(distance.toString()); // Update to show round trip miles
         fromLocation = "Manual Entry";
         toLocation = "Manual Entry";
       } else {
