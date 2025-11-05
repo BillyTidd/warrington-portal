@@ -496,7 +496,7 @@ export default function EstimatePage() {
         {/* Hero Section */}
         <div className="text-center mb-12">
           <Image
-            src={theme === "dark" ? "/logo-light.png" : "/estimate-logo-light.jpg"}
+            src={theme === "dark" ? "/estimate-logo-light.jpg" : "/estimate-logo-light.jpg"}
             alt="Logo"
             width={100}
             height={100}
