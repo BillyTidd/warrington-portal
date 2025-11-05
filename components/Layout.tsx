@@ -107,7 +107,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           isCustomerLayout
             ? "bg-gradient-to-r from-blue-600 to-indigo-600"
             : theme !== "dark"
-            ? "bg-black"
+            ? "bg-white"
             : ""
         }`}
       >
@@ -133,7 +133,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 />
               ) : (
                 <Image
-                  src={"/logo-dark.jpg"}
+                  src={"/new-logo-light.jpg"}
                   alt="logo"
                   width={600}
                   height={200}

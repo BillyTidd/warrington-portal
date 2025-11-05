@@ -438,7 +438,7 @@ export default function EstimatePage() {
                   theme === "dark" ? "text-white" : "text-slate-900"
                 }`}
               >
-                JobPro Services
+                Warrington's Estimate
               </h1>
             </div>
             <div className="flex items-center space-x-4">
@@ -496,7 +496,7 @@ export default function EstimatePage() {
         {/* Hero Section */}
         <div className="text-center mb-12">
           <Image
-            src={theme === "dark" ? "/logo-light.png" : "/logo-dark.jpg"}
+            src={theme === "dark" ? "/logo-light.png" : "/new-logo-light.jpg"}
             alt="Logo"
             width={350}
             height={250}
@@ -507,7 +507,7 @@ export default function EstimatePage() {
               theme === "dark" ? "text-white" : "text-slate-900"
             }`}
           >
-            Warrington Job Estimation
+            Warrington's Job Estimation
           </h1>
           <p
             className={`text-xl max-w-3xl mx-auto ${
