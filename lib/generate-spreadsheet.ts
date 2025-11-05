@@ -60,7 +60,7 @@ export const generateGoogleSheet = async ({
   // Prepare the header values for the report (adding the report number)
   const headerValues = [
     // First Header - Report title with report number
-    ["WARRINGTON INSTALLS", "", "", "", "REPORT #", reportNumber, ""],
+    ["WARRINGTON'S INSTALLS", "", "", "", "REPORT #", reportNumber, ""],
     // Second Header - Report address and admin info
     [
       "Address",
@@ -405,7 +405,7 @@ export const generateInvoiceGoogleSheet = async ({
             {
               values: [
                 {
-                  userEnteredValue: { stringValue: "WARRINGTON\nINSTALLS" },
+                  userEnteredValue: { stringValue: "WARRINGTON'S\nINSTALLS" },
                   userEnteredFormat: {
                     textFormat: {
                       fontSize: 36,
