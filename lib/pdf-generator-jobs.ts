@@ -100,7 +100,7 @@ export const generateJobsPDF = async (
   doc.setTextColor(255);
   doc.setFontSize(28);
   doc.setFont("helvetica", "bold");
-  doc.text("WARRINGTON INSTALLS", 14, 20);
+  doc.text("WARRINGTON'S INSTALLS", 14, 20);
 
   // Report title
   doc.setFontSize(16);
@@ -559,7 +559,7 @@ export const generateJobsPDF = async (
       doc.setTextColor(255);
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
-      doc.text("WARRINGTON INSTALLS - JOBS SUMMARY REPORT", 14, 15);
+      doc.text("WARRINGTON'S INSTALLS - JOBS SUMMARY REPORT", 14, 15);
 
       // Add decorative element
       doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
@@ -712,7 +712,7 @@ export const generateJobsPDF = async (
         doc.setTextColor(255);
         doc.setFontSize(14);
         doc.setFont("helvetica", "bold");
-        doc.text("WARRINGTON INSTALLS - JOBS SUMMARY REPORT", 14, 15);
+        doc.text("WARRINGTON'S INSTALLS - JOBS SUMMARY REPORT", 14, 15);
 
         // Add decorative element
         doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
@@ -881,7 +881,7 @@ export const generateJobsPDF = async (
       doc.setTextColor(255);
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
-      doc.text("WARRINGTON INSTALLS - JOBS SUMMARY REPORT", 14, 15);
+      doc.text("WARRINGTON'S INSTALLS - JOBS SUMMARY REPORT", 14, 15);
 
       // Add decorative element
       doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
@@ -1063,7 +1063,7 @@ export const generateJobsPDF = async (
     // Footer text
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
-    doc.text("WARRINGTON INSTALLS", 14, pageHeight - 10);
+    doc.text("WARRINGTON'S INSTALLS", 14, pageHeight - 10);
     doc.text(`Page ${i} of ${pageCount}`, pageWidth - 20, pageHeight - 10, {
       align: "right",
     });

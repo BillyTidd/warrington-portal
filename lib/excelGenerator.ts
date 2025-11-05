@@ -89,7 +89,7 @@ export const generateExcelWorkbook = async ({
     // Company name and logo section
     worksheet.mergeCells(`A${currentRow}:D${currentRow + 2}`);
     const companyCell = worksheet.getCell(`A${currentRow}`);
-    companyCell.value = "WARRINGTON\nINSTALLS";
+    companyCell.value = "WARRINGTON'S\nINSTALLS";
     companyCell.font = { bold: true, size: 36, name: "Arial" };
     companyCell.alignment = { vertical: "middle", horizontal: "left" };
     worksheet.getRow(currentRow).height = 90;
@@ -660,7 +660,7 @@ export const generatePDF = async (
   doc.setTextColor(255);
   doc.setFontSize(24); // Reduced from 28
   doc.setFont("helvetica", "bold");
-  doc.text("WARRINGTON INSTALLS", 14, 20);
+  doc.text("WARRINGTON'S INSTALLS", 14, 20);
 
   // Add user info section
   doc.setFontSize(16);
@@ -904,7 +904,7 @@ export const generateJobPDF = async (
   doc.setTextColor(255);
   doc.setFontSize(28);
   doc.setFont("helvetica", "bold");
-  doc.text("WARRINGTON INSTALLS", 14, 20);
+  doc.text("WARRINGTON'S INSTALLS", 14, 20);
 
   // Report title
   doc.setFontSize(16);
@@ -1187,7 +1187,7 @@ export const generateJobPDF = async (
     doc.setTextColor(255);
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text("WARRINGTON INSTALLS - JOB DETAILS REPORT", 14, 15);
+    doc.text("WARRINGTON'S INSTALLS - JOB DETAILS REPORT", 14, 15);
 
     // Add decorative element
     doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
@@ -1342,7 +1342,7 @@ export const generateJobPDF = async (
       doc.setTextColor(255);
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
-      doc.text("WARRINGTON INSTALLS - JOB DETAILS REPORT", 14, 15);
+      doc.text("WARRINGTON'S INSTALLS - JOB DETAILS REPORT", 14, 15);
 
       // Add decorative element
       doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
@@ -1466,7 +1466,7 @@ export const generateJobPDF = async (
       doc.setTextColor(255);
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
-      doc.text("WARRINGTON INSTALLS - JOB DETAILS REPORT", 14, 15);
+      doc.text("WARRINGTON'S INSTALLS - JOB DETAILS REPORT", 14, 15);
 
       // Add decorative element
       doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
@@ -1651,7 +1651,7 @@ export const generateJobPDF = async (
     // Footer text
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
-    doc.text("WARRINGTON INSTALLS", 14, pageHeight - 10);
+    doc.text("WARRINGTON'S INSTALLS", 14, pageHeight - 10);
     doc.text(`Page ${i} of ${pageCount}`, pageWidth - 20, pageHeight - 10, {
       align: "right",
     });

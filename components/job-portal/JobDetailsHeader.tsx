@@ -90,7 +90,7 @@ export function JobDetailsHeader({
     setIsGeneratingPDF(true);
     try {
       const doc = await generateJobPDF(job, session);
-      doc.save(`WARRINGTON-INSTALLS-job-${job._id}.pdf`);
+      doc.save(`WARRINGTONS-INSTALLS-job-${job._id}.pdf`);
       toast.success("PDF generated successfully");
     } catch (error) {
       console.error("Error generating PDF:", error);

@@ -9,8 +9,8 @@ const Toaster = dynamic(() => import("sonner").then(mod => mod.Toaster), {
 });
 
 export const metadata: Metadata = {
-  title: "Warrington Installations Limited",
-  description: "Warrington Installations Limited",
+  title: "Warrington's Installations Limited",
+  description: "Warrington's Installations Limited",
 };
 
 export default function RootLayout({
