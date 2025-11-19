@@ -20,6 +20,9 @@ import {
   Navigation,
   Lock,
   ArrowRight,
+  Plus,
+  X,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,7 +69,7 @@ interface EstimateData {
   customerCompany: string;
   workerTypes: string[];
   vehicleType: string;
-  postcode: string;
+  postcodes: string[];
 }
 
 interface LaborBreakdown {
@@ -86,11 +89,13 @@ interface CostEstimate {
     labor: LaborBreakdown[];
     travel: {
       distance: number;
+      duration: number;
+      durationHours: number;
       vehicleType: string;
       rate: number;
       cost: number;
       fromAddress: string;
-      toAddress: string;
+      waypoints: string[];
     };
     jobTypeMultiplier: number;
     jobType: string;
@@ -128,7 +133,7 @@ export default function EstimatePage() {
     customerCompany: "",
     workerTypes: ["general-fitter"],
     vehicleType: "medium-van",
-    postcode: "",
+    postcodes: [""],
   });
 
   const [estimate, setEstimate] = useState<CostEstimate | null>(null);
@@ -212,9 +217,21 @@ export default function EstimatePage() {
     if (!formData.jobDate) {
       errors.push("Job date is required");
     }
-    if (!formData.postcode?.trim()) {
-      errors.push("Postcode is required");
+
+    // Validate postcodes array
+    const validPostcodes = formData.postcodes.filter((pc) => pc?.trim());
+    if (validPostcodes.length === 0) {
+      errors.push("At least one postcode is required");
     }
+
+    // Validate each postcode format
+    const postcodeRegex = /^[A-Z]{1,2}[0-9][A-Z0-9]?\s?[0-9][A-Z]{2}$/i;
+    formData.postcodes.forEach((postcode, index) => {
+      if (postcode?.trim() && !postcodeRegex.test(postcode.trim())) {
+        errors.push(`Postcode ${index + 1} is not a valid UK postcode`);
+      }
+    });
+
     if (!formData.customerName?.trim()) {
       errors.push("Your full name is required");
     }
@@ -231,16 +248,6 @@ export default function EstimatePage() {
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerEmail)
     ) {
       errors.push("Please enter a valid email address");
-    }
-
-    // Validate UK postcode format
-    if (
-      formData.postcode &&
-      !/^[A-Z]{1,2}[0-9][A-Z0-9]?\s?[0-9][A-Z]{2}$/i.test(
-        formData.postcode.trim()
-      )
-    ) {
-      errors.push("Please enter a valid UK postcode");
     }
 
     // Validate date is not in the past
@@ -268,6 +275,29 @@ export default function EstimatePage() {
     const newWorkerTypes = [...formData.workerTypes];
     newWorkerTypes[index] = value;
     setFormData((prev) => ({ ...prev, workerTypes: newWorkerTypes }));
+  };
+
+  const handlePostcodeChange = (index: number, value: string) => {
+    const newPostcodes = [...formData.postcodes];
+    newPostcodes[index] = value;
+    setFormData((prev) => ({ ...prev, postcodes: newPostcodes }));
+  };
+
+  const addPostcode = () => {
+    if (formData.postcodes.length < 25) {
+      setFormData((prev) => ({ ...prev, postcodes: [...prev.postcodes, ""] }));
+    } else {
+      toast.error("Maximum 25 postcodes allowed");
+    }
+  };
+
+  const removePostcode = (index: number) => {
+    if (formData.postcodes.length > 1) {
+      const newPostcodes = formData.postcodes.filter((_, i) => i !== index);
+      setFormData((prev) => ({ ...prev, postcodes: newPostcodes }));
+    } else {
+      toast.error("At least one postcode is required");
+    }
   };
 
   const calculateEstimate = async () => {
@@ -496,7 +526,11 @@ export default function EstimatePage() {
         {/* Hero Section */}
         <div className="text-center mb-12">
           <Image
-            src={theme === "dark" ? "/estimate-logo-light.jpg" : "/estimate-logo-light.jpg"}
+            src={
+              theme === "dark"
+                ? "/estimate-logo-light.jpg"
+                : "/estimate-logo-light.jpg"
+            }
             alt="Logo"
             width={100}
             height={100}
@@ -735,36 +769,71 @@ export default function EstimatePage() {
 
                 <div>
                   <Label
-                    htmlFor="postcode"
                     className={
                       theme === "dark" ? "text-slate-200" : "text-slate-700"
                     }
                   >
-                    Job Postcode *
+                    Job Postcodes * (Add multiple stops)
                   </Label>
-                  <div className="relative">
-                    <Input
-                      id="postcode"
-                      name="postcode"
-                      placeholder="e.g., NN1 1AA"
-                      value={formData.postcode}
-                      onChange={handleInputChange}
-                      className={`mt-1 pl-10 ${
+                  <div className="space-y-2 mt-2">
+                    {formData.postcodes.map((postcode, index) => (
+                      <div key={index} className="flex items-center space-x-2">
+                        <div className="relative flex-1">
+                          <Input
+                            placeholder={`Postcode ${
+                              index + 1
+                            } (e.g., NN1 1AA)`}
+                            value={postcode}
+                            onChange={(e) =>
+                              handlePostcodeChange(index, e.target.value)
+                            }
+                            className={`pl-10 ${
+                              theme === "dark"
+                                ? "bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                                : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
+                            }`}
+                          />
+                          <Navigation className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        </div>
+                        {formData.postcodes.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => removePostcode(index)}
+                            className={
+                              theme === "dark"
+                                ? "bg-slate-700 border-slate-600 hover:bg-red-900 hover:border-red-700"
+                                : "bg-white border-slate-300 hover:bg-red-50 hover:border-red-300"
+                            }
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addPostcode}
+                      className={`w-full ${
                         theme === "dark"
-                          ? "bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
-                          : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
+                          ? "bg-slate-700 border-slate-600 hover:bg-slate-600 text-white"
+                          : "bg-white border-slate-300 hover:bg-slate-50 text-slate-900"
                       }`}
-                      required
-                    />
-                    <Navigation className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Another Postcode
+                    </Button>
                   </div>
                   <p
-                    className={`text-xs mt-1 ${
+                    className={`text-xs mt-2 ${
                       theme === "dark" ? "text-slate-400" : "text-slate-500"
                     }`}
                   >
-                    Distance calculated automatically from our Northampton
-                    office
+                    Round-trip distance and travel time calculated automatically
+                    from our Northampton office
                   </p>
                 </div>
 
@@ -1085,7 +1154,7 @@ export default function EstimatePage() {
                               : "text-slate-600"
                           }
                         >
-                          Distance:
+                          Round-Trip Distance:
                         </span>
                         <span
                           className={`font-medium ${
@@ -1093,6 +1162,43 @@ export default function EstimatePage() {
                           }`}
                         >
                           {estimate.breakdown.travel.distance} miles
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span
+                          className={
+                            theme === "dark"
+                              ? "text-slate-300"
+                              : "text-slate-600"
+                          }
+                        >
+                          Travel Time:
+                        </span>
+                        <span
+                          className={`font-medium ${
+                            theme === "dark" ? "text-white" : "text-slate-900"
+                          }`}
+                        >
+                          {Math.floor(estimate.breakdown.travel.duration / 60)}h{" "}
+                          {estimate.breakdown.travel.duration % 60}m
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span
+                          className={
+                            theme === "dark"
+                              ? "text-slate-300"
+                              : "text-slate-600"
+                          }
+                        >
+                          Stops:
+                        </span>
+                        <span
+                          className={`font-medium ${
+                            theme === "dark" ? "text-white" : "text-slate-900"
+                          }`}
+                        >
+                          {estimate.breakdown.travel.waypoints.length}
                         </span>
                       </div>
                     </div>
@@ -1221,6 +1327,71 @@ export default function EstimatePage() {
                       <span className="font-semibold text-lg">
                         £{estimate.travelCost.toFixed(2)}
                       </span>
+                    </div>
+
+                    <div
+                      className={`p-3 rounded-lg border ${
+                        theme === "dark"
+                          ? "bg-blue-900/20 border-blue-700"
+                          : "bg-blue-50 border-blue-200"
+                      }`}
+                    >
+                      <div className="flex items-center mb-2">
+                        <Clock className="h-4 w-4 mr-2 text-blue-600" />
+                        <span
+                          className={`text-sm font-medium ${
+                            theme === "dark" ? "text-blue-200" : "text-blue-800"
+                          }`}
+                        >
+                          Time Breakdown
+                        </span>
+                      </div>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span
+                            className={
+                              theme === "dark"
+                                ? "text-blue-300"
+                                : "text-blue-700"
+                            }
+                          >
+                            Work Hours:
+                          </span>
+                          <span className="font-medium">
+                            {formData.numberOfHours -
+                              estimate.breakdown.travel.durationHours}{" "}
+                            hours
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span
+                            className={
+                              theme === "dark"
+                                ? "text-blue-300"
+                                : "text-blue-700"
+                            }
+                          >
+                            Travel Time (added):
+                          </span>
+                          <span className="font-medium">
+                            {estimate.breakdown.travel.durationHours} hours
+                          </span>
+                        </div>
+                        <div className="flex justify-between border-t pt-1">
+                          <span
+                            className={
+                              theme === "dark"
+                                ? "text-blue-200"
+                                : "text-blue-800"
+                            }
+                          >
+                            <strong>Total Billable Hours:</strong>
+                          </span>
+                          <span className="font-bold">
+                            {formData.numberOfHours} hours
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
