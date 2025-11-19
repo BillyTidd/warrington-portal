@@ -13,7 +13,7 @@ interface EstimateRequest {
   customerCompany: string;
   workerTypes: string[];
   vehicleType: string;
-  postcode: string;
+  postcodes: string[];
 }
 
 interface LaborBreakdown {
@@ -33,11 +33,13 @@ interface CostEstimate {
     labor: LaborBreakdown[];
     travel: {
       distance: number;
+      duration: number;
+      durationHours: number;
       vehicleType: string;
       rate: number;
       cost: number;
       fromAddress: string;
-      toAddress: string;
+      waypoints: string[];
     };
     jobTypeMultiplier: number;
     jobType: string;
@@ -81,55 +83,126 @@ const JOB_TYPE_MULTIPLIERS = {
 const COMPANY_ADDRESS =
   "Unit 7, Matts Lodge Farm, Grooms Lane, Northampton, NN6 8NN";
 
-// Function to calculate distance using Google Maps API
-async function calculateDistance(
+// Function to calculate round-trip distance and duration using Google Directions API
+async function calculateRoundTrip(
   fromAddress: string,
-  toPostcode: string
-): Promise<number> {
+  postcodes: string[]
+): Promise<{ distance: number; duration: number }> {
   try {
     // If no Google Maps API key, use fallback
     if (!process.env.GOOGLE_MAPS_API_KEY) {
       console.log("No Google Maps API key found, using fallback estimation");
-      return estimateDistanceByPostcode(toPostcode);
+      const totalDistance = postcodes.reduce(
+        (sum, pc) => sum + estimateDistanceByPostcode(pc),
+        0
+      );
+      // Estimate 2x for round trip and roughly 30 mph average
+      return {
+        distance: Math.round(totalDistance * 2 * 100) / 100,
+        duration: Math.round(((totalDistance * 2) / 30) * 60), // minutes
+      };
     }
 
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(
+    // Filter out empty postcodes
+    const validPostcodes = postcodes.filter((pc) => pc?.trim());
+    if (validPostcodes.length === 0) {
+      return { distance: 0, duration: 0 };
+    }
+
+    // Build waypoints string (all postcodes except the last one become waypoints)
+    const waypoints =
+      validPostcodes.length > 1
+        ? `optimize:false|${validPostcodes.join("|")}`
+        : undefined;
+
+    // Build URL for Directions API
+    let url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(
+      fromAddress
+    )}&destination=${encodeURIComponent(
+      fromAddress
+    )}&mode=driving&units=imperial&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+
+    if (waypoints) {
+      url += `&waypoints=${encodeURIComponent(waypoints)}`;
+    } else {
+      // If only one postcode, make it a waypoint and return to origin
+      url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(
         fromAddress
-      )}&destinations=${encodeURIComponent(toPostcode)}&units=imperial&key=${
-        process.env.GOOGLE_MAPS_API_KEY
-      }`
-    );
+      )}&destination=${encodeURIComponent(
+        fromAddress
+      )}&waypoints=${encodeURIComponent(
+        validPostcodes[0]
+      )}&mode=driving&units=imperial&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+    }
+
+    const response = await fetch(url);
 
     if (!response.ok) {
-      console.error("Google Maps API request failed:", response.status);
-      return estimateDistanceByPostcode(toPostcode);
+      console.error("Google Directions API request failed:", response.status);
+      const totalDistance = validPostcodes.reduce(
+        (sum, pc) => sum + estimateDistanceByPostcode(pc),
+        0
+      );
+      return {
+        distance: Math.round(totalDistance * 2 * 100) / 100,
+        duration: Math.round(((totalDistance * 2) / 30) * 60),
+      };
     }
 
     const data = await response.json();
-    console.log("Google Maps API response:", JSON.stringify(data, null, 2));
+    console.log(
+      "Google Directions API response:",
+      JSON.stringify(data, null, 2)
+    );
 
-    if (data.status === "OK" && data.rows[0]?.elements[0]?.status === "OK") {
-      const element = data.rows[0].elements[0];
-      const distanceValue = element.distance.value; // in meters
+    if (data.status === "OK" && data.routes && data.routes.length > 0) {
+      const route = data.routes[0];
+      let totalDistanceMeters = 0;
+      let totalDurationSeconds = 0;
+
+      // Sum up all legs
+      route.legs.forEach((leg: any) => {
+        totalDistanceMeters += leg.distance.value;
+        totalDurationSeconds += leg.duration.value;
+      });
+
       const distanceInMiles =
-        Math.round(distanceValue * 0.000621371 * 100) / 100; // Convert to miles and round to 2 decimal places
+        Math.round(totalDistanceMeters * 0.000621371 * 100) / 100;
+      const durationInMinutes = Math.round(totalDurationSeconds / 60);
 
       console.log(
-        `Distance calculation: ${distanceValue} meters = ${distanceInMiles} miles`
+        `Round-trip calculation: ${totalDistanceMeters} meters = ${distanceInMiles} miles, ${totalDurationSeconds} seconds = ${durationInMinutes} minutes`
       );
-      return distanceInMiles;
+
+      return {
+        distance: distanceInMiles,
+        duration: durationInMinutes,
+      };
     } else {
       console.error(
-        "Google Maps API error:",
+        "Google Directions API error:",
         data.status,
-        data.rows[0]?.elements[0]?.status
+        data.error_message
       );
-      return estimateDistanceByPostcode(toPostcode);
+      const totalDistance = validPostcodes.reduce(
+        (sum, pc) => sum + estimateDistanceByPostcode(pc),
+        0
+      );
+      return {
+        distance: Math.round(totalDistance * 2 * 100) / 100,
+        duration: Math.round(((totalDistance * 2) / 30) * 60),
+      };
     }
   } catch (error) {
-    console.error("Error calculating distance:", error);
-    return estimateDistanceByPostcode(toPostcode);
+    console.error("Error calculating round-trip:", error);
+    const totalDistance = postcodes.reduce(
+      (sum, pc) => sum + estimateDistanceByPostcode(pc),
+      0
+    );
+    return {
+      distance: Math.round(totalDistance * 2 * 100) / 100,
+      duration: Math.round(((totalDistance * 2) / 30) * 60),
+    };
   }
 }
 
@@ -190,31 +263,53 @@ export async function POST(request: NextRequest) {
       jobType,
       workerTypes = [],
       vehicleType = "medium-van",
-      postcode,
+      postcodes,
     } = body;
 
     // Validate required fields
-    if (!numberOfWorkers || !numberOfHours || !postcode) {
+    if (
+      !numberOfWorkers ||
+      !numberOfHours ||
+      !postcodes ||
+      postcodes.length === 0
+    ) {
       return NextResponse.json(
         {
           error:
-            "Missing required fields: numberOfWorkers, numberOfHours, and postcode are required",
+            "Missing required fields: numberOfWorkers, numberOfHours, and postcodes are required",
         },
+        { status: 400 }
+      );
+    }
+
+    // Filter out empty postcodes
+    const validPostcodes = postcodes.filter((pc) => pc?.trim());
+    if (validPostcodes.length === 0) {
+      return NextResponse.json(
+        { error: "At least one valid postcode is required" },
         { status: 400 }
       );
     }
 
     // Validate postcode format (basic UK postcode validation)
     const postcodeRegex = /^[A-Z]{1,2}[0-9][A-Z0-9]?\s?[0-9][A-Z]{2}$/i;
-    if (!postcodeRegex.test(postcode.trim())) {
-      return NextResponse.json(
-        { error: "Please enter a valid UK postcode" },
-        { status: 400 }
-      );
+    for (const postcode of validPostcodes) {
+      if (!postcodeRegex.test(postcode.trim())) {
+        return NextResponse.json(
+          { error: `Invalid UK postcode format: ${postcode}` },
+          { status: 400 }
+        );
+      }
     }
 
-    // Calculate distance from company address to job location using postcode
-    const distance = await calculateDistance(COMPANY_ADDRESS, postcode.trim());
+    // Calculate round-trip distance and duration
+    const { distance, duration } = await calculateRoundTrip(
+      COMPANY_ADDRESS,
+      validPostcodes.map((pc) => pc.trim())
+    );
+
+    // Calculate travel hours (rounded up to nearest whole hour)
+    const durationHours = Math.ceil(duration / 60);
 
     // Ensure we have worker types for each worker
     const finalWorkerTypes = [...workerTypes];
@@ -222,6 +317,9 @@ export async function POST(request: NextRequest) {
       finalWorkerTypes.push("general-fitter"); // Default to general fitter
     }
     finalWorkerTypes.splice(numberOfWorkers); // Remove excess
+
+    // Add travel hours to total hours for labor calculation
+    const totalHoursWithTravel = numberOfHours + durationHours;
 
     // Calculate labor costs with detailed breakdown
     const laborBreakdown: LaborBreakdown[] = [];
@@ -231,14 +329,14 @@ export async function POST(request: NextRequest) {
       const rates = WORKER_RATES[workerType as keyof typeof WORKER_RATES];
       if (!rates) return;
 
-      const overtimeHours = Math.max(numberOfHours - 10, 0);
+      const overtimeHours = Math.max(totalHoursWithTravel - 10, 0);
       const regularCost = rates.dayRate; // Full day rate for up to 10 hours
       const overtimeCost = overtimeHours * rates.overtimeRate;
       const totalWorkerCost = regularCost + overtimeCost;
 
       laborBreakdown.push({
         type: rates.label,
-        hours: numberOfHours,
+        hours: totalHoursWithTravel,
         dayRate: rates.dayRate,
         overtimeHours,
         overtimeRate: rates.overtimeRate,
@@ -273,11 +371,13 @@ export async function POST(request: NextRequest) {
         labor: laborBreakdown,
         travel: {
           distance,
+          duration,
+          durationHours,
           vehicleType,
           rate: vehicleRate,
           cost: travelCost,
           fromAddress: COMPANY_ADDRESS,
-          toAddress: postcode,
+          waypoints: validPostcodes,
         },
         jobTypeMultiplier: multiplier,
         jobType: jobType || "Standard",
