@@ -41,7 +41,7 @@ import type { Session } from "next-auth";
 interface JobRequestDetailsModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  request: BookingRequest | null;
+  request: any | null;
   isAdmin: boolean;
   session: Session | null;
   onUpdateStatus: (
@@ -280,12 +280,42 @@ export function JobRequestDetailsModal({
                       <MapPin className="h-4 w-4 text-green-600" />
                     </div>
                     <div>
-                      <p className="font-medium">
-                        {request.jobEstimate.jobLocation}
-                      </p>
-                      {request.jobEstimate.postcode && (
-                        <p className="text-muted-foreground text-xs">
-                          {request.jobEstimate.postcode}
+                      {/* Handle both old (single postcode) and new (multiple postcodes) */}
+                      {request.jobEstimate.postcodes &&
+                      request.jobEstimate.postcodes.length > 0 ? (
+                        <>
+                          <p className="font-medium">
+                            {request.jobEstimate.postcodes.filter(
+                              (pc: string) => pc?.trim()
+                            ).length > 1
+                              ? `${
+                                  request.jobEstimate.postcodes.filter(
+                                    (pc: string) => pc?.trim()
+                                  ).length
+                                } Job Locations`
+                              : request.jobEstimate.postcodes[0]}
+                          </p>
+                          <p className="text-muted-foreground text-xs">
+                            {request.jobEstimate.postcodes.filter(
+                              (pc: string) => pc?.trim()
+                            ).length > 1
+                              ? "Multiple stops"
+                              : "Single location"}
+                          </p>
+                        </>
+                      ) : request.jobEstimate.postcode ? (
+                        <>
+                          <p className="font-medium">
+                            {request.jobEstimate.jobLocation ||
+                              request.jobEstimate.postcode}
+                          </p>
+                          <p className="text-muted-foreground text-xs">
+                            {request.jobEstimate.postcode}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="font-medium text-muted-foreground">
+                          Location not specified
                         </p>
                       )}
                     </div>
@@ -329,19 +359,21 @@ export function JobRequestDetailsModal({
                         Worker Types Required
                       </Label>
                       <div className="mt-1 flex flex-wrap gap-2">
-                        {request.jobEstimate.workerTypes.map((type, index) => {
-                          const IconComponent = getWorkerIcon(type);
-                          return (
-                            <Badge
-                              key={index}
-                              variant="outline"
-                              className="flex items-center gap-1"
-                            >
-                              <IconComponent className="h-3 w-3" />
-                              {getWorkerLabel(type)}
-                            </Badge>
-                          );
-                        })}
+                        {request.jobEstimate.workerTypes.map(
+                          (type: any, index: any) => {
+                            const IconComponent = getWorkerIcon(type);
+                            return (
+                              <Badge
+                                key={index}
+                                variant="outline"
+                                className="flex items-center gap-1"
+                              >
+                                <IconComponent className="h-3 w-3" />
+                                {getWorkerLabel(type)}
+                              </Badge>
+                            );
+                          }
+                        )}
                       </div>
                     </div>
                   )}
@@ -356,7 +388,7 @@ export function JobRequestDetailsModal({
                     <span className="text-sm">
                       {request.jobEstimate.vehicleType
                         .replace("-", " ")
-                        .replace(/\b\w/g, (l) => l.toUpperCase())}
+                        .replace(/\b\w/g, (l: any) => l.toUpperCase())}
                     </span>
                     {request.estimatedCost.breakdown?.travel && (
                       <span className="text-sm text-muted-foreground">
@@ -368,15 +400,79 @@ export function JobRequestDetailsModal({
                 </div>
               )}
             </div>
-            {request.jobEstimate.postcode && (
+            {/* Postcodes Section - Handle both old (single postcode) and new (multiple postcodes) */}
+            {(request.jobEstimate.postcode ||
+              (request.jobEstimate.postcodes &&
+                request.jobEstimate.postcodes.length > 0)) && (
               <>
                 <Separator />
                 <div className="space-y-3">
-                  <h3 className="text-lg font-semibold">Postcode</h3>
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <p className="text-sm whitespace-pre-wrap">
-                      {request.jobEstimate.postcode}
-                    </p>
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <MapPin className="h-5 w-5" />
+                    {request.jobEstimate.postcodes &&
+                    request.jobEstimate.postcodes.length > 1
+                      ? "Job Locations (Multiple Stops)"
+                      : "Job Location"}
+                  </h3>
+                  <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                    {/* New jobs with multiple postcodes */}
+                    {request.jobEstimate.postcodes &&
+                    request.jobEstimate.postcodes.length > 0 ? (
+                      <div className="space-y-2">
+                        {request.jobEstimate.postcodes
+                          .filter((pc: string) => pc?.trim())
+                          .map((postcode: string, index: number) => (
+                            <div
+                              key={index}
+                              className="flex items-center gap-2 p-2 bg-background rounded border"
+                            >
+                              <Badge variant="outline" className="text-xs">
+                                Stop {index + 1}
+                              </Badge>
+                              <MapPin className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-sm font-medium">
+                                {postcode}
+                              </span>
+                            </div>
+                          ))}
+                        {request.estimatedCost.breakdown?.travel
+                          ?.durationHours && (
+                          <div className="mt-3 pt-3 border-t text-xs text-muted-foreground flex items-center gap-4">
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              <span>
+                                Travel Time:{" "}
+                                {Math.floor(
+                                  request.estimatedCost.breakdown.travel
+                                    .duration / 60
+                                )}
+                                h{" "}
+                                {request.estimatedCost.breakdown.travel
+                                  .duration % 60}
+                                m
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              <span>
+                                Round Trip:{" "}
+                                {
+                                  request.estimatedCost.breakdown.travel
+                                    .distance
+                                }{" "}
+                                miles
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Old jobs with single postcode */
+                      <p className="text-sm whitespace-pre-wrap flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        {request.jobEstimate.postcode}
+                      </p>
+                    )}
                   </div>
                 </div>
               </>
