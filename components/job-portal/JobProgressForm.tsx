@@ -94,7 +94,8 @@ export function JobProgressForm({
     "miles" | "postcode"
   >("miles");
   const [manualMiles, setManualMiles] = useState<string>("");
-  const [toPostcode, setToPostcode] = useState(""); // Only "to" postcode from user
+  const [fromPostcode, setFromPostcode] = useState(""); // "from" postcode - user enters where they're starting from
+  const [toPostcode, setToPostcode] = useState(""); // "to" postcode - selected from job postcodes
   const [vehicleUsage, setVehicleUsage] = useState<VehicleUsage | null>(null);
   const [isCalculatingDistance, setIsCalculatingDistance] = useState(false);
 
@@ -193,6 +194,13 @@ export function JobProgressForm({
         fromLocation = "Manual Entry";
         toLocation = "Manual Entry";
       } else {
+        // Validate that both from and to postcodes are entered
+        if (!fromPostcode) {
+          toast.error("Please enter your starting location");
+          setIsCalculatingDistance(false);
+          return;
+        }
+
         // Call the distance API for postcode calculation
         const response = await fetch("/api/distance", {
           method: "POST",
@@ -201,15 +209,15 @@ export function JobProgressForm({
           },
           body: JSON.stringify({
             calculationMethod: "postcode",
-            fromPostcode: toPostcode,
-            toPostcode: job.estimatedCosts.postCode,
+            fromPostcode: fromPostcode,
+            toPostcode: toPostcode,
           }),
         });
 
         if (response.ok) {
           const data = await response.json();
           distance = data.distance || 0;
-          fromLocation = job.estimatedCosts.postCode;
+          fromLocation = fromPostcode;
           toLocation = toPostcode;
         } else {
           const error = await response.json();
@@ -487,33 +495,63 @@ export function JobProgressForm({
                     <>
                       <div>
                         <Label htmlFor="fromPostcode">
-                          From (Job Location)
+                          From (Starting Location)
                         </Label>
                         <div className="relative mt-1">
                           <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
                           <Input
                             id="fromPostcode"
-                            value={toPostcode}
+                            value={fromPostcode}
                             onChange={(e) =>
-                              setToPostcode(e.target.value.toUpperCase())
+                              setFromPostcode(e.target.value.toUpperCase())
                             }
-                            placeholder="e.g., M1 1AA"
+                            placeholder="e.g., NN1 1AB (your starting location)"
                             className="pl-8"
                           />
                         </div>
                       </div>
                       <div>
-                        <Label htmlFor="toPostcode">To (Destination)</Label>
-                        <div className="relative mt-1">
-                          <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
-                          <Input
-                            id="toPostcode"
-                            value={job.estimatedCosts?.postCode}
-                            placeholder="e.g., M1 1AA"
-                            className="pl-8"
-                            disabled
-                          />
-                        </div>
+                        <Label htmlFor="toPostcode">To (Job Postcode)</Label>
+                        {job?.jobEstimate?.postcodes &&
+                        job.jobEstimate.postcodes.filter((pc: string) =>
+                          pc?.trim()
+                        ).length > 0 ? (
+                          <Select
+                            value={
+                              toPostcode || job.estimatedCosts?.postCode || ""
+                            }
+                            onValueChange={(value) => {
+                              setToPostcode(value);
+                            }}
+                          >
+                            <SelectTrigger id="toPostcode" className="mt-1">
+                              <SelectValue placeholder="Select job postcode" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {job.jobEstimate.postcodes
+                                .filter((pc: string) => pc?.trim())
+                                .map((postcode: string, index: number) => (
+                                  <SelectItem key={index} value={postcode}>
+                                    <div className="flex items-center gap-2">
+                                      <MapPin className="h-3 w-3" />
+                                      Stop {index + 1}: {postcode}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div className="relative mt-1">
+                            <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                            <Input
+                              id="toPostcode"
+                              value={job.estimatedCosts?.postCode || ""}
+                              placeholder="e.g., M1 1AA"
+                              className="pl-8"
+                              disabled
+                            />
+                          </div>
+                        )}
                       </div>
                     </>
                   )}

@@ -22,7 +22,7 @@ export async function PATCH(
 
     // Get the booking request first
     const bookingRequest = await db
-      .collection<BookingRequest>("booking-requests")
+      .collection<any>("booking-requests")
       .findOne({ _id: bookingRequestId });
 
     if (!bookingRequest) {
@@ -79,14 +79,40 @@ export async function PATCH(
         const customer = await db.collection("users").findOne({
           email: bookingRequest.customerEmail,
         });
-        const toAddress =
-          bookingRequest?.estimatedCost?.breakdown?.travel?.toAddress || "";
-        const postcodeMatch = toAddress.match(
-          /([A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2})$/i
-        );
-        const postCode = postcodeMatch
-          ? postcodeMatch[0].toUpperCase()
-          : undefined;
+
+        // Handle both old (single postcode) and new (multiple postcodes) formats
+        let postCode = null;
+        let postcodes = [];
+
+        // New format: postcodes array
+        if (
+          bookingRequest.jobEstimate.postcodes &&
+          Array.isArray(bookingRequest.jobEstimate.postcodes)
+        ) {
+          // Filter out empty postcodes
+          postcodes = bookingRequest.jobEstimate.postcodes.filter(
+            (pc: string) => pc?.trim()
+          );
+          // Set the first postcode as the default
+          postCode = postcodes.length > 0 ? postcodes[0] : null;
+        }
+        // Old format: extract from toAddress
+        else if (bookingRequest?.estimatedCost?.breakdown?.travel?.toAddress) {
+          const toAddress =
+            bookingRequest.estimatedCost.breakdown.travel.toAddress;
+          const postcodeMatch = toAddress.match(
+            /([A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2})$/i
+          );
+          postCode = postcodeMatch ? postcodeMatch[0].toUpperCase() : null;
+          if (postCode) {
+            postcodes = [postCode];
+          }
+        }
+        // Fallback: extract from single postcode field (very old format)
+        else if (bookingRequest.jobEstimate.postcode) {
+          postCode = bookingRequest.jobEstimate.postcode;
+          postcodes = [postCode];
+        }
 
         // Create job data
         const jobData = {
@@ -114,12 +140,19 @@ export async function PATCH(
           jobLocation: bookingRequest.jobEstimate.jobLocation,
           jobType: bookingRequest.jobEstimate.jobType,
 
+          // Transfer full jobEstimate object to preserve all data including postcodes array
+          jobEstimate: {
+            ...bookingRequest.jobEstimate,
+            postcodes: postcodes, // Ensure postcodes array is available
+          },
+
           // Cost breakdown - use the final estimated cost
           estimatedCosts: {
             laborCost: finalEstimatedCost.laborCost,
             materialCost: finalEstimatedCost.materialCost || 0,
             travelCost: finalEstimatedCost.travelCost,
-            postCode,
+            postCode, // Default postcode for backward compatibility
+            postcodes, // NEW: postcodes array for multi-location support
           },
 
           // Workers array (empty initially)
