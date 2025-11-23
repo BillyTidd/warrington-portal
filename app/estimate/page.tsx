@@ -102,17 +102,13 @@ interface CostEstimate {
   };
 }
 
-const workerTypeOptions = [
-  { value: "team-leader", label: "Team Leader", icon: Crown },
-  { value: "general-fitter", label: "General Fitter", icon: Wrench },
-  { value: "labourer", label: "Labourer/Assistant", icon: HardHat },
-];
-
-const vehicleOptions = [
-  { value: "luton-van", label: "Luton Van/Large Van" },
-  { value: "medium-van", label: "Medium Van" },
-  { value: "small-van", label: "Small Van/Car" },
-];
+// Icon mapping for dynamic worker types
+const iconMap: { [key: string]: any } = {
+  Crown,
+  Wrench,
+  HardHat,
+  Users,
+};
 
 export default function EstimatePage() {
   const { data: session, status } = useSession();
@@ -120,6 +116,11 @@ export default function EstimatePage() {
   const router = useRouter();
   const [showEstimate, setShowEstimate] = useState(false);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
+
+  // Dynamic data state
+  const [workerTypeOptions, setWorkerTypeOptions] = useState<any[]>([]);
+  const [vehicleOptions, setVehicleOptions] = useState<any[]>([]);
+  const [loadingDynamicData, setLoadingDynamicData] = useState(true);
 
   const [formData, setFormData] = useState<EstimateData>({
     numberOfWorkers: 1,
@@ -131,8 +132,8 @@ export default function EstimatePage() {
     customerEmail: "",
     customerPhone: "",
     customerCompany: "",
-    workerTypes: ["general-fitter"],
-    vehicleType: "medium-van",
+    workerTypes: [""],
+    vehicleType: "",
     postcodes: [""],
   });
 
@@ -142,6 +143,59 @@ export default function EstimatePage() {
 
   const isLoggedIn = !!session?.user;
   const isCustomer = session?.user?.role === "customer";
+
+  // Fetch dynamic worker types and vehicles
+  useEffect(() => {
+    const fetchDynamicData = async () => {
+      try {
+        // Fetch worker types
+        const workerTypesRes = await fetch("/api/worker-types");
+        if (workerTypesRes.ok) {
+          const workerTypesData = await workerTypesRes.json();
+          const mappedWorkerTypes = workerTypesData.map((wt: any) => ({
+            value: wt.value,
+            label: wt.name,
+            icon: iconMap[wt.icon] || HardHat,
+          }));
+          setWorkerTypeOptions(mappedWorkerTypes);
+
+          // Set default worker type
+          if (mappedWorkerTypes.length > 0) {
+            setFormData((prev) => ({
+              ...prev,
+              workerTypes: [mappedWorkerTypes[0].value],
+            }));
+          }
+        }
+
+        // Fetch vehicles
+        const vehiclesRes = await fetch("/api/vehicles");
+        if (vehiclesRes.ok) {
+          const vehiclesData = await vehiclesRes.json();
+          const mappedVehicles = vehiclesData.map((v: any) => ({
+            value: v.name.toLowerCase().replace(/\s+/g, "-"),
+            label: v.name,
+          }));
+          setVehicleOptions(mappedVehicles);
+
+          // Set default vehicle
+          if (mappedVehicles.length > 0) {
+            setFormData((prev) => ({
+              ...prev,
+              vehicleType: mappedVehicles[0].value,
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching dynamic data:", error);
+        toast.error("Failed to load worker types and vehicles");
+      } finally {
+        setLoadingDynamicData(false);
+      }
+    };
+
+    fetchDynamicData();
+  }, []);
 
   // Debug log
   useEffect(() => {
@@ -193,17 +247,20 @@ export default function EstimatePage() {
   // Update worker types array when number of workers changes
   useEffect(() => {
     const currentTypes = [...formData.workerTypes];
+    const defaultWorkerType =
+      workerTypeOptions.length > 0 ? workerTypeOptions[0].value : "";
+
     if (currentTypes.length < formData.numberOfWorkers) {
-      // Add more workers (default to general-fitter)
+      // Add more workers (default to first worker type available)
       while (currentTypes.length < formData.numberOfWorkers) {
-        currentTypes.push("general-fitter");
+        currentTypes.push(defaultWorkerType);
       }
     } else if (currentTypes.length > formData.numberOfWorkers) {
       // Remove excess workers
       currentTypes.splice(formData.numberOfWorkers);
     }
     setFormData((prev) => ({ ...prev, workerTypes: currentTypes }));
-  }, [formData.numberOfWorkers]);
+  }, [formData.numberOfWorkers, workerTypeOptions]);
 
   const validateForm = () => {
     const errors = [];
