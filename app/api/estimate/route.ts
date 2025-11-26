@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import clientPromise from "@/lib/mongodb";
 
 interface EstimateRequest {
   numberOfWorkers: number;
@@ -45,31 +46,6 @@ interface CostEstimate {
     jobType: string;
   };
 }
-
-// Updated pricing structure - only for authenticated users
-const WORKER_RATES = {
-  "team-leader": {
-    dayRate: 240, // £240 per day (0-10 hours)
-    overtimeRate: 24, // £24 per hour after 10 hours
-    label: "Team Leader",
-  },
-  "general-fitter": {
-    dayRate: 220, // £220 per day (0-10 hours)
-    overtimeRate: 22, // £22 per hour after 10 hours
-    label: "General Fitter",
-  },
-  labourer: {
-    dayRate: 200, // £200 per day (0-10 hours)
-    overtimeRate: 20, // £20 per hour after 10 hours
-    label: "Labourer/Assistant Fitter",
-  },
-};
-
-const VEHICLE_RATES = {
-  "luton-van": 0.75, // £0.75 per mile
-  "medium-van": 0.65, // £0.65 per mile
-  "small-van": 0.55, // £0.55 per mile
-};
 
 const JOB_TYPE_MULTIPLIERS = {
   emergency: 1.5,
@@ -150,10 +126,6 @@ async function calculateRoundTrip(
     }
 
     const data = await response.json();
-    console.log(
-      "Google Directions API response:",
-      JSON.stringify(data, null, 2)
-    );
 
     if (data.status === "OK" && data.routes && data.routes.length > 0) {
       const route = data.routes[0];
@@ -311,10 +283,41 @@ export async function POST(request: NextRequest) {
     // Calculate travel hours (rounded up to nearest whole hour)
     const durationHours = Math.ceil(duration / 60);
 
+    // Fetch worker types from database
+    const client = await clientPromise;
+    const db = client.db();
+
+    const workerTypesFromDb = await db
+      .collection("worker-types")
+      .find({})
+      .toArray();
+
+    const vehiclesFromDb = await db.collection("vehicles").find({}).toArray();
+
+    // Create worker rates map from database
+    const WORKER_RATES: {
+      [key: string]: { dayRate: number; overtimeRate: number; label: string };
+    } = {};
+    workerTypesFromDb.forEach((wt: any) => {
+      WORKER_RATES[wt.value] = {
+        dayRate: wt.dayRate,
+        overtimeRate: wt.overtimeRate,
+        label: wt.name,
+      };
+    });
+
+    // Create vehicle rates map from database
+    const VEHICLE_RATES: { [key: string]: number } = {};
+    vehiclesFromDb.forEach((v: any) => {
+      const vehicleKey = v.name.toLowerCase().replace(/\s+/g, "-");
+      VEHICLE_RATES[vehicleKey] = v.pricePerMile;
+    });
+
     // Ensure we have worker types for each worker
     const finalWorkerTypes = [...workerTypes];
+    const defaultWorkerType = workerTypesFromDb[0]?.value || "general-fitter";
     while (finalWorkerTypes.length < numberOfWorkers) {
-      finalWorkerTypes.push("general-fitter"); // Default to general fitter
+      finalWorkerTypes.push(defaultWorkerType);
     }
     finalWorkerTypes.splice(numberOfWorkers); // Remove excess
 
@@ -326,8 +329,11 @@ export async function POST(request: NextRequest) {
     let totalLaborCost = 0;
 
     finalWorkerTypes.forEach((workerType) => {
-      const rates = WORKER_RATES[workerType as keyof typeof WORKER_RATES];
-      if (!rates) return;
+      const rates = WORKER_RATES[workerType];
+      if (!rates) {
+        console.log(`Worker type not found: ${workerType}`);
+        return;
+      }
 
       const overtimeHours = Math.max(totalHoursWithTravel - 10, 0);
       const regularCost = rates.dayRate; // Full day rate for up to 10 hours
