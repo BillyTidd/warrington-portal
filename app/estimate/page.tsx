@@ -463,6 +463,7 @@ export default function EstimatePage() {
 
     setIsBooking(true);
     try {
+      // Submit booking request to database
       const response = await fetch("/api/booking-request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -477,6 +478,19 @@ export default function EstimatePage() {
       });
 
       if (!response.ok) throw new Error("Failed to submit booking request");
+
+      // Send email notification via server-side API
+      fetch("/api/send-estimation-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          estimateData: formData,
+          estimate: estimate,
+        }),
+      }).catch((error) => {
+        // Email failed but booking succeeded - log and continue
+        console.error("Failed to send email notification:", error);
+      });
 
       toast.success("Booking request submitted successfully!");
       router.push("/admin/job-requests");
