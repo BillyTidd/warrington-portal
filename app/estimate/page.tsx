@@ -1429,9 +1429,7 @@ export default function EstimatePage() {
                             Work Hours:
                           </span>
                           <span className="font-medium">
-                            {formData.numberOfHours -
-                              estimate.breakdown.travel.durationHours}{" "}
-                            hours
+                            {formData.numberOfHours} hours
                           </span>
                         </div>
                         <div className="flex justify-between">
@@ -1459,7 +1457,9 @@ export default function EstimatePage() {
                             <strong>Total Billable Hours:</strong>
                           </span>
                           <span className="font-bold">
-                            {formData.numberOfHours} hours
+                            {formData.numberOfHours +
+                              estimate.breakdown.travel.durationHours}{" "}
+                            hours
                           </span>
                         </div>
                       </div>
