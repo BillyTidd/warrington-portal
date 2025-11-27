@@ -603,8 +603,8 @@ export default function EstimatePage() {
                 : "/estimate-logo-light.jpg"
             }
             alt="Logo"
-            width={100}
-            height={100}
+            width={150}
+            height={150}
             className="mb-8 mx-auto"
           />
           <h1

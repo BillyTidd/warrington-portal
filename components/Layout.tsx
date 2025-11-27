@@ -132,9 +132,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <>
               {theme === "dark" ? (
                 <Image
-                  src={"/logo-light.png"}
+                  src={"/new-logo-dark.png"}
                   alt="logo"
-                  width={400}
+                  width={600}
                   height={200}
                 />
               ) : (
