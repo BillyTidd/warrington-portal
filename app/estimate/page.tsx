@@ -956,8 +956,10 @@ export default function EstimatePage() {
                 </div>
               </div>
 
-              {/* Customer Information */}
-              <div className="space-y-4 border-t pt-6">
+              {/* Customer Information - Commented out as per requirement */}
+              {/* If user is logged in, their data will be auto-populated from the useEffect hook (lines 208-230) */}
+              {/* If user is not logged in, empty data will be passed */}
+              {/* <div className="space-y-4 border-t pt-6">
                 <h3
                   className={`text-lg font-semibold flex items-center ${
                     theme === "dark" ? "text-white" : "text-slate-900"
@@ -1067,7 +1069,7 @@ export default function EstimatePage() {
                     />
                   </div>
                 </div>
-              </div>
+              </div> */}
 
               <Button
                 onClick={calculateEstimate}
