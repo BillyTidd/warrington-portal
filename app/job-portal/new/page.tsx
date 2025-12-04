@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-
+import { Suspense } from "react";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -15,6 +15,27 @@ import type { Job, Worker } from "@/types/job";
 import { JobFormFields } from "@/components/job-portal/JobFormFields";
 
 export default function NewJobPage() {
+  return (
+    <Suspense
+      fallback={
+        <Layout>
+          <div className="container mx-auto py-8 px-4">
+            <div className="flex justify-center items-center h-64">
+              <div className="text-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading...</p>
+              </div>
+            </div>
+          </div>
+        </Layout>
+      }
+    >
+      <NewJobPageContent />
+    </Suspense>
+  );
+}
+
+function NewJobPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
