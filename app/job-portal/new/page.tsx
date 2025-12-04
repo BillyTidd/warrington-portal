@@ -3,7 +3,7 @@
 import type React from "react";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { format } from "date-fns";
 import { ArrowLeft, Loader2, Save } from "lucide-react";
@@ -16,10 +16,16 @@ import { JobFormFields } from "@/components/job-portal/JobFormFields";
 
 export default function NewJobPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
+
+  // Get date from URL params if available, otherwise use today's date
+  const dateParam = searchParams.get("date");
+  const defaultDate = dateParam || format(new Date(), "yyyy-MM-dd");
+
   const [job, setJob] = useState<Partial<any>>({
     jobName: "",
-    assignDate: format(new Date(), "yyyy-MM-dd"),
+    assignDate: defaultDate,
     expireDate: format(
       new Date(new Date().setMonth(new Date().getMonth() + 1)),
       "yyyy-MM-dd"
@@ -34,6 +40,16 @@ export default function NewJobPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   const isAdmin = session?.user?.role === "admin";
+
+  // Update assignDate when URL date param is available
+  useEffect(() => {
+    if (dateParam) {
+      setJob((prev) => ({
+        ...prev,
+        assignDate: dateParam,
+      }));
+    }
+  }, [dateParam]);
 
   useEffect(() => {
     fetchData();
