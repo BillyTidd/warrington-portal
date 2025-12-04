@@ -77,7 +77,6 @@ export function CalendarView({
   const [displayMode, setDisplayMode] = useState<"assign" | "expire">("assign");
   const [viewType, setViewType] = useState<"month" | "week" | "day">("month");
   const [hoveredHour, setHoveredHour] = useState<string | null>(null);
-
   // Navigate based on view type
   const handleNavigate = (direction: "prev" | "next") => {
     if (viewType === "month") {
@@ -142,55 +141,78 @@ export function CalendarView({
     return eachHourOfInterval({ start: dayStart, end: dayEnd });
   }, [currentDate]);
 
-  // Group jobs by date
+  // Group jobs by date - jobs appear on all days between assignDate and expireDate
   const jobsByDate = useMemo(() => {
     const byDate: Record<string, any[]> = {};
 
     jobs.forEach((job: any) => {
-      // Use either the assign date or expire date based on display mode
-      const dateKey =
-        displayMode === "assign" ? job.assignDate : job.expireDate;
-      const formattedDate = format(parseISO(dateKey), "yyyy-MM-dd");
+      if (!job.assignDate || !job.expireDate) return;
 
-      if (!byDate[formattedDate]) {
-        byDate[formattedDate] = [];
-      }
+      const startDate = parseISO(job.assignDate);
+      const endDate = parseISO(job.expireDate);
 
-      byDate[formattedDate].push(job);
+      // Ensure startDate is before or equal to endDate
+      if (startDate > endDate) return;
+
+      // Get all days between start and end date (inclusive)
+      const daysInRange = eachDayOfInterval({ start: startDate, end: endDate });
+
+      daysInRange.forEach((day) => {
+        const formattedDate = format(day, "yyyy-MM-dd");
+
+        if (!byDate[formattedDate]) {
+          byDate[formattedDate] = [];
+        }
+
+        // Add job to this date if not already added
+        if (!byDate[formattedDate].some((j: any) => j._id === job._id)) {
+          byDate[formattedDate].push(job);
+        }
+      });
     });
 
     return byDate;
-  }, [jobs, displayMode]);
+  }, [jobs]);
 
-  // Group jobs by hour for day view
+  // Group jobs by hour for day view - shows jobs if current day falls within their date range
   const jobsByHour = useMemo(() => {
     const byHour: Record<string, any[]> = {};
 
     if (viewType !== "day") return byHour;
 
     const currentDateStr = format(currentDate, "yyyy-MM-dd");
+    const currentDayStart = startOfDay(currentDate);
 
     jobs.forEach((job) => {
-      const dateKey =
-        displayMode === "assign" ? job.assignDate : job.expireDate;
-      const jobDate = parseISO(dateKey);
-      const jobDateStr = format(jobDate, "yyyy-MM-dd");
+      if (!job.assignDate || !job.expireDate) return;
 
-      if (jobDateStr === currentDateStr) {
-        // Default to 9 AM if no specific time
-        const hour = format(jobDate, "HH");
-        const hourKey = `${currentDateStr}-${hour}`;
+      const startDate = parseISO(job.assignDate);
+      const endDate = parseISO(job.expireDate);
+
+      // Ensure startDate is before or equal to endDate
+      if (startDate > endDate) return;
+
+      // Check if current date falls within the job's date range
+      const isWithinRange =
+        currentDayStart >= startOfDay(startDate) &&
+        currentDayStart <= endOfDay(endDate);
+
+      if (isWithinRange) {
+        // Default to 9 AM for display
+        const hourKey = `${currentDateStr}-09`;
 
         if (!byHour[hourKey]) {
           byHour[hourKey] = [];
         }
 
-        byHour[hourKey].push(job);
+        if (!byHour[hourKey].some((j: any) => j._id === job._id)) {
+          byHour[hourKey].push(job);
+        }
       }
     });
 
     return byHour;
-  }, [jobs, displayMode, currentDate, viewType]);
+  }, [jobs, currentDate, viewType]);
 
   // Handle creating a new job from calendar
   const handleCreateJob = (date: Date) => {
@@ -426,21 +448,21 @@ export function CalendarView({
                               </TooltipTrigger>
                               <TooltipContent
                                 side="top"
-                                className="max-w-xs bg-white dark:bg-gray-800 p-3 shadow-xl"
+                                className="max-w-xs bg-white dark:bg-slate-800 p-3 shadow-xl border border-slate-200 dark:border-slate-700"
                               >
                                 <div className="space-y-2">
-                                  <p className="font-medium text-base">
+                                  <p className="font-medium text-base text-slate-900 dark:text-white">
                                     {job.jobName}
                                   </p>
-                                  <div className="flex items-center text-xs">
+                                  <div className="flex items-center text-xs text-slate-600 dark:text-slate-300">
                                     <User2 className="h-3 w-3 mr-1.5" />
                                     <span>{job.workerName}</span>
                                   </div>
-                                  <div className="flex items-center text-xs">
+                                  <div className="flex items-center text-xs text-slate-600 dark:text-slate-300">
                                     <Briefcase className="h-3 w-3 mr-1.5" />
                                     <span>{job.clientName}</span>
                                   </div>
-                                  <div className="flex items-center text-xs">
+                                  <div className="flex items-center text-xs text-slate-600 dark:text-slate-300">
                                     <CircleDollarSign className="h-3 w-3 mr-1.5" />
                                     <span>
                                       ${job.clientPrice?.toFixed(2) || "0.00"}
@@ -612,18 +634,22 @@ export function CalendarView({
 
                           {/* Jobs for this hour */}
                           {hourJobs.map((job) => {
-                            const jobDate = parseISO(
-                              displayMode === "assign"
-                                ? job.assignDate
-                                : job.expireDate
-                            );
-                            const jobHour = getHours(jobDate);
+                            if (!job.assignDate || !job.expireDate) return null;
 
-                            // Only show job if it's for this hour and day
-                            if (
-                              jobHour === hourIndex &&
-                              isSameDay(jobDate, day)
-                            ) {
+                            const startDate = parseISO(job.assignDate);
+                            const endDate = parseISO(job.expireDate);
+
+                            // Ensure startDate is before or equal to endDate
+                            if (startDate > endDate) return null;
+
+                            // Check if this day falls within the job's date range
+                            const dayStart = startOfDay(day);
+                            const isWithinRange =
+                              dayStart >= startOfDay(startDate) &&
+                              dayStart <= endOfDay(endDate);
+
+                            // Show job at 9 AM on all days it spans
+                            if (isWithinRange && hourIndex === 9) {
                               return (
                                 <TooltipProvider key={job._id}>
                                   <Tooltip>
@@ -649,21 +675,21 @@ export function CalendarView({
                                     </TooltipTrigger>
                                     <TooltipContent
                                       side="top"
-                                      className="max-w-xs bg-white dark:bg-gray-800 p-3 shadow-xl"
+                                      className="max-w-xs bg-white dark:bg-slate-800 p-3 shadow-xl border border-slate-200 dark:border-slate-700"
                                     >
                                       <div className="space-y-2">
-                                        <p className="font-medium text-base">
+                                        <p className="font-medium text-base text-slate-900 dark:text-white">
                                           {job.jobName}
                                         </p>
-                                        <div className="flex items-center text-xs">
+                                        <div className="flex items-center text-xs text-slate-600 dark:text-slate-300">
                                           <User2 className="h-3 w-3 mr-1.5" />
                                           <span>{job.workerName}</span>
                                         </div>
-                                        <div className="flex items-center text-xs">
+                                        <div className="flex items-center text-xs text-slate-600 dark:text-slate-300">
                                           <Briefcase className="h-3 w-3 mr-1.5" />
                                           <span>{job.clientName}</span>
                                         </div>
-                                        <div className="flex items-center text-xs">
+                                        <div className="flex items-center text-xs text-slate-600 dark:text-slate-300">
                                           <CircleDollarSign className="h-3 w-3 mr-1.5" />
                                           <span>
                                             $
@@ -840,21 +866,21 @@ export function CalendarView({
                               </TooltipTrigger>
                               <TooltipContent
                                 side="right"
-                                className="max-w-xs bg-white dark:bg-gray-800 p-3 shadow-xl"
+                                className="max-w-xs bg-white dark:bg-slate-800 p-3 shadow-xl border border-slate-200 dark:border-slate-700"
                               >
                                 <div className="space-y-2">
-                                  <p className="font-medium text-base">
+                                  <p className="font-medium text-base text-slate-900 dark:text-white">
                                     {job.jobName}
                                   </p>
-                                  <div className="flex items-center text-xs">
+                                  <div className="flex items-center text-xs text-slate-600 dark:text-slate-300">
                                     <User2 className="h-3 w-3 mr-1.5" />
                                     <span>{job.workerName}</span>
                                   </div>
-                                  <div className="flex items-center text-xs">
+                                  <div className="flex items-center text-xs text-slate-600 dark:text-slate-300">
                                     <Briefcase className="h-3 w-3 mr-1.5" />
                                     <span>{job.clientName}</span>
                                   </div>
-                                  <div className="flex items-center text-xs">
+                                  <div className="flex items-center text-xs text-slate-600 dark:text-slate-300">
                                     <CircleDollarSign className="h-3 w-3 mr-1.5" />
                                     <span>
                                       ${job.clientPrice?.toFixed(2) || "0.00"}
