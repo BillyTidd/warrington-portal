@@ -16,6 +16,13 @@ import {
   PoundSterling,
   Clock,
   Info,
+  Paperclip,
+  ExternalLink,
+  Upload,
+  Moon,
+  Sun,
+  Navigation,
+  Hash,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -91,6 +98,10 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const [editingProgress, setEditingProgress] = useState<JobProgressLog | null>(
     null
   );
+
+  // PDF / Documents state
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false);
 
   const isAdmin = session?.user?.role === "admin";
   const isClient = session?.user?.role === "customer";
@@ -254,10 +265,10 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           progressData.workType === "extra"
             ? progressData.overtimeHours * workerHourlyRate
             : progressData.workType === "vehicle"
-            ? progressData.vehicleUsage?.totalCost
-            : progressData.amount
-            ? Number.parseFloat(progressData.amount.toString())
-            : undefined,
+              ? progressData.vehicleUsage?.totalCost
+              : progressData.amount
+                ? Number.parseFloat(progressData.amount.toString())
+                : undefined,
         overtimeHours: progressData.overtimeHours,
         overtimeCost:
           progressData.workType === "extra" &&
@@ -419,6 +430,37 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
     } catch (error) {
       console.error("Error generating PDF:", error);
       toast.error("Failed to generate PDF report");
+    }
+  };
+
+  const handleUploadPdf = async () => {
+    if (!pdfFile || !job) return;
+    setIsUploadingPdf(true);
+    try {
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", pdfFile);
+      const uploadRes = await fetch("/api/upload-cloudinary", {
+        method: "POST",
+        body: uploadFormData,
+      });
+      if (!uploadRes.ok) throw new Error("Failed to upload PDF");
+      const { url } = await uploadRes.json();
+
+      // PATCH the job with new pdfUrl
+      const updateRes = await fetch(`/api/jobs/${params.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...job, pdfUrl: url }),
+      });
+      if (!updateRes.ok) throw new Error("Failed to update job with PDF");
+
+      await fetchJobDetails();
+      setPdfFile(null);
+      toast.success("PDF uploaded successfully");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to upload PDF");
+    } finally {
+      setIsUploadingPdf(false);
     }
   };
 
@@ -689,8 +731,8 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                   profitMargin >= 20
                     ? "bg-green-500"
                     : profitMargin >= 0
-                    ? "bg-amber-500"
-                    : "bg-red-500"
+                      ? "bg-amber-500"
+                      : "bg-red-500"
                 }`}
               >
                 {profitMargin.toFixed(1)}%
@@ -901,7 +943,9 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           onValueChange={setActiveTab}
           className="w-full"
         >
-          <TabsList className="grid grid-cols-3 mb-6">
+          <TabsList
+            className={`grid mb-6 ${isAdmin ? "grid-cols-4" : "grid-cols-3"}`}
+          >
             <TabsTrigger
               value="details"
               className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
@@ -915,6 +959,13 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
             >
               <ClipboardList className="h-4 w-4 mr-2" />
               Expenses / Progress
+            </TabsTrigger>
+            <TabsTrigger
+              value="documents"
+              className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+            >
+              <Paperclip className="h-4 w-4 mr-2" />
+              Documents
             </TabsTrigger>
             {isAdmin && (
               <TabsTrigger
@@ -1033,6 +1084,229 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                 />
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="documents" className="mt-0">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Current PDF */}
+              <Card className="border-none shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 pb-3">
+                  <CardTitle className="text-lg flex items-center">
+                    <FileText className="h-5 w-5 mr-2 text-blue-500" />
+                    Job Document
+                  </CardTitle>
+                  <CardDescription>PDF attached to this job</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  {job.pdfUrl ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border">
+                        <FileText className="h-8 w-8 text-blue-500 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            Job PDF Document
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Attached to this job
+                          </p>
+                        </div>
+                        <a
+                          href={job.pdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Button variant="outline" size="sm">
+                            <ExternalLink className="h-4 w-4 mr-1" />
+                            View
+                          </Button>
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Paperclip className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                      <p className="text-sm">No PDF attached to this job</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Upload / Replace PDF */}
+              {(isAdmin || isAssignedToMe) && (
+                <Card className="border-none shadow-lg">
+                  <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 pb-3">
+                    <CardTitle className="text-lg flex items-center">
+                      <Upload className="h-5 w-5 mr-2 text-violet-500" />
+                      {job.pdfUrl ? "Replace PDF" : "Upload PDF"}
+                    </CardTitle>
+                    <CardDescription>
+                      {job.pdfUrl
+                        ? "Uploading a new PDF will replace the current one"
+                        : "Attach a PDF document to this job"}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-4 space-y-3">
+                    {pdfFile ? (
+                      <div className="flex items-center gap-2 p-3 rounded-lg border">
+                        <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                        <span className="text-sm flex-1 truncate">
+                          {pdfFile.name}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => setPdfFile(null)}
+                        >
+                          <span className="text-xs">✕</span>
+                        </Button>
+                      </div>
+                    ) : (
+                      <label className="flex items-center justify-center gap-2 p-4 rounded-lg border-2 border-dashed cursor-pointer hover:border-violet-400 transition-colors text-muted-foreground hover:text-violet-500">
+                        <Paperclip className="h-4 w-4" />
+                        <span className="text-sm">Click to select a PDF</span>
+                        <input
+                          type="file"
+                          accept=".pdf,application/pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) setPdfFile(f);
+                          }}
+                        />
+                      </label>
+                    )}
+                    <Button
+                      onClick={handleUploadPdf}
+                      disabled={!pdfFile || isUploadingPdf}
+                      className="w-full"
+                    >
+                      {isUploadingPdf ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-2" />
+                          {job.pdfUrl ? "Replace PDF" : "Upload PDF"}
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Job Extra Details — team, shift, reference, multipliers */}
+            {(job.jobEstimate?.team ||
+              job.jobEstimate?.jobShift ||
+              job.jobEstimate?.jobReference ||
+              job.jobEstimate?.londonStartingPoint ||
+              job.jobEstimate?.manager) && (
+              <Card className="mt-6 border-none shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40 pb-3">
+                  <CardTitle className="text-lg flex items-center">
+                    <Info className="h-5 w-5 mr-2 text-amber-500" />
+                    Job Configuration
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    {job.jobEstimate?.team && (
+                      <div>
+                        <p className="text-muted-foreground text-xs mb-1">
+                          Team
+                        </p>
+                        <Badge
+                          variant="secondary"
+                          className="flex items-center gap-1 w-fit"
+                        >
+                          <Navigation className="h-3 w-3" />
+                          {job.jobEstimate.team === "london"
+                            ? "London"
+                            : "Default"}
+                        </Badge>
+                      </div>
+                    )}
+                    {job.jobEstimate?.jobShift && (
+                      <div>
+                        <p className="text-muted-foreground text-xs mb-1">
+                          Shift
+                        </p>
+                        {job.jobEstimate.jobShift === "night" ? (
+                          <Badge
+                            variant="outline"
+                            className="flex items-center gap-1 w-fit text-indigo-600 border-indigo-400"
+                          >
+                            <Moon className="h-3 w-3" />
+                            Night (×1.5)
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="flex items-center gap-1 w-fit text-amber-600 border-amber-400"
+                          >
+                            <Sun className="h-3 w-3" />
+                            Day
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                    {job.jobEstimate?.jobReference && (
+                      <div>
+                        <p className="text-muted-foreground text-xs mb-1">
+                          Reference
+                        </p>
+                        <p className="font-medium flex items-center gap-1">
+                          <Hash className="h-3 w-3 text-muted-foreground" />
+                          {job.jobEstimate.jobReference}
+                        </p>
+                      </div>
+                    )}
+                    {job.jobEstimate?.londonStartingPoint && (
+                      <div>
+                        <p className="text-muted-foreground text-xs mb-1">
+                          Starting Point
+                        </p>
+                        <p className="font-medium flex items-center gap-1">
+                          <Navigation className="h-3 w-3 text-muted-foreground" />
+                          {job.jobEstimate.londonStartingPoint}
+                        </p>
+                      </div>
+                    )}
+                    {job.jobEstimate?.manager && (
+                      <div>
+                        <p className="text-muted-foreground text-xs mb-1">
+                          Manager
+                        </p>
+                        <p className="font-medium">{job.jobEstimate.manager}</p>
+                      </div>
+                    )}
+                  </div>
+                  {/* Rate multipliers */}
+                  {job.estimatedCosts && (
+                    <div className="mt-4 pt-4 border-t">
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Rate Adjustments
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {job.jobEstimate?.jobShift === "night" && (
+                          <Badge className="bg-indigo-500 text-white">
+                            Night ×1.5
+                          </Badge>
+                        )}
+                        {job.estimatedCosts?.isWeekend && (
+                          <Badge className="bg-orange-500 text-white">
+                            Weekend ×1.5
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {isAdmin && (

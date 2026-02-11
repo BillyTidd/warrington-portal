@@ -18,6 +18,10 @@ import {
   Clock,
   Calendar,
   FileText,
+  Moon,
+  Sun,
+  Hash,
+  Navigation,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -200,8 +204,20 @@ export function JobRequestDetailsModal({
                 Request ID: {request._id?.toString().slice(-8)}
               </DialogDescription>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               {getStatusBadge(request.status)}
+              {request.pdfUrl && (
+                <a
+                  href={request.pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button variant="outline" size="sm">
+                    <FileText className="h-4 w-4 mr-2" />
+                    View PDF
+                  </Button>
+                </a>
+              )}
               {isConverted && request.convertedToJobId && (
                 <Link href={`/job-portal/${request.convertedToJobId}`}>
                   <Button variant="outline" size="sm">
@@ -334,6 +350,102 @@ export function JobRequestDetailsModal({
                       </p>
                     </div>
                   </div>
+
+                  {/* Team & Shift */}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {request.jobEstimate.team === "london" && (
+                      <Badge
+                        variant="secondary"
+                        className="flex items-center gap-1"
+                      >
+                        <Navigation className="h-3 w-3" />
+                        London Team
+                      </Badge>
+                    )}
+                    {request.jobEstimate.jobShift === "night" ? (
+                      <Badge
+                        variant="outline"
+                        className="flex items-center gap-1 text-indigo-600 border-indigo-400"
+                      >
+                        <Moon className="h-3 w-3" />
+                        Night Shift — ×1.5
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="flex items-center gap-1 text-amber-600 border-amber-400"
+                      >
+                        <Sun className="h-3 w-3" />
+                        Day Shift
+                      </Badge>
+                    )}
+                    {request.estimatedCost?.breakdown?.isWeekend && (
+                      <Badge
+                        variant="outline"
+                        className="flex items-center gap-1 text-orange-600 border-orange-400"
+                      >
+                        Weekend — ×1.5
+                      </Badge>
+                    )}
+                    {request.estimatedCost?.breakdown?.combinedShiftMultiplier >
+                      1 && (
+                      <Badge className="bg-amber-500 text-white flex items-center gap-1">
+                        Combined ×
+                        {request.estimatedCost.breakdown.combinedShiftMultiplier.toFixed(
+                          2
+                        )}
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Job Reference */}
+                  {request.jobEstimate.jobReference && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+                        <Hash className="h-4 w-4 text-slate-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium">
+                          {request.jobEstimate.jobReference}
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                          Job Reference
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* London Starting Point */}
+                  {request.jobEstimate.londonStartingPoint && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                        <Navigation className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium">
+                          {request.jobEstimate.londonStartingPoint}
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                          London Starting Point
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Manager */}
+                  {request.jobEstimate.manager && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                        <Users className="h-4 w-4 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium">
+                          {request.jobEstimate.manager}
+                        </p>
+                        <p className="text-muted-foreground text-xs">Manager</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

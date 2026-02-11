@@ -168,6 +168,9 @@ export async function PATCH(
           // Link back to original booking request
           bookingRequestId: params.id,
           adminNotes: adminNotes || null,
+
+          // Carry over PDF and extra fields from booking request
+          pdfUrl: bookingRequest.pdfUrl || null,
         };
         const jobResult = await db.collection("jobs").insertOne(jobData);
         jobId = jobResult.insertedId.toString();

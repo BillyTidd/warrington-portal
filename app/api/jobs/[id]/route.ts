@@ -136,8 +136,11 @@ export async function PUT(
       const { _id, ...jobDataWithoutId } = jobData;
       updateData = jobDataWithoutId;
     } else {
-      // Regular users can only update status
-      updateData = { status: jobData.status };
+      // Regular users can only update status and pdfUrl
+      updateData = {
+        ...(jobData.status !== undefined && { status: jobData.status }),
+        ...(jobData.pdfUrl !== undefined && { pdfUrl: jobData.pdfUrl }),
+      };
     }
 
     // Add updated metadata
