@@ -23,6 +23,8 @@ import {
   Plus,
   X,
   Clock,
+  Paperclip,
+  FileText as FileTextIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,6 +72,11 @@ interface EstimateData {
   workerTypes: string[];
   vehicleType: string;
   postcodes: string[];
+  team: string;
+  jobReference: string;
+  londonStartingPoint: string;
+  jobShift: string;
+  manager: string;
 }
 
 interface LaborBreakdown {
@@ -99,6 +106,11 @@ interface CostEstimate {
     };
     jobTypeMultiplier: number;
     jobType: string;
+    isWeekend: boolean;
+    isNightShift: boolean;
+    shiftMultiplier: number;
+    weekendMultiplier: number;
+    combinedShiftMultiplier: number;
   };
 }
 
@@ -135,14 +147,37 @@ export default function EstimatePage() {
     workerTypes: [""],
     vehicleType: "",
     postcodes: [""],
+    team: "default",
+    jobReference: "",
+    londonStartingPoint: "",
+    jobShift: "day",
+    manager: "",
   });
 
   const [estimate, setEstimate] = useState<CostEstimate | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false);
 
   const isLoggedIn = !!session?.user;
   const isCustomer = session?.user?.role === "customer";
+  const isLondon = formData.team === "london";
+  // const showManagerDropdown = session?.user?.email === "jun@gmail.com";
+  const showManagerDropdown = true;
+  const MANAGERS = [
+    "John Smith",
+    "Sarah Johnson",
+    "Mike Davis",
+    "Emma Wilson",
+    "Chris Brown",
+  ];
+  const isWeekendDate = (() => {
+    if (!formData.jobDate) return false;
+    const [y, m, d] = formData.jobDate.split("-").map(Number);
+    const day = new Date(y, m - 1, d).getDay();
+    return day === 0 || day === 6;
+  })();
 
   // Fetch dynamic worker types and vehicles
   useEffect(() => {
@@ -273,6 +308,10 @@ export default function EstimatePage() {
     }
     if (!formData.jobDate) {
       errors.push("Job date is required");
+    }
+
+    if (formData.team === "london" && !formData.londonStartingPoint?.trim()) {
+      errors.push("Job starting point is required for London jobs");
     }
 
     // Validate postcodes array
@@ -463,6 +502,28 @@ export default function EstimatePage() {
 
     setIsBooking(true);
     try {
+      // Upload PDF to Cloudinary if one was selected
+      let pdfUrl: string | null = null;
+      if (pdfFile) {
+        setIsUploadingPdf(true);
+        try {
+          const uploadFormData = new FormData();
+          uploadFormData.append("file", pdfFile);
+          const uploadRes = await fetch("/api/upload-cloudinary", {
+            method: "POST",
+            body: uploadFormData,
+          });
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            pdfUrl = uploadData.url;
+          } else {
+            throw new Error("Failed to upload PDF");
+          }
+        } finally {
+          setIsUploadingPdf(false);
+        }
+      }
+
       // Submit booking request to database
       const response = await fetch("/api/booking-request", {
         method: "POST",
@@ -474,6 +535,7 @@ export default function EstimatePage() {
           customerCompany: formData.customerCompany,
           jobEstimate: formData,
           estimatedCost: estimate,
+          pdfUrl,
         }),
       });
 
@@ -668,6 +730,79 @@ export default function EstimatePage() {
                   Job Details
                 </h3>
 
+                {/* Manager dropdown — only for jun@gmail.com */}
+                {showManagerDropdown && (
+                  <div>
+                    <Label
+                      className={
+                        theme === "dark" ? "text-slate-200" : "text-slate-700"
+                      }
+                    >
+                      Manager
+                    </Label>
+                    <Select
+                      value={formData.manager}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({ ...prev, manager: value }))
+                      }
+                    >
+                      <SelectTrigger
+                        className={`mt-1 ${
+                          theme === "dark"
+                            ? "bg-slate-700 border-slate-600 text-white"
+                            : "bg-white border-slate-300 text-slate-900"
+                        }`}
+                      >
+                        <SelectValue placeholder="Select a manager" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MANAGERS.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Team Selection */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label
+                      className={
+                        theme === "dark" ? "text-slate-200" : "text-slate-700"
+                      }
+                    >
+                      Team *
+                    </Label>
+                    <Select
+                      value={formData.team}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          team: value,
+                          londonStartingPoint: "",
+                        }))
+                      }
+                    >
+                      <SelectTrigger
+                        className={`mt-1 ${
+                          theme === "dark"
+                            ? "bg-slate-700 border-slate-600 text-white"
+                            : "bg-white border-slate-300 text-slate-900"
+                        }`}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">Default</SelectItem>
+                        <SelectItem value="london">London</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label
@@ -802,20 +937,24 @@ export default function EstimatePage() {
                       min={format(new Date(), "yyyy-MM-dd")}
                       required
                     />
+                    {isWeekendDate && (
+                      <p className="mt-1 text-xs font-medium text-amber-500">
+                        Weekend — ×1.5 rate applies
+                      </p>
+                    )}
                   </div>
                   <div>
                     <Label
-                      htmlFor="vehicleType"
                       className={
                         theme === "dark" ? "text-slate-200" : "text-slate-700"
                       }
                     >
-                      Vehicle Type
+                      Shift *
                     </Label>
                     <Select
-                      value={formData.vehicleType}
+                      value={formData.jobShift}
                       onValueChange={(value) =>
-                        setFormData((prev) => ({ ...prev, vehicleType: value }))
+                        setFormData((prev) => ({ ...prev, jobShift: value }))
                       }
                     >
                       <SelectTrigger
@@ -824,6 +963,47 @@ export default function EstimatePage() {
                             ? "bg-slate-700 border-slate-600 text-white"
                             : "bg-white border-slate-300 text-slate-900"
                         }`}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="day">Day (06:00 – 18:00)</SelectItem>
+                        <SelectItem value="night">
+                          Night (18:00 – 06:00) — ×1.5
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label
+                      htmlFor="vehicleType"
+                      className={`${
+                        theme === "dark" ? "text-slate-200" : "text-slate-700"
+                      } ${isLondon ? "opacity-50" : ""}`}
+                    >
+                      Vehicle Type
+                      {isLondon && (
+                        <span className="ml-2 text-xs font-normal text-slate-400">
+                          (£30 flat — London)
+                        </span>
+                      )}
+                    </Label>
+                    <Select
+                      value={formData.vehicleType}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({ ...prev, vehicleType: value }))
+                      }
+                      disabled={isLondon}
+                    >
+                      <SelectTrigger
+                        className={`mt-1 ${
+                          theme === "dark"
+                            ? "bg-slate-700 border-slate-600 text-white"
+                            : "bg-white border-slate-300 text-slate-900"
+                        } ${isLondon ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
                         <SelectValue />
                       </SelectTrigger>
@@ -837,6 +1017,35 @@ export default function EstimatePage() {
                     </Select>
                   </div>
                 </div>
+
+                {/* London Starting Point */}
+                {isLondon && (
+                  <div>
+                    <Label
+                      htmlFor="londonStartingPoint"
+                      className={
+                        theme === "dark" ? "text-slate-200" : "text-slate-700"
+                      }
+                    >
+                      Job Starting Point *
+                    </Label>
+                    <div className="relative mt-1">
+                      <Input
+                        id="londonStartingPoint"
+                        name="londonStartingPoint"
+                        placeholder="Enter starting address for this London job"
+                        value={formData.londonStartingPoint}
+                        onChange={handleInputChange}
+                        className={`pl-10 ${
+                          theme === "dark"
+                            ? "bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                            : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
+                        }`}
+                      />
+                      <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <Label
@@ -922,6 +1131,29 @@ export default function EstimatePage() {
                     name="jobType"
                     placeholder="e.g., Installation, Maintenance, Repair, Emergency"
                     value={formData.jobType}
+                    onChange={handleInputChange}
+                    className={`mt-1 ${
+                      theme === "dark"
+                        ? "bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                        : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <Label
+                    htmlFor="jobReference"
+                    className={
+                      theme === "dark" ? "text-slate-200" : "text-slate-700"
+                    }
+                  >
+                    Job Reference
+                  </Label>
+                  <Input
+                    id="jobReference"
+                    name="jobReference"
+                    placeholder="e.g., JOB-001"
+                    value={formData.jobReference}
                     onChange={handleInputChange}
                     className={`mt-1 ${
                       theme === "dark"
@@ -1112,9 +1344,23 @@ export default function EstimatePage() {
                   }`}
                 >
                   <p className="font-medium mb-2">Travel calculated from:</p>
-                  <p>Unit 7, Matts Lodge Farm</p>
-                  <p>Grooms Lane, Northampton</p>
-                  <p>NN6 8NN</p>
+                  {isLondon ? (
+                    formData.londonStartingPoint ? (
+                      <p className="font-medium text-blue-500">
+                        {formData.londonStartingPoint}
+                      </p>
+                    ) : (
+                      <p className="italic text-slate-400">
+                        Enter job starting point in the form
+                      </p>
+                    )
+                  ) : (
+                    <>
+                      <p>Unit 7, Matts Lodge Farm</p>
+                      <p>Grooms Lane, Northampton</p>
+                      <p>NN6 8NN</p>
+                    </>
+                  )}
                   <p className="mt-2 text-xs">
                     Distance automatically calculated using your postcode via
                     Google Maps
@@ -1277,6 +1523,80 @@ export default function EstimatePage() {
                     </div>
                   </div>
 
+                  {/* Rate Adjustments */}
+                  {(estimate.breakdown.isWeekend ||
+                    estimate.breakdown.isNightShift) && (
+                    <div
+                      className={`mb-6 p-4 rounded-lg border ${
+                        theme === "dark"
+                          ? "bg-amber-900/20 border-amber-700"
+                          : "bg-amber-50 border-amber-200"
+                      }`}
+                    >
+                      <h4
+                        className={`font-semibold mb-3 flex items-center ${
+                          theme === "dark" ? "text-amber-300" : "text-amber-800"
+                        }`}
+                      >
+                        Rate Adjustments Applied
+                      </h4>
+                      <div className="space-y-1 text-sm">
+                        {estimate.breakdown.isWeekend && (
+                          <div className="flex justify-between items-center">
+                            <span
+                              className={
+                                theme === "dark"
+                                  ? "text-amber-200"
+                                  : "text-amber-700"
+                              }
+                            >
+                              Weekend Rate (Sat/Sun):
+                            </span>
+                            <span className="font-semibold text-amber-500">
+                              ×{estimate.breakdown.weekendMultiplier.toFixed(1)}
+                            </span>
+                          </div>
+                        )}
+                        {estimate.breakdown.isNightShift && (
+                          <div className="flex justify-between items-center">
+                            <span
+                              className={
+                                theme === "dark"
+                                  ? "text-amber-200"
+                                  : "text-amber-700"
+                              }
+                            >
+                              Night Shift Rate (18:00–06:00):
+                            </span>
+                            <span className="font-semibold text-amber-500">
+                              ×{estimate.breakdown.shiftMultiplier.toFixed(1)}
+                            </span>
+                          </div>
+                        )}
+                        {estimate.breakdown.isWeekend &&
+                          estimate.breakdown.isNightShift && (
+                            <div className="flex justify-between items-center border-t border-amber-300 pt-1 mt-1">
+                              <span
+                                className={`font-medium ${
+                                  theme === "dark"
+                                    ? "text-amber-100"
+                                    : "text-amber-800"
+                                }`}
+                              >
+                                Combined Multiplier:
+                              </span>
+                              <span className="font-bold text-amber-500">
+                                ×
+                                {estimate.breakdown.combinedShiftMultiplier.toFixed(
+                                  2
+                                )}
+                              </span>
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Labor Breakdown */}
                   <div className="mb-6">
                     <h4
@@ -1392,9 +1712,21 @@ export default function EstimatePage() {
                               : "text-slate-700"
                           }
                         >
-                          Travel Cost ({estimate.breakdown.travel.distance}{" "}
-                          miles @ £{estimate.breakdown.travel.rate}
-                          /mile)
+                          {formData.team === "london" ? (
+                            <>
+                              Travel Cost{" "}
+                              <span className="text-xs text-slate-400">
+                                (London flat rate —{" "}
+                                {estimate.breakdown.travel.distance} miles
+                                calculated)
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              Travel Cost ({estimate.breakdown.travel.distance}{" "}
+                              miles @ £{estimate.breakdown.travel.rate}/mile)
+                            </>
+                          )}
                         </span>
                       </div>
                       <span className="font-semibold text-lg">
@@ -1483,15 +1815,82 @@ export default function EstimatePage() {
                     </span>
                   </div>
 
+                  {/* Optional PDF Upload */}
+                  <div className="mt-4">
+                    <Label
+                      className={`flex items-center gap-2 mb-1 ${
+                        theme === "dark" ? "text-slate-200" : "text-slate-700"
+                      }`}
+                    >
+                      <Paperclip className="h-4 w-4" />
+                      Attach PDF (Optional)
+                    </Label>
+                    {pdfFile ? (
+                      <div
+                        className={`flex items-center gap-2 p-3 rounded-lg border ${
+                          theme === "dark"
+                            ? "bg-slate-700/50 border-slate-600"
+                            : "bg-white border-slate-200"
+                        }`}
+                      >
+                        <FileTextIcon className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                        <span
+                          className={`text-sm flex-1 truncate ${
+                            theme === "dark"
+                              ? "text-slate-200"
+                              : "text-slate-700"
+                          }`}
+                        >
+                          {pdfFile.name}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setPdfFile(null)}
+                          className="h-6 w-6"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <label
+                        className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
+                          theme === "dark"
+                            ? "border-slate-600 hover:border-blue-500 text-slate-400 hover:text-blue-400"
+                            : "border-slate-300 hover:border-blue-400 text-slate-500 hover:text-blue-500"
+                        }`}
+                      >
+                        <Paperclip className="h-4 w-4" />
+                        <span className="text-sm">
+                          Click to attach a PDF document
+                        </span>
+                        <input
+                          type="file"
+                          accept=".pdf,application/pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) setPdfFile(f);
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+
                   {/* Book Now Button */}
                   <div className="mt-6">
                     <Button
                       onClick={handleBookNow}
-                      disabled={isBooking}
+                      disabled={isBooking || isUploadingPdf}
                       className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
                       size="lg"
                     >
-                      {isBooking ? "Submitting..." : "Submit Job Request"}
+                      {isUploadingPdf
+                        ? "Uploading PDF..."
+                        : isBooking
+                          ? "Submitting..."
+                          : "Submit Job Request"}
                       <ArrowRight className="h-5 w-5 ml-2" />
                     </Button>
                   </div>
