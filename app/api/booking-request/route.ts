@@ -126,6 +126,7 @@ export async function POST(request: NextRequest) {
       customerCompany,
       jobEstimate,
       estimatedCost,
+      pdfUrl,
     } = body;
 
     // Validate required fields
@@ -153,6 +154,7 @@ export async function POST(request: NextRequest) {
       customerId: session.user.id, // Link to the user who created it
       jobEstimate,
       estimatedCost,
+      pdfUrl: pdfUrl || null,
       status: "pending",
       createdAt: new Date(),
       updatedAt: new Date(),
