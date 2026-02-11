@@ -15,6 +15,10 @@ interface EstimateRequest {
   workerTypes: string[];
   vehicleType: string;
   postcodes: string[];
+  team?: string;
+  londonStartingPoint?: string;
+  jobReference?: string;
+  jobShift?: string;
 }
 
 interface LaborBreakdown {
@@ -44,6 +48,11 @@ interface CostEstimate {
     };
     jobTypeMultiplier: number;
     jobType: string;
+    isWeekend: boolean;
+    isNightShift: boolean;
+    shiftMultiplier: number;
+    weekendMultiplier: number;
+    combinedShiftMultiplier: number;
   };
 }
 
@@ -232,11 +241,33 @@ export async function POST(request: NextRequest) {
     const {
       numberOfWorkers,
       numberOfHours,
+      jobDate,
       jobType,
       workerTypes = [],
       vehicleType = "medium-van",
       postcodes,
+      team = "default",
+      londonStartingPoint = "",
+      jobShift = "day",
     } = body;
+
+    // Detect weekend (Sat=6, Sun=0) using local date parsing to avoid UTC offset issues
+    const isWeekend = (() => {
+      if (!jobDate) return false;
+      const [y, m, d] = jobDate.split("-").map(Number);
+      const day = new Date(y, m - 1, d).getDay();
+      return day === 0 || day === 6;
+    })();
+    const isNightShift = jobShift === "night";
+    const weekendMultiplier = isWeekend ? 1.5 : 1.0;
+    const shiftMultiplier = isNightShift ? 1.5 : 1.0;
+    const combinedShiftMultiplier = weekendMultiplier * shiftMultiplier;
+
+    const isLondonTeam = team === "london";
+    const fromAddress =
+      isLondonTeam && londonStartingPoint.trim()
+        ? londonStartingPoint.trim()
+        : COMPANY_ADDRESS;
 
     // Validate required fields
     if (
@@ -276,7 +307,7 @@ export async function POST(request: NextRequest) {
 
     // Calculate round-trip distance and duration
     const { distance, duration } = await calculateRoundTrip(
-      COMPANY_ADDRESS,
+      fromAddress,
       validPostcodes.map((pc) => pc.trim())
     );
 
@@ -352,19 +383,22 @@ export async function POST(request: NextRequest) {
       totalLaborCost += totalWorkerCost;
     });
 
-    // Apply job type multiplier
+    // Apply job type multiplier + shift/weekend multipliers
     const jobTypeKey =
       jobType?.toLowerCase().replace(/[^a-z]/g, "") || "standard";
     const multiplier =
       JOB_TYPE_MULTIPLIERS[jobTypeKey as keyof typeof JOB_TYPE_MULTIPLIERS] ||
       1.0;
-    const adjustedLaborCost = totalLaborCost * multiplier;
+    const adjustedLaborCost =
+      totalLaborCost * multiplier * combinedShiftMultiplier;
 
-    // Calculate travel cost based on actual distance
-    const vehicleRate =
-      VEHICLE_RATES[vehicleType as keyof typeof VEHICLE_RATES] ||
-      VEHICLE_RATES["medium-van"];
-    const travelCost = distance * vehicleRate;
+    // Calculate travel cost — flat £50 for London, distance-based otherwise
+    const vehicleRate = isLondonTeam
+      ? 30
+      : VEHICLE_RATES[vehicleType as keyof typeof VEHICLE_RATES] ||
+        VEHICLE_RATES["medium-van"] ||
+        0;
+    const travelCost = isLondonTeam ? 50 : distance * vehicleRate;
 
     // Calculate total (NO MATERIALS - removed as requested)
     const totalCost = adjustedLaborCost + travelCost;
@@ -382,11 +416,16 @@ export async function POST(request: NextRequest) {
           vehicleType,
           rate: vehicleRate,
           cost: travelCost,
-          fromAddress: COMPANY_ADDRESS,
+          fromAddress,
           waypoints: validPostcodes,
         },
         jobTypeMultiplier: multiplier,
         jobType: jobType || "Standard",
+        isWeekend,
+        isNightShift,
+        shiftMultiplier,
+        weekendMultiplier,
+        combinedShiftMultiplier,
       },
     };
 
