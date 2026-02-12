@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { parseISO, differenceInDays } from "date-fns";
 import {
@@ -410,6 +411,17 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
         throw new Error("Failed to log status change");
       }
 
+      // Send email notification when job is completed
+      if (newStatus === "completed") {
+        fetch("/api/send-job-completion-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ job }),
+        }).catch((error) => {
+          console.error("Failed to send completion email:", error);
+        });
+      }
+
       await fetchJobDetails(); // Refresh job data
       toast.success("Status updated successfully");
     } catch (error: any) {
@@ -444,13 +456,13 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
         body: uploadFormData,
       });
       if (!uploadRes.ok) throw new Error("Failed to upload PDF");
-      const { url } = await uploadRes.json();
+      const { url, filename } = await uploadRes.json();
 
-      // PATCH the job with new pdfUrl
+      // PATCH the job with new pdfUrl and pdfFilename
       const updateRes = await fetch(`/api/jobs/${params.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...job, pdfUrl: url }),
+        body: JSON.stringify({ ...job, pdfUrl: url, pdfFilename: filename }),
       });
       if (!updateRes.ok) throw new Error("Failed to update job with PDF");
 
@@ -1104,22 +1116,21 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                         <FileText className="h-8 w-8 text-blue-500 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">
-                            Job PDF Document
+                            {job.pdfFilename || "Job PDF Document"}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             Attached to this job
                           </p>
                         </div>
-                        <a
-                          href={job.pdfUrl}
+                        <Link
+                          href={`/api/download-pdf?url=${encodeURIComponent(job.pdfUrl)}${job.pdfFilename ? `&filename=${encodeURIComponent(job.pdfFilename)}` : ""}`}
                           target="_blank"
-                          rel="noopener noreferrer"
                         >
                           <Button variant="outline" size="sm">
                             <ExternalLink className="h-4 w-4 mr-1" />
-                            View
+                            Download
                           </Button>
-                        </a>
+                        </Link>
                       </div>
                     </div>
                   ) : (

@@ -504,6 +504,7 @@ export default function EstimatePage() {
     try {
       // Upload PDF to Cloudinary if one was selected
       let pdfUrl: string | null = null;
+      let pdfFilename: string | null = null;
       if (pdfFile) {
         setIsUploadingPdf(true);
         try {
@@ -516,6 +517,7 @@ export default function EstimatePage() {
           if (uploadRes.ok) {
             const uploadData = await uploadRes.json();
             pdfUrl = uploadData.url;
+            pdfFilename = uploadData.filename;
           } else {
             throw new Error("Failed to upload PDF");
           }
@@ -536,6 +538,7 @@ export default function EstimatePage() {
           jobEstimate: formData,
           estimatedCost: estimate,
           pdfUrl,
+          pdfFilename,
         }),
       });
 

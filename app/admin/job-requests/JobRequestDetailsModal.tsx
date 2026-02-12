@@ -207,16 +207,15 @@ export function JobRequestDetailsModal({
             <div className="flex items-center gap-3 flex-wrap">
               {getStatusBadge(request.status)}
               {request.pdfUrl && (
-                <a
-                  href={request.pdfUrl}
+                <Link
+                  href={`/api/download-pdf?url=${encodeURIComponent(request.pdfUrl)}${request.pdfFilename ? `&filename=${encodeURIComponent(request.pdfFilename)}` : ""}`}
                   target="_blank"
-                  rel="noopener noreferrer"
                 >
                   <Button variant="outline" size="sm">
                     <FileText className="h-4 w-4 mr-2" />
-                    View PDF
+                    {request.pdfFilename ? `Download: ${request.pdfFilename}` : "Download PDF"}
                   </Button>
-                </a>
+                </Link>
               )}
               {isConverted && request.convertedToJobId && (
                 <Link href={`/job-portal/${request.convertedToJobId}`}>
