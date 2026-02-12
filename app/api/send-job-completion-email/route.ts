@@ -81,7 +81,9 @@ export async function POST(request: Request) {
     // Prepare email template parameters
     const templateParams = {
       // Recipient email (required by EmailJS)
-      to_email: "muhammadjhony383@gmail.com",
+      to_email: recipientEmail,
+      // CC email
+      cc_email: "billy@warringtoninstalls.co.uk",
 
       // Customer Information
       customer_name: job.clientName || job.customerName || "Customer",
