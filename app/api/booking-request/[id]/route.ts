@@ -171,6 +171,7 @@ export async function PATCH(
 
           // Carry over PDF and extra fields from booking request
           pdfUrl: bookingRequest.pdfUrl || null,
+          pdfFilename: bookingRequest.pdfFilename || null,
         };
         const jobResult = await db.collection("jobs").insertOne(jobData);
         jobId = jobResult.insertedId.toString();

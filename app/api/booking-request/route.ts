@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
       jobEstimate,
       estimatedCost,
       pdfUrl,
+      pdfFilename,
     } = body;
 
     // Validate required fields
@@ -155,6 +156,7 @@ export async function POST(request: NextRequest) {
       jobEstimate,
       estimatedCost,
       pdfUrl: pdfUrl || null,
+      pdfFilename: pdfFilename || null,
       status: "pending",
       createdAt: new Date(),
       updatedAt: new Date(),

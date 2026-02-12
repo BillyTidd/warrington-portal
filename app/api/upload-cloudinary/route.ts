@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
-    const file = formData.get("file") as Blob | null;
+    const file = formData.get("file") as File | null;
 
     if (!file) {
       return NextResponse.json(
@@ -19,6 +19,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Get original filename
+    const originalFilename = file.name || "document.pdf";
 
     // Convert blob to base64 data URI
     const arrayBuffer = await file.arrayBuffer();
@@ -33,7 +36,7 @@ export async function POST(request: NextRequest) {
         dataUri,
         {
           folder: "job-documents",
-          resource_type: "auto",
+          resource_type: "raw",
         },
         (error, result) => {
           if (error) reject(error);
@@ -42,16 +45,11 @@ export async function POST(request: NextRequest) {
       );
     });
 
-    // Add fl_attachment flag so the URL triggers a download when opened
-    const downloadUrl = result.secure_url.replace(
-      "/upload/",
-      "/upload/fl_attachment/"
-    );
-
     return NextResponse.json({
       success: true,
-      url: downloadUrl,
+      url: result.secure_url,
       publicId: result.public_id,
+      filename: originalFilename,
     });
   } catch (error) {
     console.error("Error uploading to Cloudinary:", error);
