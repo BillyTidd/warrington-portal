@@ -12,13 +12,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
     }
 
-    const { _id, name, email, role, isApproved } = await req.json()
+    const { _id, name, email, role, isApproved, phone, whatsappNumber } = await req.json()
     const client = await clientPromise
     const db = client.db()
 
     await db.collection('users').updateOne(
       { _id: new ObjectId(_id) },
-      { $set: { name, email, role, isApproved } }
+      { $set: { name, email, role, isApproved, phone: phone || '', whatsappNumber: whatsappNumber || '' } }
     )
 
     return NextResponse.json({ message: 'User updated successfully' }, { status: 200 })

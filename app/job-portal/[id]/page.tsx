@@ -75,6 +75,7 @@ import { CostBreakdown } from "@/components/job-portal/CostBreakdown";
 import { generateJobPDF } from "@/lib/excelGenerator";
 import { PDFButton } from "@/components/job-portal/PDFButton";
 import { ProgressEditModal } from "@/components/job-portal/ProgressEditModal";
+import { WorkerConfirmations } from "@/components/job-portal/WorkerConfirmations";
 
 export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -89,8 +90,9 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const [progressDescription, setProgressDescription] = useState("");
   const [progressAmount, setProgressAmount] = useState("");
   const [isSubmittingProgress, setIsSubmittingProgress] = useState(false);
-  const [workers, setWorkers] = useState<any[]>([]);
+  const [workers, setWorkers] = useState<{ _id: string; name: string; phone?: string; whatsappNumber?: string; role: string; isApproved: boolean }[]>([]);
   const [clients, setClients] = useState<any[]>([]);
+  const [confirmations, setConfirmations] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("details");
   const [showProgressForm, setShowProgressForm] = useState(false);
 
@@ -164,9 +166,10 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
   const fetchWorkersAndClients = async () => {
     try {
-      const [workersRes, clientsRes] = await Promise.all([
+      const [workersRes, clientsRes, confirmationsRes] = await Promise.all([
         fetch("/api/admin/users"),
         fetch("/api/clients"),
+        fetch(`/api/jobs/${params.id}/worker-confirmations`),
       ]);
 
       if (!workersRes.ok || !clientsRes.ok) {
@@ -175,14 +178,15 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
       const workersData = await workersRes.json();
       const clientsData = await clientsRes.json();
+      const confirmationsData = confirmationsRes.ok ? await confirmationsRes.json() : [];
 
-      // Filter approved workers
       const approvedWorkers = workersData
         .filter((user: any) => user.isApproved && user.role === "employee")
-        .sort((a: any, b: any) => a.name.localeCompare(b.name)); // Sort by name
+        .sort((a: any, b: any) => a.name.localeCompare(b.name));
 
       setWorkers(approvedWorkers);
       setClients(clientsData);
+      setConfirmations(Array.isArray(confirmationsData) ? confirmationsData : []);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Failed to fetch workers and clients");
@@ -956,7 +960,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           className="w-full"
         >
           <TabsList
-            className={`grid mb-6 ${isAdmin ? "grid-cols-4" : "grid-cols-3"}`}
+            className={`grid mb-6 ${isAdmin ? "grid-cols-5" : "grid-cols-3"}`}
           >
             <TabsTrigger
               value="details"
@@ -988,6 +992,15 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                 Financials
               </TabsTrigger>
             )}
+            {isAdmin && (
+              <TabsTrigger
+                value="confirmations"
+                className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+              >
+                <Users className="h-4 w-4 mr-2" />
+                Confirmations
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="details" className="mt-0">
@@ -1000,6 +1013,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                     setEditedJob={setEditedJob}
                     isAdmin={isAdmin}
                     workers={workers}
+                    confirmations={confirmations}
                   />
                 ) : (
                   <>
@@ -1343,6 +1357,11 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                   />
                 </div>
               </div>
+            </TabsContent>
+          )}
+          {isAdmin && (
+            <TabsContent value="confirmations" className="mt-0">
+              <WorkerConfirmations jobId={params.id} workers={workers} />
             </TabsContent>
           )}
         </Tabs>

@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { PoundSterling, Clock, Plus, Trash2, User } from "lucide-react";
 import type { Job } from "@/types/job";
 import { useState } from "react";
@@ -22,6 +23,7 @@ interface JobDetailsFormProps {
   setEditedJob: (job: Partial<Job>) => void;
   isAdmin: boolean;
   workers: any[];
+  confirmations?: any[];
 }
 
 export function JobDetailsForm({
@@ -29,8 +31,22 @@ export function JobDetailsForm({
   setEditedJob,
   isAdmin,
   workers,
+  confirmations = [],
 }: JobDetailsFormProps) {
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>("");
+
+  // Build a map: workerId -> best confirmation status for this job
+  // If a worker has multiple confirmations (SMS + WhatsApp), prefer confirmed > declined > pending
+  const confirmationMap = new Map<string, { response: 'yes' | 'no' | null; status: string }>();
+  confirmations.forEach((c) => {
+    const existing = confirmationMap.get(c.workerId);
+    const priority = (r: string | null) => r === 'yes' ? 2 : r === 'no' ? 1 : 0;
+    if (!existing || priority(c.workerResponse) > priority(existing.response)) {
+      confirmationMap.set(c.workerId, { response: c.workerResponse, status: c.status });
+    }
+  });
+
+  const hasConfirmations = confirmationMap.size > 0;
 
   // Function to add a worker to the job
   const addWorker = () => {
@@ -138,14 +154,28 @@ export function JobDetailsForm({
               <Label>Assigned Workers</Label>
               <div className="mt-2 space-y-4">
                 {editedJob.workers && editedJob.workers.length > 0 ? (
-                  editedJob.workers.map((worker, index) => (
+                  editedJob.workers.map((worker, index) => {
+                    const conf = confirmationMap.get(worker.userId);
+                    return (
                     <div key={worker.userId} className="rounded-md border p-4">
                       <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center">
-                          <User className="h-4 w-4 mr-2" />
-                          <span className="font-medium">
-                            {worker.workerName}
-                          </span>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          <span className="font-medium">{worker.workerName}</span>
+                          {conf && (
+                            <Badge
+                              className={
+                                conf.response === 'yes'
+                                  ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400'
+                                  : conf.response === 'no'
+                                  ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400'
+                                  : 'bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400'
+                              }
+                              variant="outline"
+                            >
+                              {conf.response === 'yes' ? 'Available' : conf.response === 'no' ? 'Not Available' : 'Pending'}
+                            </Badge>
+                          )}
                         </div>
                         <Button
                           variant="ghost"
@@ -209,7 +239,7 @@ export function JobDetailsForm({
                         </div>
                       </div>
                     </div>
-                  ))
+                  )})
                 ) : (
                   <div className="text-center py-4 text-muted-foreground">
                     No workers assigned yet
@@ -220,7 +250,14 @@ export function JobDetailsForm({
 
             <div className="flex items-end gap-2">
               <div className="flex-1">
-                <Label htmlFor="addWorker">Add Worker</Label>
+                <Label htmlFor="addWorker">
+                  Add Worker
+                  {hasConfirmations && (
+                    <span className="text-xs text-muted-foreground font-normal ml-2">
+                      (showing workers who received confirmations)
+                    </span>
+                  )}
+                </Label>
                 <Select
                   value={selectedWorkerId}
                   onValueChange={setSelectedWorkerId}
@@ -230,17 +267,35 @@ export function JobDetailsForm({
                   </SelectTrigger>
                   <SelectContent>
                     {workers
-                      .filter(
-                        (worker) =>
-                          !editedJob.workers?.some(
-                            (w) => w.userId === worker._id
-                          )
+                      .filter((worker) =>
+                        !editedJob.workers?.some((w) => w.userId === worker._id)
                       )
-                      .map((worker) => (
-                        <SelectItem key={worker._id} value={worker._id}>
-                          {worker.name}
-                        </SelectItem>
-                      ))}
+                      .filter((worker) =>
+                        !hasConfirmations || confirmationMap.has(worker._id)
+                      )
+                      .map((worker) => {
+                        const conf = confirmationMap.get(worker._id);
+                        return (
+                          <SelectItem key={worker._id} value={worker._id}>
+                            <div className="flex items-center gap-2">
+                              <span>{worker.name}</span>
+                              {conf && (
+                                <span
+                                  className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                                    conf.response === 'yes'
+                                      ? 'bg-green-100 text-green-700'
+                                      : conf.response === 'no'
+                                      ? 'bg-red-100 text-red-700'
+                                      : 'bg-yellow-100 text-yellow-700'
+                                  }`}
+                                >
+                                  {conf.response === 'yes' ? 'Available' : conf.response === 'no' ? 'Not Available' : 'Pending'}
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
                   </SelectContent>
                 </Select>
               </div>

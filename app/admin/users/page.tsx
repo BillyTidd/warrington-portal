@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, X, Loader2, Edit } from "lucide-react";
+import { X, Loader2, Edit } from "lucide-react";
 import { Layout } from "@/components/Layout";
 import {
   Dialog,
@@ -41,6 +41,8 @@ interface User {
   role: "employee" | "admin";
   isApproved: boolean;
   createdAt: string;
+  phone?: string;
+  whatsappNumber?: string;
 }
 
 export default function AdminUsers() {
@@ -49,10 +51,11 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [deletingClient, setDeletingClient] = useState<any | null>(null);
   const [editingClient, setEditingClient] = useState<any | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [phoneError, setPhoneError] = useState('');
+  const [whatsappError, setWhatsappError] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'employee' | 'customer'>('all');
 
   useEffect(() => {
     if (status === "authenticated" && session?.user?.role === "admin") {
@@ -70,7 +73,6 @@ export default function AdminUsers() {
       }
 
       const data = await response.json();
-      console.log("Received users data:", data); // Debug log
 
       if (Array.isArray(data)) {
         setUsers(data);
@@ -108,18 +110,47 @@ export default function AdminUsers() {
       toast.error(`Failed to ${action} user`);
     } finally {
       setIsDeleteDialogOpen(false);
-      setDeletingClient(null);
+      setEditingClient(null);
       setIsSubmitting(false);
       fetchUsers();
     }
   };
 
+  const validateUKPhone = (value: string): string => {
+    if (!value) return '';
+    const cleaned = value.replace(/[\s\-\(\)]/g, '');
+    if (!/^(\+44\d{10}|0\d{10})$/.test(cleaned)) {
+      return 'Enter a valid UK number (e.g. 07700 900000 or +44 7700 900000)';
+    }
+    return '';
+  };
+
+  const normalizeUKPhone = (value: string): string => {
+    if (!value) return '';
+    const cleaned = value.replace(/[\s\-\(\)]/g, '');
+    if (cleaned.startsWith('+44')) return cleaned;
+    if (cleaned.startsWith('0')) return '+44' + cleaned.slice(1);
+    return cleaned;
+  };
+
+  const formatUKPhone = (value: string): string => {
+    if (!value) return '—';
+    const match = value.match(/^\+44(\d{4})(\d{6})$/);
+    if (match) return `+44 ${match[1]} ${match[2]}`;
+    return value;
+  };
+
   const handleUpdateUser = async (updatedUser: User) => {
     try {
+      const normalizedUser = {
+        ...updatedUser,
+        phone: normalizeUKPhone(updatedUser.phone || ''),
+        whatsappNumber: normalizeUKPhone(updatedUser.whatsappNumber || ''),
+      };
       const response = await fetch("/api/admin/update-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedUser),
+        body: JSON.stringify(normalizedUser),
       });
 
       if (!response.ok) {
@@ -174,24 +205,50 @@ export default function AdminUsers() {
                   <p className="text-lg">No users found in the system.</p>
                 </div>
               ) : (
+                <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Label className="text-sm font-medium shrink-0">Filter by role</Label>
+                  <Select
+                    value={roleFilter}
+                    onValueChange={(value) =>
+                      setRoleFilter(value as typeof roleFilter)
+                    }
+                  >
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All roles</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="employee">Employee</SelectItem>
+                      <SelectItem value="customer">Customer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Name</TableHead>
                         <TableHead>Email</TableHead>
+                        <TableHead>Phone</TableHead>
                         <TableHead>Role</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {users.map((user) => (
+                      {users
+                        .filter((u) => roleFilter === 'all' || u.role === roleFilter)
+                        .map((user) => (
                         <TableRow key={user._id}>
                           <TableCell className="font-medium">
                             {user.name}
                           </TableCell>
                           <TableCell>{user.email}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {formatUKPhone(user.phone || '')}
+                          </TableCell>
                           <TableCell className="capitalize">
                             {user.role}
                           </TableCell>
@@ -214,7 +271,11 @@ export default function AdminUsers() {
                                     size="sm"
                                     variant="outline"
                                     className="flex items-center gap-1"
-                                    onClick={() => setEditingUser(user)}
+                                    onClick={() => {
+                                      setEditingUser(user);
+                                      setPhoneError('');
+                                      setWhatsappError('');
+                                    }}
                                   >
                                     <Edit className="h-4 w-4" />
                                     Edit
@@ -328,12 +389,73 @@ export default function AdminUsers() {
                                         </SelectContent>
                                       </Select>
                                     </div>
+                                    <div className="grid grid-cols-4 items-start gap-4">
+                                      <Label
+                                        htmlFor="phone"
+                                        className="text-right pt-2"
+                                      >
+                                        Phone
+                                      </Label>
+                                      <div className="col-span-3 space-y-1">
+                                        <Input
+                                          id="phone"
+                                          value={editingUser?.phone || ""}
+                                          onChange={(e) => {
+                                            setEditingUser((prev) => ({
+                                              ...prev!,
+                                              phone: e.target.value,
+                                            }));
+                                            setPhoneError(validateUKPhone(e.target.value));
+                                          }}
+                                          className={phoneError ? "border-red-500 focus-visible:ring-red-500" : ""}
+                                          placeholder="+44 7700 900000"
+                                        />
+                                        {phoneError && (
+                                          <p className="text-xs text-red-500">{phoneError}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-start gap-4">
+                                      <Label
+                                        htmlFor="whatsappNumber"
+                                        className="text-right pt-2"
+                                      >
+                                        WhatsApp
+                                      </Label>
+                                      <div className="col-span-3 space-y-1">
+                                        <Input
+                                          id="whatsappNumber"
+                                          value={editingUser?.whatsappNumber || ""}
+                                          onChange={(e) => {
+                                            setEditingUser((prev) => ({
+                                              ...prev!,
+                                              whatsappNumber: e.target.value,
+                                            }));
+                                            setWhatsappError(validateUKPhone(e.target.value));
+                                          }}
+                                          className={whatsappError ? "border-red-500 focus-visible:ring-red-500" : ""}
+                                          placeholder="+44 7700 900000"
+                                        />
+                                        {whatsappError ? (
+                                          <p className="text-xs text-red-500">{whatsappError}</p>
+                                        ) : (
+                                          <p className="text-xs text-muted-foreground">
+                                            Leave blank if same as phone number
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
                                   <div className="flex justify-end">
                                     <Button
-                                      onClick={() =>
-                                        handleUpdateUser(editingUser!)
-                                      }
+                                      onClick={() => {
+                                        const phoneErr = validateUKPhone(editingUser?.phone || '');
+                                        const whatsappErr = validateUKPhone(editingUser?.whatsappNumber || '');
+                                        setPhoneError(phoneErr);
+                                        setWhatsappError(whatsappErr);
+                                        if (phoneErr || whatsappErr) return;
+                                        handleUpdateUser(editingUser!);
+                                      }}
                                     >
                                       Save changes
                                     </Button>
@@ -398,6 +520,7 @@ export default function AdminUsers() {
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
+                </div>
                 </div>
               )}
             </CardContent>

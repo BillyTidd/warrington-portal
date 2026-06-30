@@ -33,7 +33,9 @@ export async function GET() {
       email: user.email || '',
       role: user.role || 'employee',
       isApproved: !!user.isApproved,
-      createdAt: user.createdAt ? user.createdAt.toISOString() : new Date().toISOString()
+      createdAt: user.createdAt ? user.createdAt.toISOString() : new Date().toISOString(),
+      phone: user.phone || '',
+      whatsappNumber: user.whatsappNumber || '',
     }))
 
     return NextResponse.json(sanitizedUsers)
