@@ -5,8 +5,6 @@ import { getServerSession } from "next-auth/next";
 import clientPromise from "@/lib/mongodb";
 import { authOptions } from "@/lib/auth";
 
-export const dynamic = "force-dynamic";
-
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);

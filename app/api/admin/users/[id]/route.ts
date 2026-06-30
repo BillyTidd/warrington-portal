@@ -6,8 +6,6 @@ import clientPromise from "@/lib/mongodb";
 import { authOptions } from "@/lib/auth";
 import { ObjectId } from "mongodb";
 
-export const dynamic = "force-dynamic";
-
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
