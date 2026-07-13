@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { isAfter, isBefore } from "date-fns";
 import {
   Table,
   TableBody,
@@ -13,7 +14,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -29,7 +39,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Loader2, MoreHorizontal, Pen, Trash, Eye } from "lucide-react";
+import { Loader2, MoreHorizontal, Pen, Trash, Eye, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { Layout } from "@/components/Layout";
 import api from "@/lib/api";
@@ -42,6 +52,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { handleDownloadCSV } from "@/lib/excelGenerator";
 
 interface Invoice {
   _id: string;
@@ -53,6 +64,30 @@ interface Invoice {
   fileType: string;
   webViewLink: string;
   invoiceNumber: string;
+}
+
+interface Entry {
+  _id: string;
+  date: string;
+  client: string;
+  description: string;
+  mileage: { miles: number; amount: number };
+  expenses: { description: string; amount: number };
+  overtime: { hours: number; amount: number };
+  sustenance: { description: string; amount: number };
+  totalAmount: number;
+  userId: string;
+  userName?: string;
+}
+
+interface Client {
+  _id: string;
+  name: string;
+}
+
+interface Employee {
+  _id: string;
+  name: string;
 }
 
 export default function InvoicesPage() {
@@ -68,9 +103,24 @@ export default function InvoicesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const entriesPerPage = 10;
 
+  // Generate Invoice state
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [genFilter, setGenFilter] = useState({
+    client: "",
+    employee: "",
+    startDate: null as Date | null,
+    endDate: null as Date | null,
+  });
+  const [isGenerating, setIsGenerating] = useState(false);
+
   useEffect(() => {
     if (session?.user.role === "admin") {
       fetchInvoices();
+      fetchEntries();
+      fetchClients();
+      fetchEmployees();
     } else {
       redirect("/dashboard");
     }
@@ -86,6 +136,138 @@ export default function InvoicesPage() {
       toast.error("Failed to fetch invoices");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchEntries = async () => {
+    try {
+      const response = await fetch("/api/entries");
+      if (response.ok) {
+        setEntries(await response.json());
+      }
+    } catch (error) {
+      console.error("Error fetching entries:", error);
+    }
+  };
+
+  const fetchClients = async () => {
+    try {
+      const response = await api.get("/clients");
+      setClients(response.data);
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const response = await api.get("/admin/users");
+      setEmployees(
+        response.data.map((user: any) => ({
+          _id: user._id,
+          name: user.name || user.userName,
+        }))
+      );
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+    }
+  };
+
+  const handleGenDateChange = (
+    type: "startDate" | "endDate",
+    date: Date | null
+  ) => {
+    setGenFilter((prev) => {
+      if (type === "startDate") {
+        if (date && prev.endDate && isAfter(date, prev.endDate)) {
+          return { ...prev, startDate: date, endDate: null };
+        }
+        return { ...prev, startDate: date };
+      } else {
+        if (date && prev.startDate && isBefore(date, prev.startDate)) {
+          return prev;
+        }
+        return { ...prev, endDate: date };
+      }
+    });
+  };
+
+  const handleUploadToDrive = async (data: any) => {
+    setIsGenerating(true);
+    try {
+      const response = await fetch("/api/uploadToDrive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to upload file");
+      }
+
+      const result = await response.json();
+
+      try {
+        await fetch("/api/create-invoice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(result),
+        });
+      } catch (error) {
+        console.error("Error creating invoice:", error);
+      }
+
+      toast.success("Invoice generated successfully");
+      await fetchInvoices();
+    } catch (error) {
+      console.error("Error uploading to Drive:", error);
+      toast.error("Error generating invoice");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateInvoice = async () => {
+    const filteredData = entries.filter((entry) => {
+      const clientMatch = genFilter.client
+        ? entry.client === genFilter.client
+        : true;
+      const employeeMatch = genFilter.employee
+        ? entry.userName === genFilter.employee
+        : true;
+      const dateMatch =
+        genFilter.startDate && genFilter.endDate
+          ? new Date(entry.date) >= genFilter.startDate &&
+            new Date(entry.date) <= genFilter.endDate
+          : true;
+      return clientMatch && employeeMatch && dateMatch;
+    });
+
+    if (filteredData.length === 0) {
+      toast.error("No entries match the selected filters");
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      await handleDownloadCSV(
+        {
+          filteredData,
+          filter: {
+            startDate: genFilter.startDate,
+            endDate: genFilter.endDate,
+            weekStart: null,
+            client: genFilter.client,
+          },
+          session,
+        },
+        handleUploadToDrive
+      );
+    } catch (error) {
+      console.error("Error generating invoice:", error);
+      toast.error("Failed to generate invoice");
+      setIsGenerating(false);
     }
   };
 
@@ -157,6 +339,109 @@ export default function InvoicesPage() {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">Invoices</h1>
         </div>
+
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-lg">Generate Invoice</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row gap-3 items-end">
+              <div className="w-full sm:w-56 space-y-1">
+                <Label>Client (optional)</Label>
+                <Select
+                  value={genFilter.client || "all"}
+                  onValueChange={(value) =>
+                    setGenFilter((prev) => ({
+                      ...prev,
+                      client: value === "all" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All clients" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All clients</SelectItem>
+                    {clients.map((client) => (
+                      <SelectItem key={client._id} value={client.name}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-full sm:w-56 space-y-1">
+                <Label>Employee (optional)</Label>
+                <Select
+                  value={genFilter.employee || "all"}
+                  onValueChange={(value) =>
+                    setGenFilter((prev) => ({
+                      ...prev,
+                      employee: value === "all" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All employees" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All employees</SelectItem>
+                    {employees.map((employee) => (
+                      <SelectItem key={employee._id} value={employee.name}>
+                        {employee.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-full sm:w-auto space-y-1">
+                <Label>Start Date</Label>
+                <Input
+                  type="date"
+                  value={
+                    genFilter.startDate
+                      ? genFilter.startDate.toISOString().split("T")[0]
+                      : ""
+                  }
+                  onChange={(e) =>
+                    handleGenDateChange("startDate", e.target.valueAsDate)
+                  }
+                />
+              </div>
+              <div className="w-full sm:w-auto space-y-1">
+                <Label>End Date</Label>
+                <Input
+                  type="date"
+                  value={
+                    genFilter.endDate
+                      ? genFilter.endDate.toISOString().split("T")[0]
+                      : ""
+                  }
+                  onChange={(e) =>
+                    handleGenDateChange("endDate", e.target.valueAsDate)
+                  }
+                  min={
+                    genFilter.startDate
+                      ? genFilter.startDate.toISOString().split("T")[0]
+                      : undefined
+                  }
+                />
+              </div>
+              <Button
+                onClick={handleGenerateInvoice}
+                disabled={isGenerating}
+                className="w-full sm:w-auto"
+              >
+                {isGenerating ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                )}
+                Generate Invoice
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {isLoading ? (
           <div className="flex justify-center items-center h-64">

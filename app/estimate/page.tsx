@@ -1458,24 +1458,26 @@ export default function EstimatePage() {
                           {format(new Date(formData.jobDate), "MMM d, yyyy")}
                         </span>
                       </div>
-                      <div className="flex justify-between">
-                        <span
-                          className={
-                            theme === "dark"
-                              ? "text-slate-300"
-                              : "text-slate-600"
-                          }
-                        >
-                          Round-Trip Distance:
-                        </span>
-                        <span
-                          className={`font-medium ${
-                            theme === "dark" ? "text-white" : "text-slate-900"
-                          }`}
-                        >
-                          {estimate.breakdown.travel.distance} miles
-                        </span>
-                      </div>
+                      {formData.team !== "london" && (
+                        <div className="flex justify-between">
+                          <span
+                            className={
+                              theme === "dark"
+                                ? "text-slate-300"
+                                : "text-slate-600"
+                            }
+                          >
+                            Round-Trip Distance:
+                          </span>
+                          <span
+                            className={`font-medium ${
+                              theme === "dark" ? "text-white" : "text-slate-900"
+                            }`}
+                          >
+                            {estimate.breakdown.travel.distance} miles
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between">
                         <span
                           className={
@@ -1709,9 +1711,7 @@ export default function EstimatePage() {
                             <>
                               Travel Cost{" "}
                               <span className="text-xs text-slate-400">
-                                (London flat rate —{" "}
-                                {estimate.breakdown.travel.distance} miles
-                                calculated)
+                                (London flat rate)
                               </span>
                             </>
                           ) : (
