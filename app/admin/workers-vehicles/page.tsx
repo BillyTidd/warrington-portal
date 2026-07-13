@@ -374,7 +374,7 @@ export default function WorkersVehiclesPage() {
 
           {/* Worker Types Tab */}
           <TabsContent value="workers" className="mt-6">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
               <div>
                 <h2 className="text-2xl font-bold">Worker Types</h2>
                 <p className="text-muted-foreground">
@@ -529,6 +529,7 @@ export default function WorkersVehiclesPage() {
                     </p>
                   </div>
                 ) : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -589,6 +590,7 @@ export default function WorkersVehiclesPage() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -596,7 +598,7 @@ export default function WorkersVehiclesPage() {
 
           {/* Vehicles Tab */}
           <TabsContent value="vehicles" className="mt-6">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
               <div>
                 <h2 className="text-2xl font-bold">Vehicles</h2>
                 <p className="text-muted-foreground">
@@ -713,6 +715,7 @@ export default function WorkersVehiclesPage() {
                     </p>
                   </div>
                 ) : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -765,6 +768,7 @@ export default function WorkersVehiclesPage() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>

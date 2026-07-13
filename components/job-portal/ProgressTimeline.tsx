@@ -191,56 +191,57 @@ export function ProgressTimeline({
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="h-[600px]">
-            <div className="space-y-0">
+          <ScrollArea className="h-[400px] md:h-[600px]">
+            <div className="space-y-0 pt-3">
               {sortedLogs.map((log, index) => (
                 <div
                   key={log._id || `${log.timestamp}-${index}`}
-                  className="relative border-l border-dashed border-gray-200 pl-4 dark:border-gray-700"
+                  className="relative border-l-0 sm:border-l border-dashed border-gray-200 pl-4 dark:border-gray-700"
                 >
-                  <div className="absolute -left-1.5 top-3 h-3 w-3 rounded-full bg-violet-500" />
+                  <div className="hidden sm:block absolute -left-1.5 top-3 h-3 w-3 rounded-full bg-violet-500" />
                   <div className="px-4 py-3">
-                    <div className="mb-1 flex items-center justify-between">
-                      <p className="text-sm font-medium text-muted-foreground">
-                        {format(
-                          parseISO(log.timestamp.toString()),
-                          "MMM d, yyyy 'at' h:mm a"
-                        )}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center">
-                          <User className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                          <p className="text-sm font-medium">
-                            {log.updatedByName}
-                          </p>
+                    <div className="mb-2 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          {format(
+                            parseISO(log.timestamp.toString()),
+                            "MMM d, yyyy 'at' h:mm a"
+                          )}
+                        </p>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* Edit button - only visible for admins and non-status-change entries */}
+                          {isAdmin && !log.statusChange && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-blue-500 hover:text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/20"
+                              onClick={() => handleEdit(log)}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                              <span className="sr-only">Edit entry</span>
+                            </Button>
+                          )}
+
+                          {/* Delete button - only visible for admins or the user who created the entry */}
+                          {(isAdmin || log.updatedBy === currentUserId) && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20"
+                              onClick={() => openDeleteDialog(log)}
+                              disabled={isDeleting}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span className="sr-only">Delete entry</span>
+                            </Button>
+                          )}
                         </div>
-
-                        {/* Edit button - only visible for admins and non-status-change entries */}
-                        {isAdmin && !log.statusChange && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-blue-500 hover:text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/20"
-                            onClick={() => handleEdit(log)}
-                          >
-                            <Edit className="h-3.5 w-3.5" />
-                            <span className="sr-only">Edit entry</span>
-                          </Button>
-                        )}
-
-                        {/* Delete button - only visible for admins or the user who created the entry */}
-                        {(isAdmin || log.updatedBy === currentUserId) && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20"
-                            onClick={() => openDeleteDialog(log)}
-                            disabled={isDeleting}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            <span className="sr-only">Delete entry</span>
-                          </Button>
-                        )}
+                      </div>
+                      <div className="flex items-center">
+                        <User className="h-3.5 w-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                        <p className="text-sm font-medium">
+                          {log.updatedByName}
+                        </p>
                       </div>
                     </div>
 

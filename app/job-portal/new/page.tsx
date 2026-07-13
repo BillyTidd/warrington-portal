@@ -229,11 +229,11 @@ function NewJobPageContent() {
   return (
     <Layout>
       <div className="container mx-auto py-8 px-4">
-        <div className="flex items-center mb-6">
+        <div className="flex flex-col items-start sm:flex-row sm:items-center gap-2 sm:gap-4 mb-6">
           <Button
             variant="ghost"
             onClick={() => router.push("/job-portal")}
-            className="mr-4"
+            className="-ml-4 sm:ml-0 sm:mr-0"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Job Portal

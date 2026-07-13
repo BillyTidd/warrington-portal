@@ -610,6 +610,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-4">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -659,6 +660,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
         <CardFooter className="bg-blue-50/50 dark:bg-blue-950/20 border-t px-6 py-3">
           <div className="flex justify-between items-center w-full">
@@ -708,7 +710,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Client Price</p>
               <p className="text-xl font-bold text-purple-600 dark:text-purple-400">
@@ -932,7 +934,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
         />
 
         {/* PDF Generation Buttons */}
-        <div className="flex justify-end mb-4 gap-2">
+        <div className="flex flex-col sm:flex-row sm:justify-end mb-4 gap-2">
           <PDFButton job={job} variant="outline" />
           <PDFButton job={job} variant="outline" saveToDatabase={true} />
         </div>
@@ -966,30 +968,30 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
               value="details"
               className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
             >
-              <FileText className="h-4 w-4 mr-2" />
-              Details
+              <FileText className="h-4 w-4 lg:mr-2" />
+              <span className="hidden lg:inline">Details</span>
             </TabsTrigger>
             <TabsTrigger
               value="progress"
               className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
             >
-              <ClipboardList className="h-4 w-4 mr-2" />
-              Expenses / Progress
+              <ClipboardList className="h-4 w-4 lg:mr-2" />
+              <span className="hidden lg:inline">Expenses / Progress</span>
             </TabsTrigger>
             <TabsTrigger
               value="documents"
               className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
             >
-              <Paperclip className="h-4 w-4 mr-2" />
-              Documents
+              <Paperclip className="h-4 w-4 lg:mr-2" />
+              <span className="hidden lg:inline">Documents</span>
             </TabsTrigger>
             {isAdmin && (
               <TabsTrigger
                 value="financials"
                 className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
               >
-                <BarChart3 className="h-4 w-4 mr-2" />
-                Financials
+                <BarChart3 className="h-4 w-4 lg:mr-2" />
+                <span className="hidden lg:inline">Financials</span>
               </TabsTrigger>
             )}
             {isAdmin && (
@@ -997,8 +999,8 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                 value="confirmations"
                 className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
               >
-                <Users className="h-4 w-4 mr-2" />
-                Confirmations
+                <Users className="h-4 w-4 lg:mr-2" />
+                <span className="hidden lg:inline">Confirmations</span>
               </TabsTrigger>
             )}
           </TabsList>

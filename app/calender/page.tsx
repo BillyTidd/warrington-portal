@@ -214,7 +214,7 @@ export default function CalendarPage() {
   return (
     <Layout>
       <div className="container mx-auto py-4 sm:py-10 px-2 sm:px-4">
-        <div className="bg-gray-950 rounded-lg shadow-xl overflow-hidden">
+        <div className="bg-gray-950 rounded-lg shadow-xl overflow-x-auto">
           <Header
             currentDate={currentDate}
             currentView={currentView}

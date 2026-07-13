@@ -309,6 +309,7 @@ export function WorkerConfirmations({ jobId, workers }: Props) {
               <p className="text-sm">Send confirmation requests above to see responses here</p>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -362,6 +363,7 @@ export function WorkerConfirmations({ jobId, workers }: Props) {
                 })}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -286,7 +286,7 @@ export default function AdminUsers() {
                                     <DialogTitle>Edit User</DialogTitle>
                                   </DialogHeader>
                                   <div className="grid gap-4 py-4">
-                                    <div className="grid grid-cols-4 items-center gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
                                       <Label
                                         htmlFor="name"
                                         className="text-right"
@@ -305,7 +305,7 @@ export default function AdminUsers() {
                                         className="col-span-3"
                                       />
                                     </div>
-                                    <div className="grid grid-cols-4 items-center gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
                                       <Label
                                         htmlFor="email"
                                         className="text-right"
@@ -324,7 +324,7 @@ export default function AdminUsers() {
                                         className="col-span-3"
                                       />
                                     </div>
-                                    <div className="grid grid-cols-4 items-center gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
                                       <Label
                                         htmlFor="role"
                                         className="text-right"
@@ -356,7 +356,7 @@ export default function AdminUsers() {
                                         </SelectContent>
                                       </Select>
                                     </div>
-                                    <div className="grid grid-cols-4 items-center gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
                                       <Label
                                         htmlFor="isApproved"
                                         className="text-right"
@@ -389,7 +389,7 @@ export default function AdminUsers() {
                                         </SelectContent>
                                       </Select>
                                     </div>
-                                    <div className="grid grid-cols-4 items-start gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-4 items-start gap-4">
                                       <Label
                                         htmlFor="phone"
                                         className="text-right pt-2"
@@ -415,7 +415,7 @@ export default function AdminUsers() {
                                         )}
                                       </div>
                                     </div>
-                                    <div className="grid grid-cols-4 items-start gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-4 items-start gap-4">
                                       <Label
                                         htmlFor="whatsappNumber"
                                         className="text-right pt-2"

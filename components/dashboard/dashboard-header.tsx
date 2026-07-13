@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import type { DateRange } from "react-day-picker";
-import { RefreshCw, Filter } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DatePickerWithRange } from "@/components/dashboard/date-picker-with-range";
 
@@ -42,7 +42,7 @@ export function DashboardHeader({
         {description && <p className="text-muted-foreground">{description}</p>}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <DatePickerWithRange
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange || (() => {})}
@@ -60,11 +60,6 @@ export function DashboardHeader({
         >
           <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
           <span className="sr-only">Refresh</span>
-        </Button>
-
-        <Button variant="outline" size="icon" className="h-9 w-9">
-          <Filter className="h-4 w-4" />
-          <span className="sr-only">Filter</span>
         </Button>
       </div>
     </div>

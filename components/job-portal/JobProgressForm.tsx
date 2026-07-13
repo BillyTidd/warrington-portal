@@ -650,11 +650,11 @@ export function JobProgressForm({
             />
           </div>
         </CardContent>
-        <CardFooter className="flex justify-between space-x-2">
-          <Button type="button" variant="outline" onClick={onCancel}>
+        <CardFooter className="flex flex-col-reverse sm:flex-row sm:justify-between gap-2">
+          <Button type="button" variant="outline" onClick={onCancel} className="w-full sm:w-auto">
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting} className="w-full">
+          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
             {isSubmitting ? "Updating..." : "Update Progress"}
           </Button>
         </CardFooter>

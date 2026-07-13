@@ -20,6 +20,7 @@ interface PDFButtonProps {
   size?: "default" | "sm" | "lg" | "icon";
   saveToDatabase?: boolean;
   showOnlyCurrentUserLogs?: boolean;
+  className?: string;
 }
 
 export function PDFButton({
@@ -28,6 +29,7 @@ export function PDFButton({
   size = "default",
   saveToDatabase = false,
   showOnlyCurrentUserLogs = false,
+  className,
 }: PDFButtonProps) {
   const { data: session } = useSession();
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -97,7 +99,7 @@ export function PDFButton({
       disabled={isGeneratingPDF || isUploading}
       variant={variant}
       size={size}
-      className="relative overflow-hidden group"
+      className={`relative overflow-hidden group w-full sm:w-auto ${className || ""}`}
     >
       <span className="absolute inset-0 bg-blue-100 dark:bg-blue-900/20 opacity-0 group-hover:opacity-10 transition-opacity"></span>
       {isGeneratingPDF ? (

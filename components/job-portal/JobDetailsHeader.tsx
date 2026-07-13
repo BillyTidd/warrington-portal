@@ -105,16 +105,16 @@ export function JobDetailsHeader({
 
   return (
     <div className="mb-8">
-      <div className="flex items-center mb-4">
+      <div className="flex flex-col items-start sm:flex-row sm:items-center gap-2 sm:gap-0 mb-4">
         <Button
           variant="ghost"
           onClick={() => router.push("/job-portal")}
-          className="mr-2 hover:bg-muted/50 transition-colors"
+          className="-ml-4 sm:ml-0 sm:mr-2 hover:bg-muted/50 transition-colors"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
-        <Separator orientation="vertical" className="h-6 mx-2" />
+        <Separator orientation="vertical" className="hidden sm:block h-6 mx-2" />
         <div className="text-sm text-muted-foreground">
           <span className="font-medium">Job Portal</span>
           <ChevronRight className="inline h-3 w-3 mx-1" />

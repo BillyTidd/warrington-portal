@@ -10,7 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
   Download,
@@ -390,14 +389,7 @@ export default function Dashboard() {
         </div>
 
         {/* Charts */}
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="space-y-6">
+        <div className="space-y-6">
             {/* Revenue Chart */}
             <Card className="border-t-4 border-t-blue-500 dark:border-t-blue-400">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -480,56 +472,7 @@ export default function Dashboard() {
             </div>
 
             {/* Recent Entries */}
-          </TabsContent>
-
-          <TabsContent value="analytics" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Advanced Analytics</CardTitle>
-                <CardDescription>
-                  Detailed analysis of your business performance
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="h-[400px] flex items-center justify-center">
-                <div className="text-center">
-                  <BarChart3 className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                  <h3 className="mt-4 text-lg font-medium">
-                    Analytics Dashboard
-                  </h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Detailed analytics will be available in the next update.
-                  </p>
-                  <Button className="mt-4" variant="outline">
-                    Request Early Access
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="reports" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Generated Reports</CardTitle>
-                <CardDescription>
-                  Access and download your business reports
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="h-[400px] flex items-center justify-center">
-                <div className="text-center">
-                  <FileText className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                  <h3 className="mt-4 text-lg font-medium">Report Center</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Your generated reports will appear here once created.
-                  </p>
-                  <Button className="mt-4" variant="outline">
-                    Generate New Report
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+        </div>
       </div>
     </Layout>
   );

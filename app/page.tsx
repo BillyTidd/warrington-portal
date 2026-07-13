@@ -11,12 +11,12 @@ export default async function Home() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24">
-      <h1 className="text-4xl font-bold mb-8">Welcome to Time Tracker</h1>
-      <p className="text-xl mb-8">
+    <main className="flex min-h-screen flex-col items-center justify-center p-6 sm:p-12 md:p-24">
+      <h1 className="text-2xl sm:text-4xl font-bold mb-8 text-center">Welcome to Time Tracker</h1>
+      <p className="text-lg sm:text-xl mb-8 text-center">
         Manage your work time and expenses efficiently
       </p>
-      <div className="flex space-x-4">
+      <div className="flex flex-col sm:flex-row gap-3">
         <Button asChild>
           <Link href="/login">Login</Link>
         </Button>

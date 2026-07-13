@@ -24,6 +24,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  PopoverClose,
 } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
@@ -123,7 +124,19 @@ export function JobRequestFilters({
           </PopoverTrigger>
           <PopoverContent className="w-80">
             <div className="space-y-4">
-              <h4 className="font-medium">Filter Requests</h4>
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">Filter Requests</h4>
+                <PopoverClose asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 -mr-1"
+                  >
+                    <X className="h-4 w-4" />
+                    <span className="sr-only">Close</span>
+                  </Button>
+                </PopoverClose>
+              </div>
 
               {/* Status filter */}
               <div className="space-y-2">

@@ -20,7 +20,8 @@ export function WeeklyView({
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   return (
-    <div className="flex flex-col h-[calc(100vh-theme(spacing.32))] bg-background">
+    <div className="flex flex-col h-[calc(100vh-theme(spacing.32))] bg-background overflow-x-auto">
+      <div className="min-w-[480px]">
       <div className="grid grid-cols-7 border-b border-border">
         {weekDays.map((day) => (
           <div
@@ -69,6 +70,7 @@ export function WeeklyView({
             </div>
           ))}
         </div>
+      </div>
       </div>
     </div>
   );

@@ -133,7 +133,7 @@ export function DatePickerWithRange({
         <DropdownMenuTrigger asChild>
           <Button
             variant="outline"
-            className="w-[200px] justify-between border px-3 text-left font-normal"
+            className="w-full sm:w-[200px] justify-between border px-3 text-left font-normal"
           >
             <div className="flex items-center gap-2">
               <CalendarIcon className="h-4 w-4 opacity-70" />

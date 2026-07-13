@@ -597,19 +597,19 @@ export default function EstimatePage() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 py-3 sm:h-16">
             <div className="flex items-center">
               <h1
-                className={`text-2xl font-bold ${
+                className={`text-xl sm:text-2xl font-bold ${
                   theme === "dark" ? "text-white" : "text-slate-900"
                 }`}
               >
                 Warrington's Estimate
               </h1>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center flex-wrap gap-2">
               {session?.user ? (
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center flex-wrap gap-2">
                   <span
                     className={`text-sm ${
                       theme === "dark" ? "text-slate-300" : "text-slate-600"
@@ -673,7 +673,7 @@ export default function EstimatePage() {
             className="mb-8 mx-auto"
           />
           <h1
-            className={`text-5xl font-bold mb-4 ${
+            className={`text-3xl md:text-5xl font-bold mb-4 ${
               theme === "dark" ? "text-white" : "text-slate-900"
             }`}
           >
@@ -770,7 +770,7 @@ export default function EstimatePage() {
                 )}
 
                 {/* Team Selection */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label
                       className={
@@ -806,7 +806,7 @@ export default function EstimatePage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label
                       htmlFor="numberOfWorkers"
@@ -916,7 +916,7 @@ export default function EstimatePage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label
                       htmlFor="jobDate"
@@ -979,7 +979,7 @@ export default function EstimatePage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label
                       htmlFor="vehicleType"

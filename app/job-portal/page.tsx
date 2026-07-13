@@ -40,6 +40,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  PopoverClose,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
@@ -458,7 +459,19 @@ export default function JobPortalPage() {
             </PopoverTrigger>
             <PopoverContent className="w-80">
               <div className="space-y-4">
-                <h4 className="font-medium text-gray-900 dark:text-gray-100">Filter Jobs</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium text-gray-900 dark:text-gray-100">Filter Jobs</h4>
+                  <PopoverClose asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 -mr-1"
+                    >
+                      <X className="h-4 w-4" />
+                      <span className="sr-only">Close</span>
+                    </Button>
+                  </PopoverClose>
+                </div>
 
                 {/* Status filter */}
                 <div className="space-y-2">
@@ -630,7 +643,7 @@ export default function JobPortalPage() {
   return (
     <Layout>
       <div className="container mx-auto py-4 sm:py-10 px-2 sm:px-4">
-        <div className="dark:bg-gray-950 rounded-lg shadow-xl overflow-hidden">
+        <div className="dark:bg-gray-950 rounded-lg shadow-xl overflow-x-auto">
           <JobHeader
             currentDate={currentDate}
             onNavigate={handleNavigate}
@@ -736,18 +749,6 @@ export default function JobPortalPage() {
               setCurrentDate={setCurrentDate}
             />
           )}
-        </div>
-
-        {/* Floating action button for mobile */}
-        <div className="fixed bottom-6 right-6 md:hidden">
-          <Button
-            onClick={handleNewJob}
-            size="lg"
-            className="rounded-full h-14 w-14 shadow-lg"
-          >
-            <Plus className="h-6 w-6" />
-            <span className="sr-only">New Job</span>
-          </Button>
         </div>
 
         <AlertDialog

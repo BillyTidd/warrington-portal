@@ -65,13 +65,13 @@ export default function AdminDashboard() {
               .map((user) => (
                 <div
                   key={user._id}
-                  className="flex items-center justify-between py-2"
+                  className="flex items-center justify-between gap-3 py-2"
                 >
-                  <div>
-                    <p className="font-semibold">{user.name}</p>
-                    <p className="text-sm text-gray-600">{user.email}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold truncate">{user.name}</p>
+                    <p className="text-sm text-gray-600 truncate">{user.email}</p>
                   </div>
-                  <Button onClick={() => approveUser(user._id)}>Approve</Button>
+                  <Button className="shrink-0" onClick={() => approveUser(user._id)}>Approve</Button>
                 </div>
               ))}
           </CardContent>

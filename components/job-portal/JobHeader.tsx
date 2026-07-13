@@ -170,7 +170,7 @@ export function JobHeader({
           <Button
             onClick={onNewJob}
             size="sm"
-            className="hidden md:flex items-center gap-1 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700"
+            className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700"
           >
             <Plus className="h-4 w-4" />
             New Job

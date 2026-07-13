@@ -561,7 +561,7 @@ export function ClientDistributionChart({
             setChartType(value as "pie" | "line" | "bar")
           }
         >
-          <TabsList className="grid w-[300px] grid-cols-">
+          <TabsList className="grid w-full max-w-[300px] grid-cols-1">
             <TabsTrigger value="pie" className="flex items-center gap-1">
               <PieChartIcon className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Pie</span>

@@ -200,7 +200,7 @@ export default function VehiclesPage() {
   return (
     <Layout>
       <div className="container mx-auto p-6">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
           <div>
             <h1 className="text-3xl font-bold">Vehicle Management</h1>
             <p className="text-muted-foreground">
@@ -305,6 +305,7 @@ export default function VehiclesPage() {
                 </p>
               </div>
             ) : (
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -355,6 +356,7 @@ export default function VehiclesPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>

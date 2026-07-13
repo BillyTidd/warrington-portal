@@ -122,7 +122,7 @@ export function DateRangePicker({
 
   return (
     <Card className={cn("border-none shadow-none", className)}>
-      <CardContent className="flex items-center gap-2 p-2">
+      <CardContent className="flex items-center flex-wrap gap-2 p-2">
         <CalendarIcon className="h-4 w-4 text-muted-foreground" />
         <Select value={timeframe} onValueChange={handleTimeframeChange}>
           <SelectTrigger className="h-8 w-[180px] border-none bg-transparent px-2 shadow-none">

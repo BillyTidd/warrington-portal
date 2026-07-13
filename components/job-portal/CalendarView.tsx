@@ -375,7 +375,8 @@ export function CalendarView({
 
       {/* Month View */}
       {viewType === "month" && (
-        <div className="p-4">
+        <div className="p-4 overflow-x-auto">
+          <div className="min-w-[480px]">
           {/* Days of the week header */}
           <div className="grid grid-cols-7 mb-4">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
@@ -513,12 +514,14 @@ export function CalendarView({
               );
             })}
           </div>
+          </div>
         </div>
       )}
 
       {/* Week View */}
       {viewType === "week" && (
-        <div className="p-4">
+        <div className="p-4 overflow-x-auto">
+          <div className="min-w-[600px]">
           <div className="rounded-lg overflow-hidden bg-white dark:bg-gray-950 shadow-sm border">
             {/* Week header with days */}
             <div className="grid grid-cols-8 border-b">
@@ -772,6 +775,7 @@ export function CalendarView({
             >
               Next Week <ArrowRight className="h-3 w-3" />
             </Button>
+          </div>
           </div>
         </div>
       )}

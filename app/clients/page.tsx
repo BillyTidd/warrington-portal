@@ -182,7 +182,7 @@ export default function ClientsPage() {
   return (
     <Layout>
       <div className="container mx-auto py-10">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
           <h1 className="text-3xl font-bold">Clients</h1>
           <Button
             onClick={() => {
@@ -199,7 +199,7 @@ export default function ClientsPage() {
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         ) : (
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -272,7 +272,7 @@ export default function ClientsPage() {
             </DialogHeader>
             <form onSubmit={handleCreateOrUpdateClient}>
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
                   <Label htmlFor="name" className="text-right">
                     Name
                   </Label>
@@ -285,7 +285,7 @@ export default function ClientsPage() {
                     className="col-span-3"
                   />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
                   <Label htmlFor="description" className="text-right">
                     Description
                   </Label>

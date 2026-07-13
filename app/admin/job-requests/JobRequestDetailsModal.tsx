@@ -799,12 +799,12 @@ export function JobRequestDetailsModal({
             </Button>
 
             {isAdmin && isPending && (
-              <div className="flex gap-2 order-1 sm:order-2">
+              <div className="flex flex-col sm:flex-row gap-2 order-1 sm:order-2 w-full sm:w-auto">
                 <Button
                   variant="outline"
                   onClick={() => handleStatusAction("rejected")}
                   disabled={isUpdating}
-                  className="flex-1 sm:flex-none text-red-600 border-red-600 hover:bg-red-50"
+                  className="w-full sm:w-auto text-red-600 border-red-600 hover:bg-red-50"
                 >
                   <XCircle className="h-4 w-4 mr-2" />
                   Reject
@@ -812,7 +812,7 @@ export function JobRequestDetailsModal({
                 <Button
                   onClick={() => handleStatusAction("approved")}
                   disabled={isUpdating}
-                  className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700"
+                  className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
                   {isUpdating ? "Creating Job..." : "Approve & Create Job"}

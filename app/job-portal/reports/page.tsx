@@ -256,7 +256,7 @@ export default function JobReportsPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto mt-4 sm:mt-0">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto mt-4 sm:mt-0">
             <div className="relative flex-1 sm:flex-none sm:w-64">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -268,22 +268,24 @@ export default function JobReportsPage() {
               />
             </div>
 
-            <Button variant="outline" size="icon" onClick={handleSearch}>
-              <Search className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" onClick={handleSearch}>
+                <Search className="h-4 w-4" />
+              </Button>
 
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setShowFilters(!showFilters)}
-              className={showFilters ? "bg-muted" : ""}
-            >
-              <Filter className="h-4 w-4" />
-            </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setShowFilters(!showFilters)}
+                className={showFilters ? "bg-muted" : ""}
+              >
+                <Filter className="h-4 w-4" />
+              </Button>
 
-            <Button variant="outline" size="icon" onClick={fetchReports}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+              <Button variant="outline" size="icon" onClick={fetchReports}>
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -447,7 +449,7 @@ export default function JobReportsPage() {
         ) : (
           <Card className="shadow-md border-gray-200">
             <CardHeader className="pb-3 bg-gray-50 dark:bg-gray-900">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-wrap justify-between items-center gap-2">
                 <div>
                   <CardTitle>Job Reports</CardTitle>
                   <CardDescription>
@@ -489,7 +491,8 @@ export default function JobReportsPage() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <ScrollArea className="h-[600px]">
+              <ScrollArea className="h-[400px] lg:h-[600px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader className="sticky top-0 bg-background">
                     <TableRow>
@@ -592,6 +595,7 @@ export default function JobReportsPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
             <CardFooter className="flex flex-col sm:flex-row justify-between items-center border-t p-4 bg-gray-50 dark:bg-gray-900">
