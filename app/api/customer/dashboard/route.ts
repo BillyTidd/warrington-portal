@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     // Get customer's jobs (jobs created from approved requests)
     const jobs = await db
       .collection("jobs")
-      .find({ customerEmail: session.user.email })
+      .find({ clientId: session.user.id })
       .sort({ createdAt: -1 })
       .toArray()
 

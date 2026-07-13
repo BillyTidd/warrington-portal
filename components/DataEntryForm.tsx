@@ -66,6 +66,7 @@ type Field = {
   label: string;
   type: string;
   readOnly?: boolean;
+  step?: string;
 };
 
 type Section = {
@@ -91,7 +92,12 @@ export function DataEntryForm({
 
   useEffect(() => {
     calculateTotals();
-  }, [formData.mileage.miles, formData.overtime.hours]);
+  }, [
+    formData.mileage.miles,
+    formData.overtime.hours,
+    formData.expenses.amount,
+    formData.sustenance.amount,
+  ]);
 
   const fetchClients = async () => {
     try {
@@ -123,10 +129,17 @@ export function DataEntryForm({
       ? (parseFloat(formData.overtime.hours) * OVERTIME_RATE).toFixed(2)
       : "";
 
+    const total =
+      (mileageAmount ? parseFloat(mileageAmount) : 0) +
+      (formData.expenses.amount ? parseFloat(formData.expenses.amount) : 0) +
+      (overtimeAmount ? parseFloat(overtimeAmount) : 0) +
+      (formData.sustenance.amount ? parseFloat(formData.sustenance.amount) : 0);
+
     setFormData((prev) => ({
       ...prev,
       mileage: { ...prev.mileage, amount: mileageAmount },
       overtime: { ...prev.overtime, amount: overtimeAmount },
+      totalAmount: total.toFixed(2),
     }));
   };
 
@@ -151,12 +164,6 @@ export function DataEntryForm({
               : value,
         },
       }));
-    } else if (name === "totalAmount") {
-      setFormData((prev) => ({
-        ...prev,
-        totalAmount:
-          value === "" ? "" : Math.max(0, parseFloat(value)).toString(),
-      }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
@@ -179,7 +186,7 @@ export function DataEntryForm({
       title: "Mileage",
       key: "mileage",
       fields: [
-        { name: "miles", label: "Miles", type: "number" },
+        { name: "miles", label: "Miles", type: "number", step: "any" },
         {
           name: "amount",
           label: "Amount (auto)",
@@ -193,14 +200,14 @@ export function DataEntryForm({
       key: "expenses",
       fields: [
         { name: "description", label: "Description", type: "text" },
-        { name: "amount", label: "Amount", type: "number" },
+        { name: "amount", label: "Amount", type: "number", step: "any" },
       ],
     },
     {
       title: "Overtime",
       key: "overtime",
       fields: [
-        { name: "hours", label: "Hours", type: "number" },
+        { name: "hours", label: "Hours", type: "number", step: "any" },
         {
           name: "amount",
           label: "Amount (auto)",
@@ -277,15 +284,14 @@ export function DataEntryForm({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="totalAmount">Total Amount:</Label>
+              <Label htmlFor="totalAmount">Total Amount (auto):</Label>
               <Input
                 id="totalAmount"
                 name="totalAmount"
-                type="number"
+                type="text"
                 value={formData.totalAmount}
-                onChange={handleChange}
-                className="w-full"
-                min="0"
+                readOnly
+                className="w-full bg-muted"
               />
             </div>
           </div>
@@ -310,6 +316,7 @@ export function DataEntryForm({
                         className={field.readOnly ? "bg-muted" : ""}
                         placeholder={field.type === "number" ? "" : ""}
                         min="0"
+                        step={field.type === "number" ? field.step || "any" : undefined}
                       />
                     </div>
                   ))}

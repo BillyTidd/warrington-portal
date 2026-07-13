@@ -144,7 +144,7 @@ export function Header({
   };
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 bg-gradient-to-r from-violet-600 to-purple-600">
+    <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 bg-gradient-to-r from-amber-600 to-yellow-600">
       {/* First Row - Month and Year */}
       <div className="flex flex-col sm:flex-row items-center space-x-4 mb-4 sm:mb-0 w-full">
         <h2 className="text-2xl sm:text-3xl font-bold text-white w-full sm:w-auto">
@@ -208,16 +208,18 @@ export function Header({
       {/* Third Row - New Task Button */}
       <div className="flex flex-col sm:flex-row justify-end gap-4 items-center w-full mt-4 sm:mt-0">
         <Button
+          variant="ghost"
           onClick={onNewTask}
-          className="bg-white text-violet-600 hover:bg-violet-50 w-full sm:w-auto"
+          className="bg-white text-amber-600 hover:bg-amber-50 w-full sm:w-auto"
         >
           <Plus className="mr-2 h-4 w-4" />
           <span className="hidden sm:inline">New Task</span>
         </Button>
 
         <Button
+          variant="ghost"
           onClick={handleGenerateReport}
-          className="bg-white text-violet-600 hover:bg-violet-50 w-full sm:w-auto mt-4 sm:mt-0"
+          className="bg-white text-amber-600 hover:bg-amber-50 w-full sm:w-auto mt-4 sm:mt-0"
         >
           {isGeneratingReport ? (
             <>

@@ -301,9 +301,7 @@ export default function Dashboard() {
   return (
     <Layout>
       <div className="space-y-8">
-        <h1 className="text-3xl font-bold">
-          Welcome {session && session.user?.name} !
-        </h1>
+        <h1 className="text-3xl font-bold">Work Entries</h1>
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <Loader2 className="h-8 w-8 animate-spin" />

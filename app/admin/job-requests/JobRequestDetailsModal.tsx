@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -84,34 +85,13 @@ const getWorkerLabel = (workerType: string) => {
 };
 
 const getStatusBadge = (status: string) => {
-  switch (status) {
-    case "pending":
-      return (
-        <Badge variant="outline" className="text-yellow-600 border-yellow-600">
-          Pending Review
-        </Badge>
-      );
-    case "approved":
-      return (
-        <Badge variant="outline" className="text-green-600 border-green-600">
-          Approved
-        </Badge>
-      );
-    case "rejected":
-      return (
-        <Badge variant="outline" className="text-red-600 border-red-600">
-          Rejected
-        </Badge>
-      );
-    case "converted":
-      return (
-        <Badge variant="outline" className="text-blue-600 border-blue-600">
-          Job Created
-        </Badge>
-      );
-    default:
-      return <Badge variant="outline">{status}</Badge>;
+  if (status === "pending") {
+    return <StatusBadge status={status} label="Pending Review" />;
   }
+  if (status === "converted") {
+    return <StatusBadge status={status} label="Job Created" />;
+  }
+  return <StatusBadge status={status} />;
 };
 
 export function JobRequestDetailsModal({
@@ -336,8 +316,8 @@ export function JobRequestDetailsModal({
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
-                      <Clock className="h-4 w-4 text-purple-600" />
+                    <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center">
+                      <Clock className="h-4 w-4 text-yellow-600" />
                     </div>
                     <div>
                       <p className="font-medium">

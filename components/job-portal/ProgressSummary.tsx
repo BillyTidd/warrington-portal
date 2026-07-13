@@ -18,7 +18,7 @@ export function ProgressSummary({
 }: ProgressSummaryProps) {
   return (
     <Card className="border-none shadow-lg">
-      <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 pb-3">
+      <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40 pb-3">
         <CardTitle className="text-lg">Progress Summary</CardTitle>
       </CardHeader>
       <CardContent className="pt-4">

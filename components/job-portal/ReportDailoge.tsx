@@ -57,7 +57,7 @@ export function ReportDialog({
       onClick={handleGenerateReport}
       disabled={isGenerating}
       variant="outline"
-      className={`bg-white text-violet-600 hover:bg-violet-50 shadow-md hover:shadow-lg transition-all ${className}`}
+      className={`bg-white text-amber-600 hover:bg-amber-50 shadow-md hover:shadow-lg transition-all ${className}`}
     >
       {isGenerating ? (
         <>

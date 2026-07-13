@@ -703,9 +703,9 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
     return (
       <Card className="mb-6 border-none shadow-lg overflow-hidden">
-        <CardHeader className="bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/40 dark:to-violet-950/40 pb-3">
+        <CardHeader className="bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 pb-3">
           <CardTitle className="text-lg flex items-center">
-            <BarChart3 className="h-5 w-5 mr-2 text-purple-500" />
+            <BarChart3 className="h-5 w-5 mr-2 text-yellow-500" />
             Financial Overview
           </CardTitle>
         </CardHeader>
@@ -713,7 +713,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Client Price</p>
-              <p className="text-xl font-bold text-purple-600 dark:text-purple-400">
+              <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400">
                 £{clientPrice.toFixed(2)}
               </p>
             </div>
@@ -768,9 +768,9 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
     return (
       <Card className="mb-6 border-none shadow-lg overflow-hidden">
-        <CardHeader className="bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/40 dark:to-violet-950/40 pb-3">
+        <CardHeader className="bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 pb-3">
           <CardTitle className="text-lg flex items-center">
-            <BarChart3 className="h-5 w-5 mr-2 text-purple-500" />
+            <BarChart3 className="h-5 w-5 mr-2 text-yellow-500" />
             Financial Overview
           </CardTitle>
         </CardHeader>
@@ -778,16 +778,15 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Price</p>
-              <p className="text-xl font-bold text-purple-600 dark:text-purple-400">
-                {/* £{clientPrice.toFixed(2) * 1.1} */}£
-                {Number((clientPrice * 1.1).toFixed(1))}
+              <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400">
+                £{(clientPrice * 1.1).toFixed(2)}
               </p>
             </div>
 
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Approved Costs</p>
               <p className="text-xl font-bold text-red-500">
-                -£{Number((approvedCosts * 1.1).toFixed(1))}
+                -£{(approvedCosts * 1.1).toFixed(2)}
               </p>
             </div>
           </div>
@@ -839,6 +838,12 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
     job.status === "completed" ? 100 : job.status === "in-progress" ? 50 : 0;
   const approvedCosts = getApprovedCosts();
   const profit = (job.clientPrice || 0) - approvedCosts;
+  const totalWorkerPayments = job.workers
+    ? job.workers.reduce(
+        (sum: number, worker: any) => sum + (worker.paymentRate || 0),
+        0
+      )
+    : job.workerPaymentRate || 0;
 
   if (isWorker) {
     return (
@@ -858,7 +863,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
               ) : (
                 <div>
                   <Card className="border-none shadow-lg">
-                    <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40">
+                    <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40">
                       <CardTitle>Progress Tracking</CardTitle>
                       <CardDescription>
                         Keep track of your work on this job
@@ -966,21 +971,21 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           >
             <TabsTrigger
               value="details"
-              className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+              className="data-[state=active]:bg-amber-100 dark:data-[state=active]:bg-amber-900/30"
             >
               <FileText className="h-4 w-4 lg:mr-2" />
               <span className="hidden lg:inline">Details</span>
             </TabsTrigger>
             <TabsTrigger
               value="progress"
-              className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+              className="data-[state=active]:bg-amber-100 dark:data-[state=active]:bg-amber-900/30"
             >
               <ClipboardList className="h-4 w-4 lg:mr-2" />
               <span className="hidden lg:inline">Expenses / Progress</span>
             </TabsTrigger>
             <TabsTrigger
               value="documents"
-              className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+              className="data-[state=active]:bg-amber-100 dark:data-[state=active]:bg-amber-900/30"
             >
               <Paperclip className="h-4 w-4 lg:mr-2" />
               <span className="hidden lg:inline">Documents</span>
@@ -988,7 +993,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
             {isAdmin && (
               <TabsTrigger
                 value="financials"
-                className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+                className="data-[state=active]:bg-amber-100 dark:data-[state=active]:bg-amber-900/30"
               >
                 <BarChart3 className="h-4 w-4 lg:mr-2" />
                 <span className="hidden lg:inline">Financials</span>
@@ -997,7 +1002,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
             {isAdmin && (
               <TabsTrigger
                 value="confirmations"
-                className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+                className="data-[state=active]:bg-amber-100 dark:data-[state=active]:bg-amber-900/30"
               >
                 <Users className="h-4 w-4 lg:mr-2" />
                 <span className="hidden lg:inline">Confirmations</span>
@@ -1063,7 +1068,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                     ) : (
                       <div>
                         <Card className="border-none shadow-lg">
-                          <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40">
+                          <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40">
                             <CardTitle>Progress Tracking</CardTitle>
                             <CardDescription>
                               Keep track of your work on this job
@@ -1161,9 +1166,9 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
               {/* Upload / Replace PDF */}
               {(isAdmin || isAssignedToMe) && (
                 <Card className="border-none shadow-lg">
-                  <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 pb-3">
+                  <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40 pb-3">
                     <CardTitle className="text-lg flex items-center">
-                      <Upload className="h-5 w-5 mr-2 text-violet-500" />
+                      <Upload className="h-5 w-5 mr-2 text-amber-500" />
                       {job.pdfUrl ? "Replace PDF" : "Upload PDF"}
                     </CardTitle>
                     <CardDescription>
@@ -1189,7 +1194,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                         </Button>
                       </div>
                     ) : (
-                      <label className="flex items-center justify-center gap-2 p-4 rounded-lg border-2 border-dashed cursor-pointer hover:border-violet-400 transition-colors text-muted-foreground hover:text-violet-500">
+                      <label className="flex items-center justify-center gap-2 p-4 rounded-lg border-2 border-dashed cursor-pointer hover:border-amber-400 transition-colors text-muted-foreground hover:text-amber-500">
                         <Paperclip className="h-4 w-4" />
                         <span className="text-sm">Click to select a PDF</span>
                         <input
@@ -1353,8 +1358,12 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                     progressLogs={job.progressLogs?.filter(
                       (log: any) => log.jobStatus === "approved"
                     )} // Only approved logs
-                    totalCost={approvedCosts}
-                    profit={profit}
+                    workers={job.workers}
+                    totalCost={approvedCosts + totalWorkerPayments}
+                    profit={
+                      (job.clientPrice || 0) -
+                      (approvedCosts + totalWorkerPayments)
+                    }
                     currencySymbol="£"
                   />
                 </div>

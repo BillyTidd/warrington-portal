@@ -15,15 +15,13 @@ import {
   Trash2,
   X,
   Download,
-  CheckCircle,
-  Clock,
-  AlertTriangle,
   Users,
   DollarSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -122,7 +120,7 @@ export function JobDetailsHeader({
         </div>
       </div>
 
-      <div className="bg-gradient-to-r from-violet-600 to-purple-600 rounded-lg p-6 shadow-lg mb-6">
+      <div className="bg-gradient-to-r from-amber-600 to-yellow-600 rounded-lg p-6 shadow-lg mb-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="space-y-2">
             {isEditing ? (
@@ -138,33 +136,13 @@ export function JobDetailsHeader({
               <h1 className="text-3xl font-bold text-white">{job.jobName}</h1>
             )}
             <div className="flex items-center gap-2">
-              <Badge
-                className={
-                  job.status === "completed"
-                    ? "bg-green-500 hover:bg-green-600"
-                    : job.status === "in-progress"
-                    ? "bg-blue-500 hover:bg-blue-600"
-                    : "bg-yellow-500 hover:bg-yellow-600"
-                }
-              >
-                {job.status === "completed" ? (
-                  <CheckCircle className="h-3 w-3 mr-1" />
-                ) : job.status === "in-progress" ? (
-                  <Clock className="h-3 w-3 mr-1" />
-                ) : (
-                  <AlertTriangle className="h-3 w-3 mr-1" />
-                )}
-                {job.status === "completed"
-                  ? "Completed"
-                  : job.status === "in-progress"
-                  ? "In Progress"
-                  : "Pending"}
-              </Badge>
+              <StatusBadge status={job.status || "pending"} variant="solid" />
               {isOverdue && (
-                <Badge variant="destructive">
-                  <AlertTriangle className="h-3 w-3 mr-1" />
-                  Overdue by {Math.abs(daysRemaining)} days
-                </Badge>
+                <StatusBadge
+                  status="overdue"
+                  variant="solid"
+                  label={`Overdue by ${Math.abs(daysRemaining)} days`}
+                />
               )}
 
               {/* Show payment badge if assigned to me */}
@@ -191,9 +169,10 @@ export function JobDetailsHeader({
             {isEditing && (
               <>
                 <Button
+                  variant="ghost"
                   onClick={handleSaveJob}
                   disabled={isSaving}
-                  className="bg-white text-violet-600 hover:bg-white/90"
+                  className="bg-white text-amber-600 hover:bg-white/90"
                 >
                   {isSaving ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

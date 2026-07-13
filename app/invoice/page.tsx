@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -189,15 +190,10 @@ export default function InvoicesPage() {
                         {new Date(invoice.createdAt).toLocaleString()}
                       </TableCell>
                       <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                            invoice.paymentStatus
-                              ? "bg-green-100 text-green-800"
-                              : "bg-yellow-100 text-yellow-800"
-                          }`}
-                        >
-                          {invoice.paymentStatus ? "Paid" : "Pending"}
-                        </span>
+                        <StatusBadge
+                          status={invoice.paymentStatus ? "approved" : "pending"}
+                          label={invoice.paymentStatus ? "Paid" : "Pending"}
+                        />
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>

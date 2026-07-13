@@ -23,6 +23,8 @@ interface EntryData {
   totalAmount?: number;
 }
 
+const round2 = (value: number) => Math.round(value * 100) / 100;
+
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -92,6 +94,35 @@ export async function POST(req: Request) {
     const user = session.user as SessionUser;
     const data: EntryData = await req.json();
 
+    const mileageAmount = round2(
+      Number(
+        data.mileage && typeof data.mileage !== "number"
+          ? data.mileage.amount
+          : 0
+      )
+    );
+    const expensesAmount = round2(
+      Number(
+        data.expenses && typeof data.expenses !== "number"
+          ? data.expenses.amount
+          : data.expenses || 0
+      )
+    );
+    const overtimeAmount = round2(
+      Number(
+        data.overtime && typeof data.overtime !== "number"
+          ? data.overtime.amount
+          : 0
+      )
+    );
+    const sustenanceAmount = round2(
+      Number(
+        data.sustenance && typeof data.sustenance !== "number"
+          ? data.sustenance.amount
+          : data.sustenance || 0
+      )
+    );
+
     const entry = {
       userId: new ObjectId(user.id),
       userName: user.name,
@@ -104,22 +135,14 @@ export async function POST(req: Request) {
             ? data.mileage.miles
             : data.mileage || 0
         ),
-        amount: Number(
-          data.mileage && typeof data.mileage !== "number"
-            ? data.mileage.amount
-            : 0
-        ),
+        amount: mileageAmount,
       },
       expenses: {
         description:
           data.expenses && typeof data.expenses !== "number"
             ? data.expenses.description
             : "",
-        amount: Number(
-          data.expenses && typeof data.expenses !== "number"
-            ? data.expenses.amount
-            : data.expenses || 0
-        ),
+        amount: expensesAmount,
       },
       overtime: {
         hours: Number(
@@ -127,24 +150,18 @@ export async function POST(req: Request) {
             ? data.overtime.hours
             : data.overtime || 0
         ),
-        amount: Number(
-          data.overtime && typeof data.overtime !== "number"
-            ? data.overtime.amount
-            : 0
-        ),
+        amount: overtimeAmount,
       },
       sustenance: {
         description:
           data.sustenance && typeof data.sustenance !== "number"
             ? data.sustenance.description
             : "",
-        amount: Number(
-          data.sustenance && typeof data.sustenance !== "number"
-            ? data.sustenance.amount
-            : data.sustenance || 0
-        ),
+        amount: sustenanceAmount,
       },
-      totalAmount: Number(data.totalAmount || 0),
+      totalAmount: round2(
+        mileageAmount + expensesAmount + overtimeAmount + sustenanceAmount
+      ),
     };
 
     const clientInstance = await clientPromise;

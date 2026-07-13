@@ -167,11 +167,7 @@ export function JobHeader({
             </Button>
           )}
 
-          <Button
-            onClick={onNewJob}
-            size="sm"
-            className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700"
-          >
+          <Button onClick={onNewJob} size="sm" className="flex items-center gap-1">
             <Plus className="h-4 w-4" />
             New Job
           </Button>

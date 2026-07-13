@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
 import { DataEntryForm } from "@/components/DataEntryForm";
 import { DataTable } from "@/components/DataTable";
 import {
@@ -46,7 +45,6 @@ interface Entry {
 }
 
 export default function Dashboard() {
-  const { data: session } = useSession();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [deletingEntry, setDeletingEntry] = useState<string | null>(null);
@@ -133,9 +131,7 @@ export default function Dashboard() {
   return (
     <Layout>
       <div className="space-y-8">
-        <h1 className="text-3xl font-bold">
-          Welcome {session && session.user.name} !
-        </h1>
+        <h1 className="text-3xl font-bold">Create Entry</h1>
         <DataEntryForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
 
         <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>

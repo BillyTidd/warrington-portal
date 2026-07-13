@@ -13,6 +13,7 @@ import {
   History,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useSession } from "next-auth/react";
@@ -33,25 +34,14 @@ export function JobDetails({ job, onEdit, onDelete }: JobDetailsProps) {
   const daysRemaining = differenceInDays(parseISO(job.expireDate), new Date());
   const isOverdue = daysRemaining < 0 && job.status !== "completed";
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "completed":
-        return <Badge className="bg-green-500">Completed</Badge>;
-      case "in-progress":
-        return <Badge className="bg-blue-500">In Progress</Badge>;
-      default:
-        return <Badge className="bg-yellow-500">Pending</Badge>;
-    }
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h3 className="text-xl font-bold">{job.jobName}</h3>
           <div className="flex items-center gap-2 mt-1">
-            {getStatusBadge(job.status || "pending")}
-            {isOverdue && <Badge variant="destructive">Overdue</Badge>}
+            <StatusBadge status={job.status || "pending"} />
+            {isOverdue && <StatusBadge status="overdue" />}
           </div>
         </div>
 
@@ -171,7 +161,7 @@ export function JobDetails({ job, onEdit, onDelete }: JobDetailsProps) {
           <div className="space-y-2">
             <div className="flex justify-between">
               <span>Current Status:</span>
-              <span>{getStatusBadge(job.status || "pending")}</span>
+              <StatusBadge status={job.status || "pending"} />
             </div>
             <div className="flex justify-between">
               <span>Time Remaining:</span>

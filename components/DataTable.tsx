@@ -92,7 +92,7 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [clients, setClients] = useState<Client[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const entriesPerPage = 10;
 
   useEffect(() => {

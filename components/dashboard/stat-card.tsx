@@ -13,7 +13,7 @@ const cardVariants = cva(
         blue: "border-l-4 border-blue-500 dark:border-blue-400",
         green: "border-l-4 border-emerald-500 dark:border-emerald-400",
         amber: "border-l-4 border-amber-500 dark:border-amber-400",
-        purple: "border-l-4 border-purple-500 dark:border-purple-400",
+        yellow: "border-l-4 border-yellow-500 dark:border-yellow-400",
         rose: "border-l-4 border-rose-500 dark:border-rose-400",
         cyan: "border-l-4 border-cyan-500 dark:border-cyan-400",
         indigo: "border-l-4 border-indigo-500 dark:border-indigo-400",
@@ -33,8 +33,8 @@ const iconVariants = cva("rounded-md p-2", {
         "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
       amber:
         "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400",
-      purple:
-        "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",
+      yellow:
+        "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400",
       rose: "bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400",
       cyan: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400",
       indigo:
@@ -54,7 +54,7 @@ interface StatCardProps {
   trend?: "up" | "down" | "neutral";
   isLoading?: boolean;
   className?: string;
-  variant?: "blue" | "green" | "amber" | "purple" | "rose" | "cyan" | "indigo";
+  variant?: "blue" | "green" | "amber" | "yellow" | "rose" | "cyan" | "indigo";
   secondaryValue?: string;
   secondaryLabel?: string;
   valuePrefix?: string;

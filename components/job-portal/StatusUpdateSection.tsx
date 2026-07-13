@@ -19,9 +19,9 @@ export function StatusUpdateSection({
 }: StatusUpdateSectionProps) {
   return (
     <Card className="mb-6 border-none shadow-lg overflow-hidden">
-      <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 pb-3">
+      <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40 pb-3">
         <CardTitle className="text-lg flex items-center">
-          <ClipboardList className="h-5 w-5 mr-2 text-violet-500" />
+          <ClipboardList className="h-5 w-5 mr-2 text-amber-500" />
           Update Status
         </CardTitle>
       </CardHeader>

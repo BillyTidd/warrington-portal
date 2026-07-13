@@ -9,7 +9,7 @@ interface JobDescriptionProps {
 export function JobDescription({ description }: JobDescriptionProps) {
   return (
     <Card className="border-none shadow-lg">
-      <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40">
+      <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40">
         <CardTitle>Job Description</CardTitle>
       </CardHeader>
       <CardContent className="pt-6">

@@ -2,15 +2,7 @@
 import { format, parseISO, isPast } from "date-fns";
 import type { Job } from "@/types/job";
 import { Button } from "@/components/ui/button";
-import {
-  Eye,
-  Edit,
-  Trash2,
-  CheckCircle,
-  Clock,
-  AlertTriangle,
-  Users,
-} from "lucide-react";
+import { Eye, Edit, Trash2, Users } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -19,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -43,38 +35,15 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
 
   const getStatusBadge = (status: string, expireDate: string) => {
     if (status === "completed") {
-      return (
-        <Badge className="bg-green-500/90 text-white hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700 flex items-center gap-1">
-          <CheckCircle className="h-3 w-3" />
-          <span>Completed</span>
-        </Badge>
-      );
+      return <StatusBadge status="completed" />;
     }
-
     if (isPast(parseISO(expireDate)) && status !== "completed") {
-      return (
-        <Badge className="bg-red-500/90 text-white hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700 flex items-center gap-1">
-          <AlertTriangle className="h-3 w-3" />
-          <span>Overdue</span>
-        </Badge>
-      );
+      return <StatusBadge status="overdue" />;
     }
-
     if (status === "in-progress") {
-      return (
-        <Badge className="bg-blue-500/90 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 flex items-center gap-1">
-          <Clock className="h-3 w-3" />
-          <span>In Progress</span>
-        </Badge>
-      );
+      return <StatusBadge status="in-progress" />;
     }
-
-    return (
-      <Badge className="bg-amber-500/90 text-white hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700 flex items-center gap-1">
-        <Clock className="h-3 w-3" />
-        <span>Pending</span>
-      </Badge>
-    );
+    return <StatusBadge status="pending" />;
   };
 
   const getWorkerDisplay = (job: Job) => {
@@ -112,7 +81,7 @@ export function JobList({ jobs, isLoading, onDeleteJob }: JobListProps) {
   if (isLoading) {
     return (
       <div className="p-8 text-center bg-white dark:bg-gray-950 rounded-lg shadow-sm border dark:border-gray-800">
-        <div className="animate-spin h-8 w-8 border-4 border-violet-500 border-t-transparent rounded-full mx-auto"></div>
+        <div className="animate-spin h-8 w-8 border-4 border-amber-500 border-t-transparent rounded-full mx-auto"></div>
         <p className="mt-4 text-muted-foreground">Loading jobs...</p>
       </div>
     );

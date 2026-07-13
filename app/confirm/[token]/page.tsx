@@ -101,7 +101,7 @@ export default function ConfirmPage({ params }: { params: { token: string } }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="text-center">
-          <Loader2 className="h-10 w-10 animate-spin text-violet-600 mx-auto mb-3" />
+          <Loader2 className="h-10 w-10 animate-spin text-amber-600 mx-auto mb-3" />
           <p className="text-gray-500 dark:text-gray-400">Loading job details...</p>
         </div>
       </div>
@@ -182,9 +182,9 @@ export default function ConfirmPage({ params }: { params: { token: string } }) {
 
         {/* Job Details */}
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950 dark:to-purple-950 px-5 py-4 border-b border-violet-100 dark:border-violet-900">
+          <div className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950 dark:to-yellow-950 px-5 py-4 border-b border-amber-100 dark:border-amber-900">
             <div className="flex items-center gap-2">
-              <Briefcase className="h-5 w-5 text-violet-600 dark:text-violet-400 shrink-0" />
+              <Briefcase className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
               <h2 className="text-base font-semibold text-gray-900 dark:text-white">{job?.jobName}</h2>
             </div>
             {job?.jobType && (

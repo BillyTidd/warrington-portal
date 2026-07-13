@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { PoundSterling, Clock, Plus, Trash2, User } from "lucide-react";
 import type { Job } from "@/types/job";
 import { useState } from "react";
@@ -131,7 +131,7 @@ export function JobDetailsForm({
 
   return (
     <Card className="border-none shadow-lg">
-      <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40">
+      <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40">
         <CardTitle>Edit Job Details</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 pt-6">
@@ -163,18 +163,23 @@ export function JobDetailsForm({
                           <User className="h-4 w-4" />
                           <span className="font-medium">{worker.workerName}</span>
                           {conf && (
-                            <Badge
-                              className={
+                            <StatusBadge
+                              status={
                                 conf.response === 'yes'
-                                  ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400'
+                                  ? 'confirmed'
                                   : conf.response === 'no'
-                                  ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400'
-                                  : 'bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                  ? 'declined'
+                                  : 'pending'
                               }
-                              variant="outline"
-                            >
-                              {conf.response === 'yes' ? 'Available' : conf.response === 'no' ? 'Not Available' : 'Pending'}
-                            </Badge>
+                              label={
+                                conf.response === 'yes'
+                                  ? 'Available'
+                                  : conf.response === 'no'
+                                  ? 'Not Available'
+                                  : 'Pending'
+                              }
+                              showIcon={false}
+                            />
                           )}
                         </div>
                         <Button
@@ -283,10 +288,10 @@ export function JobDetailsForm({
                                 <span
                                   className={`text-xs font-medium px-1.5 py-0.5 rounded ${
                                     conf.response === 'yes'
-                                      ? 'bg-green-100 text-green-700'
+                                      ? 'text-green-600 dark:text-green-400'
                                       : conf.response === 'no'
-                                      ? 'bg-red-100 text-red-700'
-                                      : 'bg-yellow-100 text-yellow-700'
+                                      ? 'text-red-600 dark:text-red-400'
+                                      : 'text-amber-600 dark:text-amber-400'
                                   }`}
                                 >
                                   {conf.response === 'yes' ? 'Available' : conf.response === 'no' ? 'Not Available' : 'Pending'}

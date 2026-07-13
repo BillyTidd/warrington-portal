@@ -442,7 +442,7 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
 
-              <Card className="border-t-4 border-t-purple-500 dark:border-t-purple-400">
+              <Card className="border-t-4 border-t-yellow-500 dark:border-t-yellow-400">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <div>
                     <CardTitle className="text-base font-medium">

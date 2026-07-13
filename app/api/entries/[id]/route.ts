@@ -23,6 +23,8 @@ interface EntryData {
   totalAmount?: number;
 }
 
+const round2 = (value: number) => Math.round(value * 100) / 100;
+
 export async function PUT(
   req: Request,
   { params }: { params: { id: string } }
@@ -36,9 +38,11 @@ export async function PUT(
     const user = session.user as SessionUser;
     const data: EntryData = await req.json();
 
-    // Calculate amounts based on rates
-    const mileageAmount = (data.mileage?.miles || 0) * 0.45;
-    const overtimeAmount = (data.overtime?.hours || 0) * 15;
+    // Calculate amounts based on rates, rounded to 2 decimal places
+    const mileageAmount = round2(Number(data.mileage?.miles || 0) * 0.45);
+    const overtimeAmount = round2(Number(data.overtime?.hours || 0) * 15);
+    const expensesAmount = round2(Number(data.expenses?.amount || 0));
+    const sustenanceAmount = round2(Number(data.sustenance?.amount || 0));
 
     const updateData = {
       date: data.date,
@@ -50,7 +54,7 @@ export async function PUT(
       },
       expenses: {
         description: data.expenses?.description || "",
-        amount: Number(data.expenses?.amount || 0),
+        amount: expensesAmount,
       },
       overtime: {
         hours: Number(data.overtime?.hours || 0),
@@ -58,13 +62,11 @@ export async function PUT(
       },
       sustenance: {
         description: data.sustenance?.description || "",
-        amount: Number(data.sustenance?.amount || 0),
+        amount: sustenanceAmount,
       },
-      totalAmount:
-        mileageAmount +
-        (data.expenses?.amount || 0) +
-        overtimeAmount +
-        (data.sustenance?.amount || 0),
+      totalAmount: round2(
+        mileageAmount + expensesAmount + overtimeAmount + sustenanceAmount
+      ),
     };
 
     const clientInstance = await clientPromise;

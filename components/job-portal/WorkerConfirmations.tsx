@@ -2,9 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  CheckCircle,
-  XCircle,
-  Clock,
   Send,
   RefreshCw,
   MessageSquare,
@@ -13,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
@@ -62,12 +60,6 @@ interface Props {
   jobId: string;
   workers: Worker[];
 }
-
-const statusConfig = {
-  pending: { label: "Pending", icon: Clock, className: "bg-yellow-100 text-yellow-700 border-yellow-200" },
-  confirmed: { label: "Confirmed", icon: CheckCircle, className: "bg-green-100 text-green-700 border-green-200" },
-  declined: { label: "Declined", icon: XCircle, className: "bg-red-100 text-red-700 border-red-200" },
-};
 
 export function WorkerConfirmations({ jobId, workers }: Props) {
   const [confirmations, setConfirmations] = useState<Confirmation[]>([]);
@@ -172,9 +164,9 @@ export function WorkerConfirmations({ jobId, workers }: Props) {
     <div className="space-y-6">
       {/* Send Panel */}
       <Card className="border-none shadow-md">
-        <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 pb-3 rounded-t-lg">
+        <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40 pb-3 rounded-t-lg">
           <CardTitle className="text-lg flex items-center gap-2">
-            <Send className="h-5 w-5 text-violet-600" />
+            <Send className="h-5 w-5 text-amber-600" />
             Request Worker Confirmation
           </CardTitle>
           <CardDescription>
@@ -322,8 +314,6 @@ export function WorkerConfirmations({ jobId, workers }: Props) {
               </TableHeader>
               <TableBody>
                 {confirmations.map((c) => {
-                  const cfg = statusConfig[c.status];
-                  const Icon = cfg.icon;
                   return (
                     <TableRow key={c._id}>
                       <TableCell className="font-medium">{c.workerName}</TableCell>
@@ -346,10 +336,7 @@ export function WorkerConfirmations({ jobId, workers }: Props) {
                         })}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={`text-xs ${cfg.className}`}>
-                          <Icon className="h-3 w-3 mr-1" />
-                          {cfg.label}
-                        </Badge>
+                        <StatusBadge status={c.status} className="text-xs" />
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
                         {c.workerMessage ? (

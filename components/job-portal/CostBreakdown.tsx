@@ -8,57 +8,99 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DollarSign } from "lucide-react";
+import { DollarSign, Users } from "lucide-react";
 import type { JobProgressLog } from "@/types/job";
 
 interface CostBreakdownProps {
   progressLogs: JobProgressLog[] | undefined;
+  workers?: { userId: string; workerName: string; paymentRate?: number }[];
   totalCost: number;
   profit: number;
   currencySymbol?: string;
 }
 
+const getLogCost = (log: JobProgressLog) =>
+  log.overtimeCost || log.vehicleUsage?.totalCost || log.cost || 0;
+
 export function CostBreakdown({
   progressLogs,
+  workers,
   totalCost,
   profit,
+  currencySymbol = "£",
 }: CostBreakdownProps) {
+  const costedLogs = (progressLogs || []).filter((log) => getLogCost(log) > 0);
+  const paidWorkers = (workers || []).filter(
+    (worker) => (worker.paymentRate || 0) > 0
+  );
+  const hasEntries = costedLogs.length > 0 || paidWorkers.length > 0;
+
   return (
     <Card className="border-none shadow-lg">
-      <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40">
+      <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40">
         <CardTitle>Cost Breakdown</CardTitle>
       </CardHeader>
       <CardContent className="pt-6">
-        {progressLogs && progressLogs.filter((log) => log.cost).length > 0 ? (
+        {hasEntries ? (
           <div className="space-y-4">
-            {progressLogs
-              .filter((log) => log.cost)
-              .sort(
-                (a, b) =>
-                  new Date(b.timestamp).getTime() -
-                  new Date(a.timestamp).getTime()
-              )
-              .map((log) => (
-                <div
-                  key={log._id}
-                  className="flex justify-between items-start p-3 border rounded-lg hover:bg-muted/30 transition-colors"
-                >
-                  <div>
+            {paidWorkers.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-muted-foreground">
+                  Worker Payments
+                </h4>
+                {paidWorkers.map((worker) => (
+                  <div
+                    key={worker.userId}
+                    className="flex justify-between items-center p-3 border rounded-lg hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <span>{worker.workerName}</span>
+                    </div>
                     <div className="font-medium">
-                      £{log.cost?.toFixed(2) || "0.00"}
-                    </div>
-                    <div className="text-sm text-muted-foreground mt-1">
-                      {format(new Date(log.timestamp), "MMM d, yyyy")}
-                    </div>
-                    <div className="text-sm mt-1 line-clamp-1">
-                      {log.details}
+                      {currencySymbol}
+                      {(worker.paymentRate || 0).toFixed(2)}
                     </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    {log.updatedByName}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            )}
+
+            {costedLogs.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-muted-foreground">
+                  Additional Costs
+                </h4>
+                {costedLogs
+                  .sort(
+                    (a, b) =>
+                      new Date(b.timestamp).getTime() -
+                      new Date(a.timestamp).getTime()
+                  )
+                  .map((log) => (
+                    <div
+                      key={log._id}
+                      className="flex justify-between items-start p-3 border rounded-lg hover:bg-muted/30 transition-colors"
+                    >
+                      <div>
+                        <div className="font-medium">
+                          {currencySymbol}
+                          {getLogCost(log).toFixed(2)}
+                        </div>
+                        <div className="text-sm text-muted-foreground mt-1">
+                          {format(new Date(log.timestamp), "MMM d, yyyy")}
+                        </div>
+                        <div className="text-sm mt-1 line-clamp-1">
+                          {log.details}
+                        </div>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {log.updatedByName}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-center py-12">

@@ -19,6 +19,7 @@ import {
 import { Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import Image from "next/image";
 
 // Separate component that uses useSearchParams
 function LoginForm() {
@@ -62,19 +63,37 @@ function LoginForm() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <Card className="w-full max-w-md shadow-lg">
+    <div className="flex items-center justify-center min-h-screen px-4 bg-gradient-to-br from-amber-50 via-white to-yellow-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      <Card className="w-full max-w-md shadow-lg border-amber-100 dark:border-white/10">
         <CardHeader className="text-center">
-          <div className="flex items-center justify-center mb-4">
-            {isCustomerLogin && (
+          <Link href="/" className="flex justify-center mb-2">
+            <Image
+              src="/new-logo-light.jpg"
+              alt="Warrington Portal"
+              width={160}
+              height={58}
+              className="dark:hidden"
+            />
+            <Image
+              src="/new-logo-dark.png"
+              alt="Warrington Portal"
+              width={160}
+              height={58}
+              className="hidden dark:block"
+            />
+          </Link>
+
+          {isCustomerLogin && (
+            <div className="flex justify-center mb-2">
               <Link href="/estimate">
-                <Button variant="ghost" size="sm" className="mr-2">
+                <Button variant="ghost" size="sm">
                   <ArrowLeft className="h-4 w-4 mr-1" />
                   Back to Estimate
                 </Button>
               </Link>
-            )}
-          </div>
+            </div>
+          )}
+
           <CardTitle className="text-2xl">
             {isCustomerLogin ? "Customer Login" : "Login"}
           </CardTitle>
@@ -121,11 +140,11 @@ function LoginForm() {
           </form>
         </CardContent>
         <CardFooter className="flex justify-center">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             Don't have an account?{" "}
             <Link
               href={`/signup${isCustomerLogin ? "?type=customer" : ""}`}
-              className="text-blue-600 hover:underline"
+              className="text-amber-600 dark:text-amber-400 hover:underline font-medium"
             >
               Sign up
             </Link>
@@ -139,8 +158,8 @@ function LoginForm() {
 // Loading fallback component
 function LoginLoading() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <Card className="w-full max-w-md shadow-lg">
+    <div className="flex items-center justify-center min-h-screen px-4 bg-gradient-to-br from-amber-50 via-white to-yellow-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      <Card className="w-full max-w-md shadow-lg border-amber-100 dark:border-white/10">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Loading...</CardTitle>
         </CardHeader>

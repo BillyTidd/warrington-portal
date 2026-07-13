@@ -264,7 +264,7 @@ export function CalendarView({
 
   return (
     <Card className="bg-background rounded-lg shadow-lg border-0">
-      <div className="p-4 border-b bg-gradient-to-r from-violet-600/90 to-purple-600/90 text-white">
+      <div className="p-4 border-b bg-gradient-to-r from-amber-600/90 to-yellow-600/90 text-white">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center space-x-3">
             <div className="bg-white/20 p-2 rounded-lg">
@@ -324,19 +324,19 @@ export function CalendarView({
               <TabsList className="bg-transparent">
                 <TabsTrigger
                   value="month"
-                  className="data-[state=active]:bg-white data-[state=active]:text-violet-600 text-white"
+                  className="data-[state=active]:bg-white data-[state=active]:text-amber-600 text-white"
                 >
                   Month
                 </TabsTrigger>
                 <TabsTrigger
                   value="week"
-                  className="data-[state=active]:bg-white data-[state=active]:text-violet-600 text-white"
+                  className="data-[state=active]:bg-white data-[state=active]:text-amber-600 text-white"
                 >
                   Week
                 </TabsTrigger>
                 <TabsTrigger
                   value="day"
-                  className="data-[state=active]:bg-white data-[state=active]:text-violet-600 text-white"
+                  className="data-[state=active]:bg-white data-[state=active]:text-amber-600 text-white"
                 >
                   Day
                 </TabsTrigger>
@@ -346,24 +346,24 @@ export function CalendarView({
 
           <div className="flex space-x-2">
             <Button
-              variant={displayMode === "assign" ? "secondary" : "outline"}
+              variant="ghost"
               size="sm"
               onClick={() => setDisplayMode("assign")}
               className={
                 displayMode === "assign"
-                  ? "bg-white text-violet-600"
+                  ? "bg-white text-amber-600"
                   : "bg-white/10 border-none text-white"
               }
             >
               Start Dates
             </Button>
             <Button
-              variant={displayMode === "expire" ? "secondary" : "outline"}
+              variant="ghost"
               size="sm"
               onClick={() => setDisplayMode("expire")}
               className={
                 displayMode === "expire"
-                  ? "bg-white text-violet-600"
+                  ? "bg-white text-amber-600"
                   : "bg-white/10 border-none text-white"
               }
             >
@@ -382,7 +382,7 @@ export function CalendarView({
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
               <div
                 key={day}
-                className="px-2 py-3 text-center text-sm font-medium text-violet-600 dark:text-violet-400 bg-violet-50/50 dark:bg-violet-900/20 rounded-md mx-1"
+                className="px-2 py-3 text-center text-sm font-medium text-amber-600 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-900/20 rounded-md mx-1"
               >
                 {day}
               </div>
@@ -404,14 +404,14 @@ export function CalendarView({
                     "min-h-[120px] p-2 border rounded-lg relative group transition-all hover:shadow-md",
                     !isCurrentMonth && "bg-muted/30 opacity-50",
                     isToday(date) &&
-                      "border-violet-500 bg-violet-50/50 dark:bg-violet-950/20 ring-1 ring-violet-500/50"
+                      "border-amber-500 bg-amber-50/50 dark:bg-amber-950/20 ring-1 ring-amber-500/50"
                   )}
                 >
                   <div className="flex justify-between items-center">
                     <div
                       className={cn(
                         "text-center font-medium text-sm p-1 h-7 w-7 rounded-full flex items-center justify-center",
-                        isToday(date) && "bg-violet-500 text-white"
+                        isToday(date) && "bg-amber-500 text-white"
                       )}
                     >
                       {dayNumber}
@@ -419,7 +419,7 @@ export function CalendarView({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-800"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-800"
                       onClick={() => handleCreateJob(date)}
                     >
                       <Plus className="h-4 w-4" />
@@ -526,7 +526,7 @@ export function CalendarView({
             {/* Week header with days */}
             <div className="grid grid-cols-8 border-b">
               {/* Empty cell for time column */}
-              <div className="p-3 border-r bg-violet-50 dark:bg-violet-900/10"></div>
+              <div className="p-3 border-r bg-amber-50 dark:bg-amber-900/10"></div>
 
               {/* Day headers */}
               {weekViewDays.map((day, i) => (
@@ -534,17 +534,17 @@ export function CalendarView({
                   key={i}
                   className={cn(
                     "p-3 text-center border-r last:border-r-0",
-                    isToday(day) && "bg-violet-50 dark:bg-violet-900/20"
+                    isToday(day) && "bg-amber-50 dark:bg-amber-900/20"
                   )}
                 >
-                  <div className="font-medium text-violet-600 dark:text-violet-400">
+                  <div className="font-medium text-amber-600 dark:text-amber-400">
                     {format(day, "EEE")}
                   </div>
                   <div
                     className={cn(
                       "text-sm mt-1 font-medium inline-flex items-center justify-center",
                       isToday(day) &&
-                        "bg-violet-500 text-white rounded-full w-7 h-7"
+                        "bg-amber-500 text-white rounded-full w-7 h-7"
                     )}
                   >
                     {format(day, "d")}
@@ -559,11 +559,11 @@ export function CalendarView({
               style={{ height: "700px" }}
             >
               {/* Time column */}
-              <div className="border-r bg-violet-50/50 dark:bg-violet-900/10">
+              <div className="border-r bg-amber-50/50 dark:bg-amber-900/10">
                 {Array.from({ length: 24 }, (_, i) => (
                   <div
                     key={i}
-                    className="h-14 border-b flex items-center justify-end pr-3 text-xs font-medium text-violet-600 dark:text-violet-400"
+                    className="h-14 border-b flex items-center justify-end pr-3 text-xs font-medium text-amber-600 dark:text-amber-400"
                   >
                     {i === 0
                       ? "12 AM"
@@ -614,10 +614,10 @@ export function CalendarView({
                           className={cn(
                             "h-14 border-b relative transition-colors",
                             isBusinessHour &&
-                              "bg-violet-50/30 dark:bg-violet-900/5",
+                              "bg-amber-50/30 dark:bg-amber-900/5",
                             isCurrentHour &&
-                              "bg-violet-100/70 dark:bg-violet-900/20",
-                            isHovered && "bg-violet-100 dark:bg-violet-900/30"
+                              "bg-amber-100/70 dark:bg-amber-900/20",
+                            isHovered && "bg-amber-100 dark:bg-amber-900/30"
                           )}
                           onMouseEnter={() => setHoveredHour(cellId)}
                           onMouseLeave={() => setHoveredHour(null)}
@@ -628,7 +628,7 @@ export function CalendarView({
                             variant="ghost"
                             size="icon"
                             className={cn(
-                              "h-6 w-6 absolute top-1 right-1 opacity-0 transition-opacity bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-800 z-10",
+                              "h-6 w-6 absolute top-1 right-1 opacity-0 transition-opacity bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-800 z-10",
                               isHovered && "opacity-100"
                             )}
                           >
@@ -784,12 +784,12 @@ export function CalendarView({
       {viewType === "day" && (
         <div className="p-4">
           <div className="border rounded-lg overflow-hidden bg-white dark:bg-gray-950 shadow-sm">
-            <div className="text-center p-4 border-b bg-violet-50 dark:bg-violet-900/20">
-              <h3 className="text-lg font-medium text-violet-600 dark:text-violet-400">
+            <div className="text-center p-4 border-b bg-amber-50 dark:bg-amber-900/20">
+              <h3 className="text-lg font-medium text-amber-600 dark:text-amber-400">
                 {format(currentDate, "EEEE, MMMM d, yyyy")}
               </h3>
               {isToday(currentDate) && (
-                <Badge className="mt-1 bg-violet-500">Today</Badge>
+                <Badge className="mt-1 bg-amber-500">Today</Badge>
               )}
             </div>
 
@@ -807,9 +807,9 @@ export function CalendarView({
                   <div
                     key={i}
                     className={cn(
-                      "min-h-[100px] p-2 hover:bg-violet-50/50 dark:hover:bg-violet-900/10 relative group transition-colors",
+                      "min-h-[100px] p-2 hover:bg-amber-50/50 dark:hover:bg-amber-900/10 relative group transition-colors",
                       isCurrentHour &&
-                        "bg-violet-50/80 dark:bg-violet-900/20 border-l-4 border-violet-500",
+                        "bg-amber-50/80 dark:bg-amber-900/20 border-l-4 border-amber-500",
                       isBusinessHour && "bg-gray-50/50 dark:bg-gray-900/20" // Highlight business hours
                     )}
                     onClick={() => handleCreateJob(hour)}
@@ -822,7 +822,7 @@ export function CalendarView({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-800"
+                          className="h-7 w-7 absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-800"
                         >
                           <Plus className="h-4 w-4" />
                         </Button>

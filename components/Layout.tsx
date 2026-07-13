@@ -49,7 +49,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           label: "My Job Requests",
           icon: ClipboardList,
         },
-        { href: "/job-portal", label: "My Jobs", icon: Package },
+        { href: "/job-portal", label: "Job Portal", icon: Package },
         // { href: "/job-portal/reports", label: "Job Reports", icon: FileText },
         { href: "/estimate", label: "New Estimate", icon: FileText },
       ];
@@ -71,7 +71,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       ...(userRole === "admin"
         ? [{ href: "/invoice", label: "Invoice", icon: FileText }]
         : []),
-      { href: "/calender", label: "Calender", icon: Calendar },
+      { href: "/calender", label: "Calendar", icon: Calendar },
       ...(userRole === "admin"
         ? [{ href: "/task-reports", label: "Tasks Reports", icon: FileText }]
         : []),

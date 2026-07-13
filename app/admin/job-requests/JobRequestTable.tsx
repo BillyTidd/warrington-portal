@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -89,34 +90,10 @@ const getWorkerLabel = (workerType: string) => {
 };
 
 const getStatusBadge = (status: string) => {
-  switch (status) {
-    case "pending":
-      return (
-        <Badge variant="outline" className="text-yellow-600 border-yellow-600">
-          Pending
-        </Badge>
-      );
-    case "approved":
-      return (
-        <Badge variant="outline" className="text-green-600 border-green-600">
-          Approved
-        </Badge>
-      );
-    case "rejected":
-      return (
-        <Badge variant="outline" className="text-red-600 border-red-600">
-          Rejected
-        </Badge>
-      );
-    case "converted":
-      return (
-        <Badge variant="outline" className="text-blue-600 border-blue-600">
-          Converted to Job
-        </Badge>
-      );
-    default:
-      return <Badge variant="outline">{status}</Badge>;
+  if (status === "converted") {
+    return <StatusBadge status={status} label="Converted to Job" />;
   }
+  return <StatusBadge status={status} />;
 };
 
 const getSortIcon = (

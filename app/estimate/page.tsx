@@ -619,21 +619,11 @@ export default function EstimatePage() {
                   </span>
                   {isCustomer ? (
                     <Link href="/customer/dashboard">
-                      <Button
-                        size="sm"
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        Dashboard
-                      </Button>
+                      <Button size="sm">Dashboard</Button>
                     </Link>
                   ) : (
                     <Link href="/job-portal">
-                      <Button
-                        size="sm"
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        Portal
-                      </Button>
+                      <Button size="sm">Portal</Button>
                     </Link>
                   )}
                 </div>
@@ -646,7 +636,7 @@ export default function EstimatePage() {
                     </Button>
                   </Link>
                   <Link href="/signup?type=customer">
-                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                    <Button size="sm">
                       <UserPlus className="h-4 w-4 mr-2" />
                       Sign Up
                     </Button>
@@ -1309,7 +1299,7 @@ export default function EstimatePage() {
               <Button
                 onClick={calculateEstimate}
                 disabled={isCalculating}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                className="w-full"
                 size="lg"
               >
                 {isCalculating
@@ -1886,7 +1876,7 @@ export default function EstimatePage() {
                     <Button
                       onClick={handleBookNow}
                       disabled={isBooking || isUploadingPdf}
-                      className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
+                      className="w-full"
                       size="lg"
                     >
                       {isUploadingPdf
@@ -1996,7 +1986,7 @@ export default function EstimatePage() {
           <div className="space-y-4 pt-4">
             <Button
               onClick={() => handleLoginRedirect("login")}
-              className="w-full bg-blue-600 hover:bg-blue-700"
+              className="w-full"
             >
               <LogIn className="h-4 w-4 mr-2" />
               Login to Your Account

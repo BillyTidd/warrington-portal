@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { format } from "date-fns"
 import { ClipboardList, Package, Receipt, DollarSign, Clock, Loader2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/ui/status-badge"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Layout } from "@/components/Layout"
@@ -49,43 +49,6 @@ export default function CustomerDashboard() {
             console.error("Error fetching dashboard data:", error)
         } finally {
             setIsLoading(false)
-        }
-    }
-
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case "pending":
-                return (
-                    <Badge variant="outline" className="text-yellow-600 border-yellow-600">
-                        Pending
-                    </Badge>
-                )
-            case "approved":
-                return (
-                    <Badge variant="outline" className="text-green-600 border-green-600">
-                        Approved
-                    </Badge>
-                )
-            case "rejected":
-                return (
-                    <Badge variant="outline" className="text-red-600 border-red-600">
-                        Rejected
-                    </Badge>
-                )
-            case "in-progress":
-                return (
-                    <Badge variant="outline" className="text-blue-600 border-blue-600">
-                        In Progress
-                    </Badge>
-                )
-            case "completed":
-                return (
-                    <Badge variant="outline" className="text-green-600 border-green-600">
-                        Completed
-                    </Badge>
-                )
-            default:
-                return <Badge variant="outline">{status}</Badge>
         }
     }
 
@@ -182,7 +145,7 @@ export default function CustomerDashboard() {
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                {getStatusBadge(request.status)}
+                                                <StatusBadge status={request.status} />
                                                 <span className="text-sm font-medium">£{request.estimatedCost?.totalCost?.toFixed(2)}</span>
                                             </div>
                                         </div>
@@ -226,7 +189,7 @@ export default function CustomerDashboard() {
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                {getStatusBadge(job.status)}
+                                                <StatusBadge status={job.status} />
                                                 <span className="text-sm font-medium">£{job.clientPrice?.toFixed(2)}</span>
                                             </div>
                                         </div>

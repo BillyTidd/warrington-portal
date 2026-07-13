@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { X, Loader2, Edit } from "lucide-react";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Layout } from "@/components/Layout";
 import {
   Dialog,
@@ -101,13 +102,19 @@ export default function AdminUsers() {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to ${action} user`);
+        throw new Error(`Failed to ${action === "approve" ? "approve" : "delete"} user`);
       }
 
-      toast.success(`User ${action}d successfully`);
+      toast.success(
+        action === "approve"
+          ? "User approved successfully"
+          : "User deleted successfully"
+      );
     } catch (error) {
       console.error(`Error ${action}ing user:`, error);
-      toast.error(`Failed to ${action} user`);
+      toast.error(
+        `Failed to ${action === "approve" ? "approve" : "delete"} user`
+      );
     } finally {
       setIsDeleteDialogOpen(false);
       setEditingClient(null);
@@ -253,15 +260,9 @@ export default function AdminUsers() {
                             {user.role}
                           </TableCell>
                           <TableCell>
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                user.isApproved
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-yellow-100 text-yellow-800"
-                              }`}
-                            >
-                              {user.isApproved ? "Approved" : "Pending"}
-                            </span>
+                            <StatusBadge
+                              status={user.isApproved ? "approved" : "pending"}
+                            />
                           </TableCell>
                           <TableCell>
                             <div className="flex space-x-2">

@@ -2,6 +2,7 @@
 
 import { format, parseISO } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Clock, User, DollarSign, Trash2, Loader2, Edit } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -139,22 +140,7 @@ export function ProgressTimeline({
 
   // Function to render status badge
   const renderStatusBadge = (status?: string) => {
-    if (!status) status = "pending";
-
-    const statusConfig = {
-      pending: { color: "border-yellow-500 text-yellow-500", label: "Pending" },
-      approved: { color: "border-green-500 text-green-500", label: "Approved" },
-      rejected: { color: "border-red-500 text-red-500", label: "Rejected" },
-    };
-
-    const config =
-      statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
-
-    return (
-      <Badge variant="outline" className={config.color}>
-        {config.label}
-      </Badge>
-    );
+    return <StatusBadge status={status || "pending"} showIcon={false} />;
   };
 
   // Function to render cost badge
@@ -163,13 +149,17 @@ export function ProgressTimeline({
     const isCustomer = session?.user?.role === "customer";
     const displayCost = isCustomer ? cost * 1.1 : cost;
 
-    let badgeClass = "border-violet-500 text-violet-500";
+    let badgeClass =
+      "border-amber-600 text-amber-600 dark:text-amber-400 dark:border-amber-500";
     if (status === "approved") {
-      badgeClass = "border-green-500 text-green-500";
+      badgeClass =
+        "border-green-600 text-green-600 dark:text-green-400 dark:border-green-500";
     } else if (status === "rejected") {
-      badgeClass = "border-red-500 text-red-500";
+      badgeClass =
+        "border-red-600 text-red-600 dark:text-red-400 dark:border-red-500";
     } else if (status === "pending") {
-      badgeClass = "border-yellow-500 text-yellow-500";
+      badgeClass =
+        "border-amber-600 text-amber-600 dark:text-amber-400 dark:border-amber-500";
     }
 
     return (
@@ -186,7 +176,7 @@ export function ProgressTimeline({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
-            <Clock className="h-5 w-5 mr-2 text-violet-500" />
+            <Clock className="h-5 w-5 mr-2 text-amber-500" />
             Progress Timeline
           </CardTitle>
         </CardHeader>
@@ -198,7 +188,7 @@ export function ProgressTimeline({
                   key={log._id || `${log.timestamp}-${index}`}
                   className="relative border-l-0 sm:border-l border-dashed border-gray-200 pl-4 dark:border-gray-700"
                 >
-                  <div className="hidden sm:block absolute -left-1.5 top-3 h-3 w-3 rounded-full bg-violet-500" />
+                  <div className="hidden sm:block absolute -left-1.5 top-3 h-3 w-3 rounded-full bg-amber-500" />
                   <div className="px-4 py-3">
                     <div className="mb-2 space-y-1.5">
                       <div className="flex items-center justify-between gap-2">

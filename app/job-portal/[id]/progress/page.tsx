@@ -536,14 +536,14 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           <TabsList className="grid grid-cols-3 mb-6">
             <TabsTrigger
               value="details"
-              className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+              className="data-[state=active]:bg-amber-100 dark:data-[state=active]:bg-amber-900/30"
             >
               <FileText className="h-4 w-4 mr-2" />
               Details
             </TabsTrigger>
             <TabsTrigger
               value="progress"
-              className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+              className="data-[state=active]:bg-amber-100 dark:data-[state=active]:bg-amber-900/30"
             >
               <ClipboardList className="h-4 w-4 mr-2" />
               Progress
@@ -551,7 +551,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
             {isAdmin && (
               <TabsTrigger
                 value="financials"
-                className="data-[state=active]:bg-violet-100 dark:data-[state=active]:bg-violet-900/30"
+                className="data-[state=active]:bg-amber-100 dark:data-[state=active]:bg-amber-900/30"
               >
                 <BarChart3 className="h-4 w-4 mr-2" />
                 Financials
@@ -615,7 +615,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                     ) : (
                       <div>
                         <Card className="border-none shadow-lg">
-                          <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40">
+                          <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40">
                             <CardTitle>Progress Tracking</CardTitle>
                             <CardDescription>
                               Keep track of your work on this job
