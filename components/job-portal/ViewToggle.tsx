@@ -17,14 +17,14 @@ export function ViewToggle({ view, onChange }: ViewToggleProps) {
       <TabsList className="bg-white/10 border-none">
         <TabsTrigger
           value="list"
-          className="data-[state=active]:bg-white data-[state=active]:text-amber-600 dark:text-white hover:bg-white/20"
+          className="data-[state=active]:bg-white data-[state=active]:text-amber-600 dark:text-white dark:data-[state=active]:text-amber-600 hover:bg-white/20"
         >
           <LayoutList className="h-4 w-4 mr-2" />
           List View
         </TabsTrigger>
         <TabsTrigger
           value="calendar"
-          className="data-[state=active]:bg-white data-[state=active]:text-amber-600 dark:text-white hover:bg-white/20"
+          className="data-[state=active]:bg-white data-[state=active]:text-amber-600 dark:text-white dark:data-[state=active]:text-amber-600 hover:bg-white/20"
         >
           <CalendarDays className="h-4 w-4 mr-2" />
           Calendar View
