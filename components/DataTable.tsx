@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { startOfWeek, format, isAfter, isBefore } from "date-fns";
 import {
@@ -37,12 +37,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import api from "@/lib/api";
 import { handleDownloadCSV } from "@/lib/excelGenerator";
 import LoadingModal from "./LoadingModal";
@@ -94,6 +88,16 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const entriesPerPage = 10;
+  const tableTopRef = useRef<HTMLDivElement>(null);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    tableTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [currentPage]);
 
   useEffect(() => {
     fetchClients();
@@ -289,66 +293,8 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
     setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
   };
 
-  const sliceDescription = (description: string) => {
-    if (!description) return "";
-    return description.length > 50
-      ? `${description.slice(0, 50)}...`
-      : description;
-  };
-
-  const renderTableCell = (entry: Entry, key: string) => {
-    if (!entry) return null;
-
-    switch (key) {
-      case "date":
-        return entry.date;
-      case "userName":
-        return session?.user?.role === "admin" ? entry.userName : null;
-      case "client":
-        return entry.client;
-      case "description":
-        return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger>
-                {sliceDescription(entry.description)}
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{entry.description}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      case "totalAmount":
-        return `£${(entry.totalAmount || 0).toFixed(2)}`;
-      case "mileage":
-        return (
-          <>
-            <TableCell>{entry.mileage?.miles || 0}</TableCell>
-            <TableCell>£{(entry.mileage?.amount || 0).toFixed(2)}</TableCell>
-          </>
-        );
-      case "expenses":
-        return (
-          <>
-            <TableCell>{entry.expenses?.description || ""}</TableCell>
-            <TableCell>£{(entry.expenses?.amount || 0).toFixed(2)}</TableCell>
-          </>
-        );
-      case "overtime":
-        return (
-          <>
-            <TableCell>{entry.overtime?.hours || 0}</TableCell>
-            <TableCell>£{(entry.overtime?.amount || 0).toFixed(2)}</TableCell>
-          </>
-        );
-      default:
-        return null;
-    }
-  };
-
   return (
-    <Card>
+    <Card ref={tableTopRef}>
       <LoadingModal show={isLoading} />
       <CardHeader>
         <div className="flex flex-col space-y-4 md:space-y-0 md:flex-row md:justify-between md:items-center w-full">
@@ -468,11 +414,91 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
           </div>
         )}
 
-        <div className="overflow-x-auto">
+        {/* Mobile card list */}
+        <div className="sm:hidden rounded-md border divide-y">
+          {currentEntries.map((entry) => (
+            <div key={entry._id} className="p-4 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-medium">{entry.date}</div>
+                  <div className="text-sm text-muted-foreground truncate">
+                    {entry.client}
+                  </div>
+                  {session?.user?.role === "admin" && (
+                    <div className="text-xs text-muted-foreground truncate">
+                      {entry.userName}
+                    </div>
+                  )}
+                </div>
+                <div className="font-semibold shrink-0">
+                  £{entry.totalAmount || 0}
+                </div>
+              </div>
+
+              <div className="text-sm whitespace-pre-wrap break-words">
+                {entry.description}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-xs bg-muted/30 rounded-md p-2">
+                <div>
+                  <div className="text-muted-foreground">Mileage</div>
+                  <div className="font-medium">
+                    {entry.mileage?.miles || 0} mi
+                  </div>
+                  <div className="text-muted-foreground">
+                    £{entry.mileage?.amount || 0}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Expenses</div>
+                  <div className="font-medium">
+                    £{entry.expenses?.amount || 0}
+                  </div>
+                  {entry.expenses?.description && (
+                    <div className="text-muted-foreground truncate">
+                      {entry.expenses.description}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Overtime</div>
+                  <div className="font-medium">
+                    {entry.overtime?.hours || 0} hrs
+                  </div>
+                  <div className="text-muted-foreground">
+                    £{entry.overtime?.amount || 0}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button onClick={() => onEdit(entry)} size="sm" variant="outline">
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  onClick={() => onDelete(entry._id)}
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+          {currentEntries.length === 0 && (
+            <div className="p-6 text-center text-muted-foreground text-sm">
+              No entries found.
+            </div>
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden sm:block overflow-x-auto custom-scrollbar pb-2">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>
+                <TableHead className="sticky left-0 z-20 min-w-[110px] max-w-[110px] bg-background border-r whitespace-nowrap px-3">
                   <Button
                     variant="ghost"
                     onClick={handleSort}
@@ -483,50 +509,78 @@ export function DataTable({ data, onEdit, onDelete }: DataTableProps) {
                   </Button>
                 </TableHead>
                 {session?.user?.role === "admin" && (
-                  <TableHead>Employee</TableHead>
+                  <TableHead className="sticky left-[110px] z-20 min-w-[150px] max-w-[150px] bg-background border-r whitespace-nowrap px-3">
+                    Employee
+                  </TableHead>
                 )}
-                <TableHead>Client</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Amount £</TableHead>
-                <TableHead colSpan={2}>Mileage</TableHead>
-                <TableHead colSpan={2}>Expenses</TableHead>
-                <TableHead colSpan={2}>Overtime</TableHead>
-                <TableHead>Actions</TableHead>
+                <TableHead
+                  className={
+                    (session?.user?.role === "admin"
+                      ? "sticky left-[260px] z-20 bg-background border-r"
+                      : "sticky left-[110px] z-20 bg-background border-r") +
+                    " whitespace-nowrap px-3"
+                  }
+                >
+                  Client
+                </TableHead>
+                <TableHead className="whitespace-nowrap px-3 min-w-[280px]">Description</TableHead>
+                <TableHead className="whitespace-nowrap px-3">Amount £</TableHead>
+                <TableHead colSpan={2} className="whitespace-nowrap px-3">
+                  Mileage
+                </TableHead>
+                <TableHead colSpan={2} className="whitespace-nowrap px-3">
+                  Expenses
+                </TableHead>
+                <TableHead colSpan={2} className="whitespace-nowrap px-3">
+                  Overtime
+                </TableHead>
+                <TableHead className="whitespace-nowrap px-3">Actions</TableHead>
               </TableRow>
               <TableRow>
+                <TableHead className="sticky left-0 z-20 min-w-[110px] max-w-[110px] bg-background border-r" />
+                {session?.user?.role === "admin" && (
+                  <TableHead className="sticky left-[110px] z-20 min-w-[150px] max-w-[150px] bg-background border-r" />
+                )}
+                <TableHead
+                  className={
+                    session?.user?.role === "admin"
+                      ? "sticky left-[260px] z-20 bg-background border-r"
+                      : "sticky left-[110px] z-20 bg-background border-r"
+                  }
+                />
                 <TableHead />
-                {session?.user?.role === "admin" && <TableHead />}
                 <TableHead />
-                <TableHead />
-                <TableHead />
-                <TableHead>Miles</TableHead>
-                <TableHead>Amount £</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Amount £</TableHead>
-                <TableHead>Hours</TableHead>
-                <TableHead>Amount £</TableHead>
+                <TableHead className="whitespace-nowrap px-3">Miles</TableHead>
+                <TableHead className="whitespace-nowrap px-3">Amount £</TableHead>
+                <TableHead className="whitespace-nowrap px-3">Description</TableHead>
+                <TableHead className="whitespace-nowrap px-3">Amount £</TableHead>
+                <TableHead className="whitespace-nowrap px-3">Hours</TableHead>
+                <TableHead className="whitespace-nowrap px-3">Amount £</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
               {currentEntries.map((entry) => (
                 <TableRow key={entry._id}>
-                  <TableCell>{entry.date}</TableCell>
+                  <TableCell className="sticky left-0 z-10 min-w-[110px] max-w-[110px] bg-background border-r">
+                    {entry.date}
+                  </TableCell>
                   {session?.user?.role === "admin" && (
-                    <TableCell>{entry.userName}</TableCell>
+                    <TableCell className="sticky left-[110px] z-10 min-w-[150px] max-w-[150px] bg-background border-r">
+                      {entry.userName}
+                    </TableCell>
                   )}
-                  <TableCell>{entry.client}</TableCell>
-                  <TableCell>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          {sliceDescription(entry.description)}
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{entry.description}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                  <TableCell
+                    className={
+                      session?.user?.role === "admin"
+                        ? "sticky left-[260px] z-10 bg-background border-r"
+                        : "sticky left-[110px] z-10 bg-background border-r"
+                    }
+                  >
+                    {entry.client}
+                  </TableCell>
+                  <TableCell className="min-w-[280px] max-w-md whitespace-pre-wrap break-words">
+                    {entry.description}
                   </TableCell>
                   <TableCell>£{entry.totalAmount || 0}</TableCell>
                   <TableCell>{entry.mileage?.miles || 0}</TableCell>
