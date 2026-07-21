@@ -297,6 +297,7 @@ export default function JobRequestsPage() {
 
         {/* Filters and Search */}
         <JobRequestFilters
+          isCustomer={isCustomer}
           searchInputValue={searchInputValue}
           setSearchInputValue={setSearchInputValue}
           debouncedSearchTerm={debouncedSearchTerm}

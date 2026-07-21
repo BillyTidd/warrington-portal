@@ -209,13 +209,17 @@ export function JobRequestTable({
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[200px]">
-                  <Button
-                    variant="ghost"
-                    className="h-auto p-0 font-semibold"
-                    onClick={() => onSort("customerName")}
-                  >
-                    Customer{getSortIcon("customerName", sortBy, sortOrder)}
-                  </Button>
+                  {isCustomer ? (
+                    <span className="font-semibold">Job Name</span>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      className="h-auto p-0 font-semibold"
+                      onClick={() => onSort("customerName")}
+                    >
+                      Customer{getSortIcon("customerName", sortBy, sortOrder)}
+                    </Button>
+                  )}
                 </TableHead>
                 <TableHead>
                   <Button
@@ -376,7 +380,7 @@ export function JobRequestTable({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="space-y-2">
+                    <div className="flex flex-col gap-2.5">
                       {getStatusBadge(request.status)}
                       {request.status === "converted" &&
                         request.convertedToJobId && (

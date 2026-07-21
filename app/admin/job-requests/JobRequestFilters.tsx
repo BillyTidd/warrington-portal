@@ -30,6 +30,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 
 interface JobRequestFiltersProps {
+  isCustomer?: boolean;
   searchInputValue: string;
   setSearchInputValue: (value: string) => void;
   debouncedSearchTerm: string;
@@ -51,6 +52,7 @@ interface JobRequestFiltersProps {
 }
 
 export function JobRequestFilters({
+  isCustomer = false,
   searchInputValue,
   setSearchInputValue,
   debouncedSearchTerm,
@@ -92,10 +94,14 @@ export function JobRequestFilters({
     <div className="mb-6 space-y-4">
       <div className="flex flex-col sm:flex-row gap-2">
         {/* Search input */}
-        <div className="relative flex-grow">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
           <Input
-            placeholder="Search by customer name, email, or job type..."
+            placeholder={
+              isCustomer
+                ? "Search by job name..."
+                : "Search by customer name, email, or job name..."
+            }
             value={searchInputValue}
             onChange={(e) => setSearchInputValue(e.target.value)}
             className="pl-9"
@@ -221,47 +227,55 @@ export function JobRequestFilters({
         </Popover>
 
         {/* Sort options */}
-        <Select
-          value={`${sortBy}-${sortOrder}`}
-          onValueChange={(value) => {
-            const [field, order] = value.split("-");
-            setSortBy(field);
-            setSortOrder(order as "asc" | "desc");
-          }}
-        >
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Sort by" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="createdAt-desc">Newest First</SelectItem>
-            <SelectItem value="createdAt-asc">Oldest First</SelectItem>
-            <SelectItem value="customerName-asc">Customer A-Z</SelectItem>
-            <SelectItem value="customerName-desc">Customer Z-A</SelectItem>
-            <SelectItem value="totalCost-desc">Highest Value</SelectItem>
-            <SelectItem value="totalCost-asc">Lowest Value</SelectItem>
-            <SelectItem value="jobDate-desc">Latest Job Date</SelectItem>
-            <SelectItem value="jobDate-asc">Earliest Job Date</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="w-full sm:w-40 shrink-0">
+          <Select
+            value={`${sortBy}-${sortOrder}`}
+            onValueChange={(value) => {
+              const [field, order] = value.split("-");
+              setSortBy(field);
+              setSortOrder(order as "asc" | "desc");
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="createdAt-desc">Newest First</SelectItem>
+              <SelectItem value="createdAt-asc">Oldest First</SelectItem>
+              {!isCustomer && (
+                <>
+                  <SelectItem value="customerName-asc">Customer A-Z</SelectItem>
+                  <SelectItem value="customerName-desc">Customer Z-A</SelectItem>
+                </>
+              )}
+              <SelectItem value="totalCost-desc">Highest Value</SelectItem>
+              <SelectItem value="totalCost-asc">Lowest Value</SelectItem>
+              <SelectItem value="jobDate-desc">Latest Job Date</SelectItem>
+              <SelectItem value="jobDate-asc">Earliest Job Date</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         {/* Entries per page */}
-        <Select
-          value={entriesPerPage.toString()}
-          onValueChange={(value) => {
-            setEntriesPerPage(Number(value));
-            // setCurrentPage(1) // This is handled by the parent page now
-          }}
-        >
-          <SelectTrigger className="w-20">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="5">5</SelectItem>
-            <SelectItem value="10">10</SelectItem>
-            <SelectItem value="25">25</SelectItem>
-            <SelectItem value="50">50</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="w-full sm:w-20 shrink-0">
+          <Select
+            value={entriesPerPage.toString()}
+            onValueChange={(value) => {
+              setEntriesPerPage(Number(value));
+              // setCurrentPage(1) // This is handled by the parent page now
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="5">5</SelectItem>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Active filters */}
