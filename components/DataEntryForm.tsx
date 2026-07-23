@@ -92,12 +92,7 @@ export function DataEntryForm({
 
   useEffect(() => {
     calculateTotals();
-  }, [
-    formData.mileage.miles,
-    formData.overtime.hours,
-    formData.expenses.amount,
-    formData.sustenance.amount,
-  ]);
+  }, [formData.mileage.miles, formData.overtime.hours]);
 
   const fetchClients = async () => {
     try {
@@ -129,17 +124,10 @@ export function DataEntryForm({
       ? (parseFloat(formData.overtime.hours) * OVERTIME_RATE).toFixed(2)
       : "";
 
-    const total =
-      (mileageAmount ? parseFloat(mileageAmount) : 0) +
-      (formData.expenses.amount ? parseFloat(formData.expenses.amount) : 0) +
-      (overtimeAmount ? parseFloat(overtimeAmount) : 0) +
-      (formData.sustenance.amount ? parseFloat(formData.sustenance.amount) : 0);
-
     setFormData((prev) => ({
       ...prev,
       mileage: { ...prev.mileage, amount: mileageAmount },
       overtime: { ...prev.overtime, amount: overtimeAmount },
-      totalAmount: total.toFixed(2),
     }));
   };
 
@@ -163,6 +151,12 @@ export function DataEntryForm({
                 : Math.max(0, parseFloat(value)).toString()
               : value,
         },
+      }));
+    } else if (name === "totalAmount") {
+      setFormData((prev) => ({
+        ...prev,
+        totalAmount:
+          value === "" ? "" : Math.max(0, parseFloat(value)).toString(),
       }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
@@ -284,14 +278,16 @@ export function DataEntryForm({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="totalAmount">Total Amount (auto):</Label>
+              <Label htmlFor="totalAmount">Total Amount:</Label>
               <Input
                 id="totalAmount"
                 name="totalAmount"
-                type="text"
+                type="number"
                 value={formData.totalAmount}
-                readOnly
-                className="w-full bg-muted"
+                onChange={handleChange}
+                className="w-full"
+                min="0"
+                step="any"
               />
             </div>
           </div>

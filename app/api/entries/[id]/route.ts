@@ -64,9 +64,7 @@ export async function PUT(
         description: data.sustenance?.description || "",
         amount: sustenanceAmount,
       },
-      totalAmount: round2(
-        mileageAmount + expensesAmount + overtimeAmount + sustenanceAmount
-      ),
+      totalAmount: round2(Number(data.totalAmount || 0)),
     };
 
     const clientInstance = await clientPromise;
