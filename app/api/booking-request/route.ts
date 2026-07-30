@@ -133,13 +133,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
-    if (
-      !customerName ||
-      !customerEmail ||
-      !customerPhone ||
-      !jobEstimate ||
-      !estimatedCost
-    ) {
+    if (!customerName || !customerEmail || !jobEstimate || !estimatedCost) {
       return NextResponse.json(
         { message: "Missing required fields" },
         { status: 400 }
@@ -152,7 +146,7 @@ export async function POST(request: NextRequest) {
     const bookingRequest = {
       customerName,
       customerEmail,
-      customerPhone,
+      customerPhone: customerPhone || null,
       customerCompany: customerCompany || null,
       customerId: session.user.id, // Link to the user who created it
       jobEstimate,
