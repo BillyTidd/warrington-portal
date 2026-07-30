@@ -22,8 +22,38 @@ function getTwilioClient() {
   return twilio(sid, token)
 }
 
-function buildMessage(workerName: string, jobName: string, jobDate: string, jobLocation: string, confirmUrl: string) {
-  return `Hi ${workerName}, you have been requested for a job.\n\nJob: ${jobName}\nDate: ${jobDate}\nLocation: ${jobLocation}\n\nPlease confirm your availability:\n${confirmUrl}`
+function buildMessage(
+  workerName: string,
+  jobName: string,
+  jobDate: string,
+  jobLocation: string,
+  confirmUrl: string,
+  jobType: string,
+  duration: string,
+  postcodes: string[],
+  description: string
+) {
+  const lines = [
+    `Hi ${workerName}, you have been requested for a job.`,
+    '',
+    `Job: ${jobName}`,
+    `Type: ${jobType}`,
+    `Date: ${jobDate}`,
+    `Duration: ${duration}`,
+    `Location: ${jobLocation}`,
+  ]
+
+  if (postcodes.length > 0) {
+    lines.push(`Postcode${postcodes.length > 1 ? 's' : ''}: ${postcodes.join(', ')}`)
+  }
+
+  if (description) {
+    lines.push(`Details: ${description}`)
+  }
+
+  lines.push('', 'Please confirm your availability:', confirmUrl)
+
+  return lines.join('\n')
 }
 
 export async function GET(
@@ -95,6 +125,12 @@ export async function POST(
         })
       : 'TBC'
     const jobLocation = job.jobEstimate?.jobLocation || job.jobLocation || 'TBC'
+    const jobType = job.jobType || job.jobEstimate?.jobType || 'General'
+    const durationHours = job.estimatedHours ?? job.jobEstimate?.numberOfHours
+    const duration = durationHours ? `${durationHours} hour${durationHours === 1 ? '' : 's'}` : 'TBC'
+    const postcodes: string[] = (job.jobEstimate?.postcodes || job.postcodes || [])
+      .filter((pc: string) => pc?.trim())
+    const description = job.description || job.jobEstimate?.jobDescription || ''
 
     const results = await Promise.allSettled(
       workers.map(async (worker) => {
@@ -119,7 +155,17 @@ export async function POST(
 
         const token = crypto.randomUUID()
         const confirmUrl = `${baseUrl}/confirm/${token}`
-        const messageBody = buildMessage(worker.workerName, jobName, jobDate, jobLocation, confirmUrl)
+        const messageBody = buildMessage(
+          worker.workerName,
+          jobName,
+          jobDate,
+          jobLocation,
+          confirmUrl,
+          jobType,
+          duration,
+          postcodes,
+          description
+        )
 
         const from =
           channel === 'whatsapp'
