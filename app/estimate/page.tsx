@@ -334,9 +334,6 @@ export default function EstimatePage() {
     if (!formData.customerEmail?.trim()) {
       errors.push("Your email address is required");
     }
-    // if (!formData.customerPhone?.trim()) {
-    //   errors.push("Your phone number is required");
-    // }
 
     // Validate email format
     if (
@@ -514,13 +511,23 @@ export default function EstimatePage() {
             method: "POST",
             body: uploadFormData,
           });
-          if (uploadRes.ok) {
-            const uploadData = await uploadRes.json();
-            pdfUrl = uploadData.url;
-            pdfFilename = uploadData.filename;
-          } else {
-            throw new Error("Failed to upload PDF");
+          if (!uploadRes.ok) {
+            if (uploadRes.status === 401) {
+              toast.error("Your session has expired. Please log in again.");
+              router.push("/login?type=customer&returnUrl=/estimate");
+              return;
+            }
+            const uploadError = await uploadRes.json().catch(() => null);
+            toast.error(
+              uploadError?.message
+                ? `Failed to upload PDF: ${uploadError.message}`
+                : "Failed to upload the attached PDF. Please try again or remove the attachment and submit without it."
+            );
+            return;
           }
+          const uploadData = await uploadRes.json();
+          pdfUrl = uploadData.url;
+          pdfFilename = uploadData.filename;
         } finally {
           setIsUploadingPdf(false);
         }
@@ -542,7 +549,19 @@ export default function EstimatePage() {
         }),
       });
 
-      if (!response.ok) throw new Error("Failed to submit booking request");
+      if (!response.ok) {
+        if (response.status === 401) {
+          toast.error("Your session has expired. Please log in again.");
+          router.push("/login?type=customer&returnUrl=/estimate");
+          return;
+        }
+        const errorData = await response.json().catch(() => null);
+        toast.error(
+          errorData?.message ||
+            "Failed to submit booking request. Please try again."
+        );
+        return;
+      }
 
       // Send email notification via server-side API
       fetch("/api/send-estimation-email", {
@@ -561,7 +580,9 @@ export default function EstimatePage() {
       router.push("/admin/job-requests");
     } catch (error) {
       console.error("Error submitting booking request:", error);
-      toast.error("Failed to submit booking request. Please try again.");
+      toast.error(
+        "Something went wrong while submitting your request. Please check your connection and try again."
+      );
     } finally {
       setIsBooking(false);
     }
@@ -1253,7 +1274,7 @@ export default function EstimatePage() {
                         theme === "dark" ? "text-slate-200" : "text-slate-700"
                       }
                     >
-                      Phone Number *
+                      Phone Number (Optional)
                     </Label>
                     <Input
                       id="customerPhone"
@@ -1267,7 +1288,6 @@ export default function EstimatePage() {
                           ? "bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
                           : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
                       }`}
-                      required
                     />
                   </div>
 
@@ -1478,25 +1498,27 @@ export default function EstimatePage() {
                           </span>
                         </div>
                       )}
-                      <div className="flex justify-between">
-                        <span
-                          className={
-                            theme === "dark"
-                              ? "text-slate-300"
-                              : "text-slate-600"
-                          }
-                        >
-                          Travel Time:
-                        </span>
-                        <span
-                          className={`font-medium ${
-                            theme === "dark" ? "text-white" : "text-slate-900"
-                          }`}
-                        >
-                          {Math.floor(estimate.breakdown.travel.duration / 60)}h{" "}
-                          {estimate.breakdown.travel.duration % 60}m
-                        </span>
-                      </div>
+                      {!isLondon && (
+                        <div className="flex justify-between">
+                          <span
+                            className={
+                              theme === "dark"
+                                ? "text-slate-300"
+                                : "text-slate-600"
+                            }
+                          >
+                            Travel Time:
+                          </span>
+                          <span
+                            className={`font-medium ${
+                              theme === "dark" ? "text-white" : "text-slate-900"
+                            }`}
+                          >
+                            {Math.floor(estimate.breakdown.travel.duration / 60)}h{" "}
+                            {estimate.breakdown.travel.duration % 60}m
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between">
                         <span
                           className={
@@ -1727,70 +1749,72 @@ export default function EstimatePage() {
                       </span>
                     </div>
 
-                    <div
-                      className={`p-3 rounded-lg border ${
-                        theme === "dark"
-                          ? "bg-blue-900/20 border-blue-700"
-                          : "bg-blue-50 border-blue-200"
-                      }`}
-                    >
-                      <div className="flex items-center mb-2">
-                        <Clock className="h-4 w-4 mr-2 text-blue-600" />
-                        <span
-                          className={`text-sm font-medium ${
-                            theme === "dark" ? "text-blue-200" : "text-blue-800"
-                          }`}
-                        >
-                          Time Breakdown
-                        </span>
+                    {!isLondon && (
+                      <div
+                        className={`p-3 rounded-lg border ${
+                          theme === "dark"
+                            ? "bg-blue-900/20 border-blue-700"
+                            : "bg-blue-50 border-blue-200"
+                        }`}
+                      >
+                        <div className="flex items-center mb-2">
+                          <Clock className="h-4 w-4 mr-2 text-blue-600" />
+                          <span
+                            className={`text-sm font-medium ${
+                              theme === "dark" ? "text-blue-200" : "text-blue-800"
+                            }`}
+                          >
+                            Time Breakdown
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-xs">
+                          <div className="flex justify-between">
+                            <span
+                              className={
+                                theme === "dark"
+                                  ? "text-blue-300"
+                                  : "text-blue-700"
+                              }
+                            >
+                              Work Hours:
+                            </span>
+                            <span className="font-medium">
+                              {formData.numberOfHours} hours
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span
+                              className={
+                                theme === "dark"
+                                  ? "text-blue-300"
+                                  : "text-blue-700"
+                              }
+                            >
+                              Travel Time (added):
+                            </span>
+                            <span className="font-medium">
+                              {estimate.breakdown.travel.durationHours} hours
+                            </span>
+                          </div>
+                          <div className="flex justify-between border-t pt-1">
+                            <span
+                              className={
+                                theme === "dark"
+                                  ? "text-blue-200"
+                                  : "text-blue-800"
+                              }
+                            >
+                              <strong>Total Billable Hours:</strong>
+                            </span>
+                            <span className="font-bold">
+                              {formData.numberOfHours +
+                                estimate.breakdown.travel.durationHours}{" "}
+                              hours
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="space-y-1 text-xs">
-                        <div className="flex justify-between">
-                          <span
-                            className={
-                              theme === "dark"
-                                ? "text-blue-300"
-                                : "text-blue-700"
-                            }
-                          >
-                            Work Hours:
-                          </span>
-                          <span className="font-medium">
-                            {formData.numberOfHours} hours
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span
-                            className={
-                              theme === "dark"
-                                ? "text-blue-300"
-                                : "text-blue-700"
-                            }
-                          >
-                            Travel Time (added):
-                          </span>
-                          <span className="font-medium">
-                            {estimate.breakdown.travel.durationHours} hours
-                          </span>
-                        </div>
-                        <div className="flex justify-between border-t pt-1">
-                          <span
-                            className={
-                              theme === "dark"
-                                ? "text-blue-200"
-                                : "text-blue-800"
-                            }
-                          >
-                            <strong>Total Billable Hours:</strong>
-                          </span>
-                          <span className="font-bold">
-                            {formData.numberOfHours +
-                              estimate.breakdown.travel.durationHours}{" "}
-                            hours
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                    )}
                   </div>
 
                   <Separator className="my-4" />
