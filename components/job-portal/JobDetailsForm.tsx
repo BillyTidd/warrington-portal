@@ -46,8 +46,6 @@ export function JobDetailsForm({
     }
   });
 
-  const hasConfirmations = confirmationMap.size > 0;
-
   // Function to add a worker to the job
   const addWorker = () => {
     if (!selectedWorkerId || !editedJob.workers) return;
@@ -255,14 +253,7 @@ export function JobDetailsForm({
 
             <div className="flex items-end gap-2">
               <div className="flex-1">
-                <Label htmlFor="addWorker">
-                  Add Worker
-                  {hasConfirmations && (
-                    <span className="text-xs text-muted-foreground font-normal ml-2">
-                      (showing workers who received confirmations)
-                    </span>
-                  )}
-                </Label>
+                <Label htmlFor="addWorker">Add Worker</Label>
                 <Select
                   value={selectedWorkerId}
                   onValueChange={setSelectedWorkerId}
@@ -274,9 +265,6 @@ export function JobDetailsForm({
                     {workers
                       .filter((worker) =>
                         !editedJob.workers?.some((w) => w.userId === worker._id)
-                      )
-                      .filter((worker) =>
-                        !hasConfirmations || confirmationMap.has(worker._id)
                       )
                       .map((worker) => {
                         const conf = confirmationMap.get(worker._id);
