@@ -352,8 +352,11 @@ export async function POST(request: NextRequest) {
     }
     finalWorkerTypes.splice(numberOfWorkers); // Remove excess
 
-    // Add travel hours to total hours for labor calculation
-    const totalHoursWithTravel = numberOfHours + durationHours;
+    // Add travel hours to total hours for labor calculation — London uses a flat
+    // travel rate and doesn't bill travel time, so only add it for other teams
+    const totalHoursWithTravel = isLondonTeam
+      ? numberOfHours
+      : numberOfHours + durationHours;
 
     // Calculate labor costs with detailed breakdown
     const laborBreakdown: LaborBreakdown[] = [];
