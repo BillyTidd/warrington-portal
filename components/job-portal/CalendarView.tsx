@@ -466,7 +466,7 @@ export function CalendarView({
                                   <div className="flex items-center text-xs text-slate-600 dark:text-slate-300">
                                     <CircleDollarSign className="h-3 w-3 mr-1.5" />
                                     <span>
-                                      ${job.clientPrice?.toFixed(2) || "0.00"}
+                                      £{job.clientPrice?.toFixed(2) || "0.00"}
                                     </span>
                                   </div>
                                   <Badge
@@ -695,7 +695,7 @@ export function CalendarView({
                                         <div className="flex items-center text-xs text-slate-600 dark:text-slate-300">
                                           <CircleDollarSign className="h-3 w-3 mr-1.5" />
                                           <span>
-                                            $
+                                            £
                                             {job.clientPrice?.toFixed(2) ||
                                               "0.00"}
                                           </span>
@@ -887,7 +887,7 @@ export function CalendarView({
                                   <div className="flex items-center text-xs text-slate-600 dark:text-slate-300">
                                     <CircleDollarSign className="h-3 w-3 mr-1.5" />
                                     <span>
-                                      ${job.clientPrice?.toFixed(2) || "0.00"}
+                                      £{job.clientPrice?.toFixed(2) || "0.00"}
                                     </span>
                                   </div>
                                   <Badge

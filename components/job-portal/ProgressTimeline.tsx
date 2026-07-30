@@ -4,7 +4,7 @@ import { format, parseISO } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, User, DollarSign, Trash2, Loader2, Edit } from "lucide-react";
+import { Clock, User, Trash2, Loader2, Edit } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -164,7 +164,6 @@ export function ProgressTimeline({
 
     return (
       <Badge variant="outline" className={`${badgeClass} flex items-center`}>
-        <DollarSign className="h-3 w-3 mr-1" />
         {currencySymbol}
         {displayCost.toFixed(2)}
       </Badge>

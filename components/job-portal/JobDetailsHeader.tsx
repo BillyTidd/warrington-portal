@@ -148,7 +148,7 @@ export function JobDetailsHeader({
               {/* Show payment badge if assigned to me */}
               {isAssignedToMe && paymentRate && (
                 <Badge className="bg-emerald-500 hover:bg-emerald-600">
-                  <DollarSign className="h-3 w-3 mr-1" />$
+                  <DollarSign className="h-3 w-3 mr-1" />£
                   {paymentRate.toFixed(2)}
                 </Badge>
               )}

@@ -145,7 +145,7 @@ export function JobDetails({ job, onEdit, onDelete }: JobDetailsProps) {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Client Price</p>
-                <p>${job.clientPrice?.toFixed(2) || "0.00"}</p>
+                <p>£{job.clientPrice?.toFixed(2) || "0.00"}</p>
               </div>
             </CardContent>
           </Card>
