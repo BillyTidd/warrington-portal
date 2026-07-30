@@ -190,7 +190,7 @@ export default function CustomerDashboard() {
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <StatusBadge status={job.status} />
-                                                <span className="text-sm font-medium">£{job.clientPrice?.toFixed(2)}</span>
+                                                <span className="text-sm font-medium">£{((job.clientPrice || 0) * 1.1).toFixed(2)}</span>
                                             </div>
                                         </div>
                                     ))}
