@@ -147,7 +147,8 @@ export function ProgressTimeline({
   const renderCostBadge = (
     cost: number | undefined,
     status?: string,
-    workType?: string
+    workType?: string,
+    originalCost?: number
   ) => {
     if (cost === undefined || cost <= 0) return null;
 
@@ -166,11 +167,17 @@ export function ProgressTimeline({
 
     const isBillable = workType === "regular";
 
+    // Workers always see what they originally submitted, never an
+    // admin-edited amount. Admin and client see the current (live) value.
+    const isWorkerView = !isAdmin && !isClient;
+    const displayCost =
+      isWorkerView && originalCost !== undefined ? originalCost : cost;
+
     return (
       <>
         <Badge variant="outline" className={`${badgeClass} flex items-center`}>
           {currencySymbol}
-          {cost.toFixed(2)}
+          {displayCost.toFixed(2)}
         </Badge>
         {/* Billable/Absorbed classification is internal cost accounting — admin only */}
         {isAdmin && (
@@ -313,20 +320,23 @@ export function ProgressTimeline({
                             renderCostBadge(
                               log.vehicleUsage.totalCost,
                               log.jobStatus,
-                              log.workType
+                              log.workType,
+                              log.originalCost
                             )}
                           {log.overtimeCost &&
                             renderCostBadge(
                               log.overtimeCost,
                               log.jobStatus,
-                              log.workType
+                              log.workType,
+                              log.originalCost
                             )}
                           {!log.vehicleUsage &&
                             !log.overtimeCost &&
                             renderCostBadge(
                               log.cost,
                               log.jobStatus,
-                              log.workType
+                              log.workType,
+                              log.originalCost
                             )}
                         </>
                       )}

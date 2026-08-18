@@ -15,6 +15,7 @@ export interface JobProgressLog {
   hours?: number;
   overtimeHours?: number;
   overtimeCost?: number;
+  originalCost?: number; // Cost as originally submitted — never changed by later admin edits
   statusChange?: boolean;
   newStatus?: string | null;
   vehicleUsage?: any;

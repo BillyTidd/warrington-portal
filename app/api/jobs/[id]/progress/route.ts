@@ -33,6 +33,10 @@ export async function POST(
       jobStatus = "pending", // Default to pending for new progress entries
     } = await request.json();
 
+    // Capture the cost as originally submitted, once, so it can still be
+    // shown to the worker even if admin later edits the amount before approving.
+    const originalCost = overtimeCost || vehicleUsage?.totalCost || cost || 0;
+
     const progressLog = {
       _id: new ObjectId().toString(), // Add a unique ID for each progress log
       timestamp: new Date(),
@@ -44,6 +48,7 @@ export async function POST(
       overtimeHours,
       overtimeCost,
       vehicleUsage, // Store vehicle usage data
+      originalCost,
       statusChange,
       newStatus: statusChange ? newStatus : null,
       jobStatus: statusChange ? null : jobStatus, // Don't set jobStatus for status change entries

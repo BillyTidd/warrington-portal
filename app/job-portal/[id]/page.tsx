@@ -587,6 +587,21 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
       }, 0);
   };
 
+  // Same as getApprovedCosts, but using each entry's originally submitted
+  // amount — this is what workers see, so an admin-edited price is never
+  // shown to the worker who submitted it.
+  const getWorkerVisibleApprovedCosts = () => {
+    if (!job?.progressLogs) return 0;
+    return job.progressLogs
+      .filter((log: any) => log.jobStatus === "approved" && !log.statusChange)
+      .reduce((sum: any, log: any) => {
+        const cost =
+          log.originalCost ??
+          (log.overtimeCost || log.vehicleUsage?.totalCost || log.cost || 0);
+        return sum + cost;
+      }, 0);
+  };
+
   // Split approved costs into billable (Expenses entries, already passed
   // through to clientPrice on approval — no profit impact) vs absorbed
   // (Overtime/Mileage — internal costs that actually reduce profit)
@@ -938,7 +953,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
               <ProgressSummary
                 progressLogs={job.progressLogs}
-                totalCost={approvedCosts} // Only show approved costs
+                totalCost={getWorkerVisibleApprovedCosts()} // Worker's own submitted amounts, never admin-edited
                 currencySymbol="£"
               />
             </>
