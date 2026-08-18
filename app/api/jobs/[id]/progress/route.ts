@@ -123,6 +123,22 @@ export async function PATCH(
     const client = await clientPromise;
     const db = client.db();
 
+    // Fetch the existing entry first — needed to work out whether an
+    // Expenses entry is newly approved, un-approved, or had its amount
+    // changed while already approved, so we can adjust clientPrice correctly.
+    const job = await db.collection("jobs").findOne({ _id: new ObjectId(jobId) });
+    if (!job) {
+      return NextResponse.json({ message: "Job not found" }, { status: 404 });
+    }
+
+    const existingLog = job.progressLogs?.find((log: any) => log._id === logId);
+    if (!existingLog) {
+      return NextResponse.json(
+        { message: "Progress log not found" },
+        { status: 404 }
+      );
+    }
+
     // Build the update object dynamically based on provided fields
     const updateFields: any = {
       updatedBy: session.user.id,
@@ -153,15 +169,41 @@ export async function PATCH(
       updateFields["progressLogs.$.vehicleUsage"] = vehicleUsage;
     }
 
+    // Expenses entries (materials/purchases) get billed straight through to
+    // the client price once approved — Overtime and Mileage are unaffected,
+    // since those are treated as internal costs already priced into the quote.
+    const mongoUpdate: any = { $set: updateFields };
+
+    if (existingLog.workType === "regular") {
+      const previousCost = existingLog.cost || 0;
+      const previousStatus = existingLog.jobStatus;
+      const newCost = cost !== undefined ? cost : previousCost;
+      const newStatus = jobStatus !== undefined ? jobStatus : previousStatus;
+
+      const wasApproved = previousStatus === "approved";
+      const isApproved = newStatus === "approved";
+
+      let clientPriceDelta = 0;
+      if (wasApproved && isApproved) {
+        clientPriceDelta = newCost - previousCost; // amount changed while approved
+      } else if (!wasApproved && isApproved) {
+        clientPriceDelta = newCost; // newly approved
+      } else if (wasApproved && !isApproved) {
+        clientPriceDelta = -previousCost; // un-approved / rejected
+      }
+
+      if (clientPriceDelta !== 0) {
+        mongoUpdate.$inc = { clientPrice: clientPriceDelta };
+      }
+    }
+
     // Find and update the specific progress log
     const result = await db.collection("jobs").updateOne(
       {
         _id: new ObjectId(jobId),
         "progressLogs._id": logId,
       },
-      {
-        $set: updateFields,
-      }
+      mongoUpdate
     );
 
     if (result.modifiedCount === 0) {
@@ -345,16 +387,24 @@ export async function DELETE(
     }
 
     // Delete the log
+    const deleteUpdate: any = {
+      $pull: { progressLogs: pullCriteria },
+      $set: {
+        updatedBy: session.user.id,
+        updatedByName: session.user.name,
+        updatedAt: new Date(),
+      },
+    };
+
+    // If the entry being removed was an approved Expenses entry, its cost was
+    // already added to clientPrice — reverse that so the total stays accurate.
+    if (logToDelete.workType === "regular" && logToDelete.jobStatus === "approved") {
+      deleteUpdate.$inc = { clientPrice: -(logToDelete.cost || 0) };
+    }
+
     const result = await db.collection("jobs").updateOne(
       { _id: new ObjectId(jobId) },
-      {
-        $pull: { progressLogs: pullCriteria },
-        $set: {
-          updatedBy: session.user.id,
-          updatedByName: session.user.name,
-          updatedAt: new Date(),
-        },
-      }
+      deleteUpdate
     );
 
     if (result.modifiedCount === 0) {

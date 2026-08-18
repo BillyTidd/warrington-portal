@@ -587,6 +587,28 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
       }, 0);
   };
 
+  // Split approved costs into billable (Expenses entries, already passed
+  // through to clientPrice on approval — no profit impact) vs absorbed
+  // (Overtime/Mileage — internal costs that actually reduce profit)
+  const getApprovedCostsBreakdown = () => {
+    if (!job?.progressLogs) return { billable: 0, absorbed: 0 };
+    return job.progressLogs
+      .filter((log: any) => log.jobStatus === "approved" && !log.statusChange)
+      .reduce(
+        (acc: any, log: any) => {
+          const cost =
+            log.overtimeCost || log.vehicleUsage?.totalCost || log.cost || 0;
+          if (log.workType === "regular") {
+            acc.billable += cost;
+          } else {
+            acc.absorbed += cost;
+          }
+          return acc;
+        },
+        { billable: 0, absorbed: 0 }
+      );
+  };
+
   // Render detailed worker payment information for admin view
   const renderAdminWorkerPayments = () => {
     if (!isAdmin || !job || !job.workers || job.workers.length === 0)
@@ -690,8 +712,9 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           0
         )
       : job.workerPaymentRate || 0;
-    const approvedCosts = getApprovedCosts(); // Only approved costs
-    const totalCosts = totalWorkerPayments + approvedCosts;
+    const { billable: billableCosts, absorbed: absorbedCosts } =
+      getApprovedCostsBreakdown();
+    const totalCosts = totalWorkerPayments + billableCosts + absorbedCosts;
     const profit = clientPrice - totalCosts;
     const profitMargin = clientPrice > 0 ? (profit / clientPrice) * 100 : 0;
 
@@ -710,7 +733,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Client Price</p>
               <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400">
@@ -724,9 +747,31 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
               </p>
             </div>
             <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Approved Costs</p>
+              <p className="text-sm text-muted-foreground flex items-center flex-wrap gap-1.5">
+                Billable Costs
+                <Badge
+                  variant="outline"
+                  className="text-[10px] px-1.5 py-0 h-4 leading-4 font-normal border-blue-500 text-blue-600 dark:text-blue-400"
+                >
+                  In Price
+                </Badge>
+              </p>
+              <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                £{billableCosts.toFixed(2)}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground flex items-center flex-wrap gap-1.5">
+                Absorbed Costs
+                <Badge
+                  variant="outline"
+                  className="text-[10px] px-1.5 py-0 h-4 leading-4 font-normal border-amber-500 text-amber-600 dark:text-amber-400"
+                >
+                  Reduces profit
+                </Badge>
+              </p>
               <p className="text-xl font-bold text-red-500">
-                -£{approvedCosts.toFixed(2)}
+                -£{absorbedCosts.toFixed(2)}
               </p>
             </div>
             <div className="space-y-1">

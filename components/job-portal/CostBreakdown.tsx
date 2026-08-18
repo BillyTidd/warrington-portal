@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { DollarSign, Users } from "lucide-react";
 import type { JobProgressLog } from "@/types/job";
 
@@ -77,28 +78,43 @@ export function CostBreakdown({
                       new Date(b.timestamp).getTime() -
                       new Date(a.timestamp).getTime()
                   )
-                  .map((log) => (
-                    <div
-                      key={log._id}
-                      className="flex justify-between items-start p-3 border rounded-lg hover:bg-muted/30 transition-colors"
-                    >
-                      <div>
-                        <div className="font-medium">
-                          {currencySymbol}
-                          {getLogCost(log).toFixed(2)}
+                  .map((log) => {
+                    const isBillable = log.workType === "regular";
+                    return (
+                      <div
+                        key={log._id}
+                        className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 p-3 border rounded-lg hover:bg-muted/30 transition-colors"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center flex-wrap gap-2">
+                            <span className="font-medium">
+                              {currencySymbol}
+                              {getLogCost(log).toFixed(2)}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] px-1.5 py-0 h-4 leading-4 font-normal ${
+                                isBillable
+                                  ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                                  : "border-amber-500 text-amber-600 dark:text-amber-400"
+                              }`}
+                            >
+                              {isBillable ? "Billable" : "Absorbed"}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {format(new Date(log.timestamp), "MMM d, yyyy")}
+                          </div>
+                          <div className="text-sm mt-1 line-clamp-1 break-words">
+                            {log.details}
+                          </div>
                         </div>
-                        <div className="text-sm text-muted-foreground mt-1">
-                          {format(new Date(log.timestamp), "MMM d, yyyy")}
-                        </div>
-                        <div className="text-sm mt-1 line-clamp-1">
-                          {log.details}
+                        <div className="text-sm text-muted-foreground shrink-0">
+                          {log.updatedByName}
                         </div>
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        {log.updatedByName}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -114,7 +130,7 @@ export function CostBreakdown({
           </div>
         )}
       </CardContent>
-      <CardFooter className="border-t bg-muted/30 flex justify-between p-4">
+      <CardFooter className="border-t bg-muted/30 flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-4 p-4">
         <div className="text-sm text-muted-foreground">
           Total Costs:{" "}
           <span className="font-medium">£{totalCost.toFixed(2)}</span>

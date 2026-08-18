@@ -144,7 +144,11 @@ export function ProgressTimeline({
   };
 
   // Function to render cost badge
-  const renderCostBadge = (cost: number | undefined, status?: string) => {
+  const renderCostBadge = (
+    cost: number | undefined,
+    status?: string,
+    workType?: string
+  ) => {
     if (cost === undefined || cost <= 0) return null;
 
     let badgeClass =
@@ -160,11 +164,28 @@ export function ProgressTimeline({
         "border-amber-600 text-amber-600 dark:text-amber-400 dark:border-amber-500";
     }
 
+    const isBillable = workType === "regular";
+
     return (
-      <Badge variant="outline" className={`${badgeClass} flex items-center`}>
-        {currencySymbol}
-        {cost.toFixed(2)}
-      </Badge>
+      <>
+        <Badge variant="outline" className={`${badgeClass} flex items-center`}>
+          {currencySymbol}
+          {cost.toFixed(2)}
+        </Badge>
+        {/* Billable/Absorbed classification is internal cost accounting — admin only */}
+        {isAdmin && (
+          <Badge
+            variant="outline"
+            className={`text-[10px] px-1.5 py-0 h-4 leading-4 font-normal flex items-center ${
+              isBillable
+                ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                : "border-amber-500 text-amber-600 dark:text-amber-400"
+            }`}
+          >
+            {isBillable ? "Billable" : "Absorbed"}
+          </Badge>
+        )}
+      </>
     );
   };
 
@@ -291,13 +312,22 @@ export function ProgressTimeline({
                           {log.vehicleUsage &&
                             renderCostBadge(
                               log.vehicleUsage.totalCost,
-                              log.jobStatus
+                              log.jobStatus,
+                              log.workType
                             )}
                           {log.overtimeCost &&
-                            renderCostBadge(log.overtimeCost, log.jobStatus)}
+                            renderCostBadge(
+                              log.overtimeCost,
+                              log.jobStatus,
+                              log.workType
+                            )}
                           {!log.vehicleUsage &&
                             !log.overtimeCost &&
-                            renderCostBadge(log.cost, log.jobStatus)}
+                            renderCostBadge(
+                              log.cost,
+                              log.jobStatus,
+                              log.workType
+                            )}
                         </>
                       )}
                     </div>
