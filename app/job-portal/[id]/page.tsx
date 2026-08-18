@@ -779,14 +779,14 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Price</p>
               <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400">
-                £{(clientPrice * 1.1).toFixed(2)}
+                £{clientPrice.toFixed(2)}
               </p>
             </div>
 
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Approved Costs</p>
               <p className="text-xl font-bold text-red-500">
-                -£{(approvedCosts * 1.1).toFixed(2)}
+                -£{approvedCosts.toFixed(2)}
               </p>
             </div>
           </div>

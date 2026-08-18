@@ -36,10 +36,10 @@ export async function GET(request: NextRequest) {
     const activeJobs = jobs.filter((job) => ["pending", "in-progress"].includes(job.status)).length
     const completedJobs = jobs.filter((job) => job.status === "completed").length
 
-    // Calculate total spent (from completed jobs, with the 10% client markup applied)
+    // Calculate total spent (from completed jobs)
     const totalSpent = jobs
       .filter((job) => job.status === "completed")
-      .reduce((sum, job) => sum + (job.clientPrice || 0) * 1.1, 0)
+      .reduce((sum, job) => sum + (job.clientPrice || 0), 0)
 
     return NextResponse.json({
       totalRequests,
