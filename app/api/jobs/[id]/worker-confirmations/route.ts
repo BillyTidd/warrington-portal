@@ -43,8 +43,19 @@ function buildMessage(
     `Location: ${jobLocation}`,
   ]
 
-  if (postcodes.length > 0) {
-    lines.push(`Postcode${postcodes.length > 1 ? 's' : ''}: ${postcodes.join(', ')}`)
+    const additionalPostcodes = postcodes.filter(
+    (postcode) =>
+      !jobLocation
+        .toLowerCase()
+        .includes(postcode.toLowerCase())
+  );
+
+  if (additionalPostcodes.length > 0) {
+    lines.push(
+      `Additional Postcode${
+        additionalPostcodes.length > 1 ? "s" : ""
+      }: ${additionalPostcodes.join(", ")}`
+    );
   }
 
   if (description) {
@@ -116,21 +127,79 @@ export async function POST(
     const twilioClient = getTwilioClient()
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
 
-    const jobName = job.jobName || 'Unnamed Job'
+    const jobName = job.jobName || "Unnamed Job";
+
     const jobDate = job.jobEstimate?.jobDate
-      ? new Date(job.jobEstimate.jobDate).toLocaleDateString('en-GB', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        })
-      : 'TBC'
-    const jobLocation = job.jobEstimate?.jobLocation || job.jobLocation || 'TBC'
-    const jobType = job.jobType || job.jobEstimate?.jobType || 'General'
-    const durationHours = job.estimatedHours ?? job.jobEstimate?.numberOfHours
-    const duration = durationHours ? `${durationHours} hour${durationHours === 1 ? '' : 's'}` : 'TBC'
-    const postcodes: string[] = (job.jobEstimate?.postcodes || job.postcodes || [])
-      .filter((pc: string) => pc?.trim())
-    const description = job.description || job.jobEstimate?.jobDescription || ''
+      ? new Date(job.jobEstimate.jobDate).toLocaleDateString(
+          "en-GB",
+          {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          }
+        )
+      : job.assignDate
+        ? new Date(job.assignDate).toLocaleDateString(
+            "en-GB",
+            {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            }
+          )
+        : "TBC";
+
+    const postcodes: string[] = (
+      job.jobEstimate?.postcodes ||
+      job.postcodes ||
+      []
+    )
+      .filter(
+        (postcode: unknown): postcode is string =>
+          typeof postcode === "string" &&
+          postcode.trim().length > 0
+      )
+      .map((postcode: string) => postcode.trim());
+
+    const possibleLocations = [
+      job.jobEstimate?.londonStartingPoint,
+      job.jobEstimate?.siteAddress,
+      job.jobEstimate?.jobLocation,
+      job.siteAddress,
+      job.jobLocation,
+    ];
+
+    const explicitLocation = possibleLocations.find(
+      (location: unknown): location is string =>
+        typeof location === "string" &&
+        location.trim().length > 0
+    );
+
+    const jobLocation =
+      explicitLocation?.trim() ||
+      (postcodes.length > 0
+        ? postcodes.join(", ")
+        : "TBC");
+
+    const jobType =
+      job.jobType ||
+      job.jobEstimate?.jobType ||
+      "General";
+
+    const durationHours =
+      job.estimatedHours ??
+      job.jobEstimate?.numberOfHours;
+
+    const duration = durationHours
+      ? `${durationHours} hour${
+          durationHours === 1 ? "" : "s"
+        }`
+      : "TBC";
+
+    const description =
+      job.description ||
+      job.jobEstimate?.jobDescription ||
+      "";
 
     const results = await Promise.allSettled(
       workers.map(async (worker) => {

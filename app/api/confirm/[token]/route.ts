@@ -28,6 +28,40 @@ export async function GET(
       return NextResponse.json({ error: 'Job not found' }, { status: 404 })
     }
 
+
+    const postcodes: string[] = (
+    job.jobEstimate?.postcodes ||
+    job.postcodes ||
+    []
+  )
+    .filter(
+      (postcode: unknown): postcode is string =>
+        typeof postcode === "string" &&
+        postcode.trim().length > 0
+    )
+    .map((postcode: string) => postcode.trim());
+
+  const possibleLocations = [
+    job.jobEstimate?.londonStartingPoint,
+    job.jobEstimate?.siteAddress,
+    job.jobEstimate?.jobLocation,
+    job.siteAddress,
+    job.jobLocation,
+  ];
+
+  const explicitLocation = possibleLocations.find(
+    (location: unknown): location is string =>
+      typeof location === "string" &&
+      location.trim().length > 0
+  );
+
+  const resolvedJobLocation =
+    explicitLocation?.trim() ||
+    (postcodes.length > 0
+      ? postcodes.join(", ")
+      : "TBC");
+      
+
     return NextResponse.json({
       confirmation: {
         workerName: confirmation.workerName,

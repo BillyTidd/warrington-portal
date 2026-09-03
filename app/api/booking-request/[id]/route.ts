@@ -116,6 +116,21 @@ export async function PATCH(
           postcodes = [postCode];
         }
 
+
+
+
+        // Resolve and standardize the actual job site location.
+        const resolvedJobLocation =
+          bookingRequest.jobEstimate.londonStartingPoint?.trim() ||
+          bookingRequest.jobEstimate.siteAddress?.trim() ||
+          bookingRequest.jobEstimate.jobLocation?.trim() ||
+          (postcodes.length > 0
+            ? postcodes.join(", ")
+            : null);
+
+
+
+            
         // Create job data
         const jobData = {
           jobName: `${bookingRequest.jobEstimate.jobType || "Service"} - ${
@@ -139,7 +154,7 @@ export async function PATCH(
           // Job details
           estimatedWorkers: bookingRequest.jobEstimate.numberOfWorkers,
           estimatedHours: bookingRequest.jobEstimate.numberOfHours,
-          jobLocation: bookingRequest.jobEstimate.jobLocation,
+          jobLocation: resolvedJobLocation,
           jobType: bookingRequest.jobEstimate.jobType,
 
           // Transfer full jobEstimate object to preserve all data including postcodes array
