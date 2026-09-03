@@ -1,3 +1,5 @@
+import type { JobDocument } from "@/types/job-document";
+
 export interface Worker {
   userId: string;
   workerName: string;
@@ -42,6 +44,7 @@ export interface Job {
   workerHourlyRate?: number; // For backward compatibility
   workers?: Worker[]; // New field for multiple workers
   progressLogs?: JobProgressLog[];
+  documents?: JobDocument[];
   createdAt: Date | string;
   updatedAt: Date | string;
   title: string;

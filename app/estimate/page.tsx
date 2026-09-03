@@ -157,9 +157,8 @@ export default function EstimatePage() {
   const [estimate, setEstimate] = useState<CostEstimate | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [isUploadingPdf, setIsUploadingPdf] = useState(false);
-
+  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
+  const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
   const isLoggedIn = !!session?.user;
   const isCustomer = session?.user?.role === "customer";
   const isLondon = formData.team === "london";
@@ -459,6 +458,47 @@ export default function EstimatePage() {
     }
   };
 
+
+  const uploadDocument = async (file: File) => {
+  const presignResponse = await fetch("/api/job-documents/presign", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fileName: file.name,
+      mimeType: file.type,
+      size: file.size,
+    }),
+  });
+
+  const presignData = await presignResponse.json();
+
+    if (!presignResponse.ok) {
+      throw new Error(
+        presignData.message || `Unable to upload ${file.name}`
+      );
+    }
+
+    const uploadResponse = await fetch(presignData.uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": file.type,
+      },
+      body: file,
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(`Unable to upload ${file.name}`);
+    }
+
+    return {
+      objectKey: presignData.objectKey,
+      originalName: file.name,
+      mimeType: file.type,
+      size: file.size,
+    };
+  };
+
+
   const handleBookNow = async () => {
     if (!estimate) {
       toast.error("Please calculate estimate first");
@@ -499,38 +539,21 @@ export default function EstimatePage() {
 
     setIsBooking(true);
     try {
-      // Upload PDF to Cloudinary if one was selected
-      let pdfUrl: string | null = null;
-      let pdfFilename: string | null = null;
-      if (pdfFile) {
-        setIsUploadingPdf(true);
-        try {
-          const uploadFormData = new FormData();
-          uploadFormData.append("file", pdfFile);
-          const uploadRes = await fetch("/api/upload-cloudinary", {
-            method: "POST",
-            body: uploadFormData,
-          });
-          if (!uploadRes.ok) {
-            if (uploadRes.status === 401) {
-              toast.error("Your session has expired. Please log in again.");
-              router.push("/login?type=customer&returnUrl=/estimate");
-              return;
-            }
-            const uploadError = await uploadRes.json().catch(() => null);
-            toast.error(
-              uploadError?.message
-                ? `Failed to upload PDF: ${uploadError.message}`
-                : "Failed to upload the attached PDF. Please try again or remove the attachment and submit without it."
-            );
-            return;
-          }
-          const uploadData = await uploadRes.json();
-          pdfUrl = uploadData.url;
-          pdfFilename = uploadData.filename;
-        } finally {
-          setIsUploadingPdf(false);
-        }
+      setIsUploadingDocuments(true);
+
+      let uploadedDocuments: Array<{
+        objectKey: string;
+        originalName: string;
+        mimeType: string;
+        size: number;
+      }> = [];
+
+      try {
+        uploadedDocuments = await Promise.all(
+          documentFiles.map(uploadDocument)
+        );
+      } finally {
+        setIsUploadingDocuments(false);
       }
 
       // Submit booking request to database

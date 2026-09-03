@@ -1,4 +1,5 @@
 import type { ObjectId } from "mongodb";
+import type { JobDocument } from "@/types/job-document";
 
 export type WorkerType = "team-leader" | "general-fitter" | "labourer";
 
@@ -57,7 +58,7 @@ export interface BookingRequest {
   reviewedBy?: string; // User ID of the admin who reviewed it
   reviewedByName?: string; // Name of the admin who reviewed it
   convertedToJobId?: string; // ID of the job created from this request
-  convertedAt?: Date; // Timestamp when it was converted
+  documents?: JobDocument[];convertedAt?: Date; // Timestamp when it was converted
   createdAt: Date;
   updatedAt: Date;
 }
