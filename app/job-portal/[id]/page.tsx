@@ -1181,43 +1181,123 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
 
           <TabsContent value="documents" className="mt-0">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Current PDF */}
+
+
+
+
+              {/* Current Job Documents */}
               <Card className="border-none shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 pb-3">
-                  <CardTitle className="text-lg flex items-center">
-                    <FileText className="h-5 w-5 mr-2 text-blue-500" />
-                    Job Document
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 pb-3 dark:from-blue-950/40 dark:to-indigo-950/40">
+                  <CardTitle className="flex items-center text-lg">
+                    <FileText className="mr-2 h-5 w-5 text-blue-500" />
+                    Job Documents
                   </CardTitle>
-                  <CardDescription>PDF attached to this job</CardDescription>
+
+                  <CardDescription>
+                    Documents attached to this job estimate
+                  </CardDescription>
                 </CardHeader>
+
                 <CardContent className="pt-4">
-                  {job.pdfUrl ? (
+                  {job.documents?.length > 0 ? (
                     <div className="space-y-3">
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border">
-                        <FileText className="h-8 w-8 text-blue-500 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {job.pdfFilename || "Job PDF Document"}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Attached to this job
-                          </p>
-                        </div>
-                        <Link
-                          href={`/api/download-pdf?url=${encodeURIComponent(job.pdfUrl)}${job.pdfFilename ? `&filename=${encodeURIComponent(job.pdfFilename)}` : ""}`}
-                          target="_blank"
-                        >
-                          <Button variant="outline" size="sm">
-                            <ExternalLink className="h-4 w-4 mr-1" />
-                            Download
-                          </Button>
-                        </Link>
+                      {job.documents.map((document: any) => {
+                        const isImage =
+                          document.mimeType?.startsWith("image/");
+
+                        return (
+                          <div
+                            key={document._id?.toString()}
+                            className="overflow-hidden rounded-lg border bg-muted/50"
+                          >
+                            {isImage && (
+                              <a
+                                href={document.downloadPath}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block"
+                              >
+                                <img
+                                  src={document.downloadPath}
+                                  alt={document.originalName}
+                                  className="h-40 w-full object-cover"
+                                />
+                              </a>
+                            )}
+
+                            <div className="flex items-center gap-3 p-3">
+                              {!isImage && (
+                                <FileText className="h-8 w-8 flex-shrink-0 text-blue-500" />
+                              )}
+
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">
+                                  {document.originalName}
+                                </p>
+
+                                <p className="text-xs text-muted-foreground">
+                                  {(Number(document.size || 0) /
+                                    1024 /
+                                    1024).toFixed(2)}{" "}
+                                  MB
+                                </p>
+                              </div>
+
+                              <a
+                                href={document.downloadPath}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <Button variant="outline" size="sm">
+                                  <ExternalLink className="mr-1 h-4 w-4" />
+                                  Open
+                                </Button>
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : job.pdfUrl ? (
+                    // Backward compatibility for older Cloudinary PDF files
+                    <div className="flex items-center gap-3 rounded-lg border bg-muted/50 p-3">
+                      <FileText className="h-8 w-8 flex-shrink-0 text-blue-500" />
+
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                          {job.pdfFilename || "Job PDF Document"}
+                        </p>
+
+                        <p className="text-xs text-muted-foreground">
+                          Legacy job document
+                        </p>
                       </div>
+
+                      <Link
+                        href={`/api/download-pdf?url=${encodeURIComponent(
+                          job.pdfUrl
+                        )}${
+                          job.pdfFilename
+                            ? `&filename=${encodeURIComponent(
+                                job.pdfFilename
+                              )}`
+                            : ""
+                        }`}
+                        target="_blank"
+                      >
+                        <Button variant="outline" size="sm">
+                          <ExternalLink className="mr-1 h-4 w-4" />
+                          Open
+                        </Button>
+                      </Link>
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Paperclip className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                      <p className="text-sm">No PDF attached to this job</p>
+                    <div className="py-8 text-center text-muted-foreground">
+                      <Paperclip className="mx-auto mb-3 h-10 w-10 opacity-40" />
+
+                      <p className="text-sm">
+                        No documents are attached to this job.
+                      </p>
                     </div>
                   )}
                 </CardContent>

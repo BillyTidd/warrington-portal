@@ -178,6 +178,22 @@ export async function PATCH(
         const jobResult = await db.collection("jobs").insertOne(jobData);
         jobId = jobResult.insertedId.toString();
 
+
+        await db.collection("job_documents").updateMany(
+          {
+            bookingRequestId,
+          },
+          {
+            $set: {
+              jobId: jobResult.insertedId,
+              updatedAt: new Date(),
+            },
+          }
+        );
+
+
+
+
         // Update booking request to converted status
         updateFields.status = "converted";
         updateFields.convertedToJobId = jobId;

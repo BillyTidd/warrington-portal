@@ -65,6 +65,20 @@ export async function GET(
         job.client = { name: job.clientName || "Unknown Client" };
       }
     }
+    
+
+
+    job.documents = await db
+      .collection("job_documents")
+      .find({
+        jobId: job._id,
+      })
+      .sort({
+        createdAt: 1,
+      })
+      .toArray();
+
+
 
     return NextResponse.json(job);
   } catch (error) {

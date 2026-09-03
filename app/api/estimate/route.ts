@@ -14,7 +14,7 @@ interface EstimateRequest {
   customerCompany: string;
   workerTypes: string[];
   vehicleType: string;
-  postcodes: string[];
+  postcodes?: string[];
   team?: string;
   londonStartingPoint?: string;
   jobReference?: string;
@@ -245,7 +245,7 @@ export async function POST(request: NextRequest) {
       jobType,
       workerTypes = [],
       vehicleType = "medium-van",
-      postcodes,
+      postcodes = [],
       team = "default",
       londonStartingPoint = "",
       jobShift = "day",
@@ -269,30 +269,49 @@ export async function POST(request: NextRequest) {
         ? londonStartingPoint.trim()
         : COMPANY_ADDRESS;
 
-    // Validate required fields
-    if (
-      !numberOfWorkers ||
-      !numberOfHours ||
-      !postcodes ||
-      postcodes.length === 0
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Missing required fields: numberOfWorkers, numberOfHours, and postcodes are required",
-        },
-        { status: 400 }
-      );
-    }
+        // Validate common required fields
+        if (!numberOfWorkers || !numberOfHours) {
+          return NextResponse.json(
+            {
+              error:
+                "Number of workers and number of hours are required",
+            },
+            { status: 400 }
+          );
+        }
 
-    // Filter out empty postcodes
-    const validPostcodes = postcodes.filter((pc) => pc?.trim());
-    if (validPostcodes.length === 0) {
-      return NextResponse.json(
-        { error: "At least one valid postcode is required" },
-        { status: 400 }
-      );
-    }
+        // London jobs require a starting point.
+        if (
+          isLondonTeam &&
+          !londonStartingPoint.trim()
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                "Job starting point is required for London jobs",
+            },
+            { status: 400 }
+          );
+        }
+
+        // Remove blank optional postcode inputs.
+        const validPostcodes = Array.isArray(postcodes)
+          ? postcodes
+              .filter((postcode) => postcode?.trim())
+              .map((postcode) => postcode.trim())
+          : [];
+
+        // Default-team jobs require a destination postcode because
+        // their travel cost is based on distance from Northampton.
+        if (!isLondonTeam && validPostcodes.length === 0) {
+          return NextResponse.json(
+            {
+              error:
+                "At least one job postcode is required for default-team jobs",
+            },
+            { status: 400 }
+          );
+        }
 
     // Validate postcode format (basic UK postcode validation)
     const postcodeRegex = /^[A-Z]{1,2}[0-9][A-Z0-9]?\s?[0-9][A-Z]{2}$/i;
@@ -305,11 +324,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Calculate round-trip distance and duration
-    const { distance, duration } = await calculateRoundTrip(
-      fromAddress,
-      validPostcodes.map((pc) => pc.trim())
-    );
+    // Calculate travel only when additional postcodes exist.
+    // A London job without additional stops uses the existing
+    // flat London travel charge.
+    const { distance, duration } =
+      validPostcodes.length > 0
+        ? await calculateRoundTrip(
+            fromAddress,
+            validPostcodes
+          )
+        : {
+            distance: 0,
+            duration: 0,
+          };
 
     // Calculate travel hours (rounded up to nearest whole hour)
     const durationHours = Math.ceil(duration / 60);

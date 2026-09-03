@@ -114,6 +114,47 @@ interface CostEstimate {
   };
 }
 
+const MAX_DOCUMENT_SIZE = 25 * 1024 * 1024;
+const MAX_DOCUMENTS_PER_ESTIMATE = 10;
+
+const ALLOWED_DOCUMENT_EXTENSIONS = [
+  "pdf",
+  "png",
+  "jpg",
+  "jpeg",
+  "xlsx",
+  "csv",
+];
+
+function getFileExtension(fileName: string) {
+  return fileName.split(".").pop()?.toLowerCase() || "";
+}
+
+function getDocumentMimeType(file: File) {
+  if (file.type) {
+    return file.type;
+  }
+
+  const extension = getFileExtension(file.name);
+
+  const fallbackMimeTypes: Record<string, string> = {
+    pdf: "application/pdf",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    xlsx:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    csv: "text/csv",
+  };
+
+  return fallbackMimeTypes[extension] || "application/octet-stream";
+}
+
+function getFileIdentifier(file: File) {
+  return `${file.name}-${file.size}-${file.lastModified}`;
+}
+
+
 // Icon mapping for dynamic worker types
 const iconMap: { [key: string]: any } = {
   Crown,
@@ -159,6 +200,7 @@ export default function EstimatePage() {
   const [isBooking, setIsBooking] = useState(false);
   const [documentFiles, setDocumentFiles] = useState<File[]>([]);
   const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
+  const [isDraggingDocuments, setIsDraggingDocuments] = useState(false);
   const isLoggedIn = !!session?.user;
   const isCustomer = session?.user?.role === "customer";
   const isLondon = formData.team === "london";
@@ -313,10 +355,16 @@ export default function EstimatePage() {
       errors.push("Job starting point is required for London jobs");
     }
 
-    // Validate postcodes array
-    const validPostcodes = formData.postcodes.filter((pc) => pc?.trim());
-    if (validPostcodes.length === 0) {
-      errors.push("At least one postcode is required");
+    // Additional postcodes are optional for London jobs because
+    // the London job starting point is already required.
+    const validPostcodes = formData.postcodes.filter(
+      (postcode) => postcode?.trim()
+    );
+
+    // Default-team jobs still require at least one postcode because
+    // their travel distance and cost are calculated from Northampton.
+    if (formData.team !== "london" && validPostcodes.length === 0) {
+      errors.push("At least one job postcode is required");
     }
 
     // Validate each postcode format
@@ -459,44 +507,139 @@ export default function EstimatePage() {
   };
 
 
-  const uploadDocument = async (file: File) => {
-  const presignResponse = await fetch("/api/job-documents/presign", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      fileName: file.name,
-      mimeType: file.type,
-      size: file.size,
-    }),
-  });
 
-  const presignData = await presignResponse.json();
+
+
+
+  const handleDocumentSelection = (selectedFiles: File[]) => {
+    if (selectedFiles.length === 0) {
+      return;
+    }
+
+    const invalidTypeFile = selectedFiles.find((file) => {
+      const extension = getFileExtension(file.name);
+
+      return !ALLOWED_DOCUMENT_EXTENSIONS.includes(extension);
+    });
+
+    if (invalidTypeFile) {
+      toast.error(
+        `${invalidTypeFile.name} is not supported. Only PDF, PNG, JPG, XLSX and CSV files are allowed.`
+      );
+      return;
+    }
+
+    const oversizedFile = selectedFiles.find(
+      (file) => file.size > MAX_DOCUMENT_SIZE
+    );
+
+    if (oversizedFile) {
+      toast.error(
+        `${oversizedFile.name} exceeds the maximum size of 25 MB.`
+      );
+      return;
+    }
+
+    const emptyFile = selectedFiles.find((file) => file.size <= 0);
+
+    if (emptyFile) {
+      toast.error(`${emptyFile.name} is empty and cannot be uploaded.`);
+      return;
+    }
+
+    const uniqueNewFiles = selectedFiles.filter((newFile) => {
+      const newFileId = getFileIdentifier(newFile);
+
+      return !documentFiles.some(
+        (existingFile) => getFileIdentifier(existingFile) === newFileId
+      );
+    });
+
+    if (documentFiles.length + uniqueNewFiles.length >
+        MAX_DOCUMENTS_PER_ESTIMATE) {
+      toast.error(
+        `You can attach a maximum of ${MAX_DOCUMENTS_PER_ESTIMATE} files to one estimate.`
+      );
+      return;
+    }
+
+    if (uniqueNewFiles.length < selectedFiles.length) {
+      toast.info("Duplicate files were not added again.");
+    }
+
+    setDocumentFiles((currentFiles) => [
+      ...currentFiles,
+      ...uniqueNewFiles,
+    ]);
+  };
+
+
+
+
+
+
+
+
+
+  const uploadDocument = async (file: File) => {
+    const mimeType = getDocumentMimeType(file);
+
+    const presignResponse = await fetch(
+      "/api/job-documents/presign",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fileName: file.name,
+          mimeType,
+          size: file.size,
+        }),
+      }
+    );
+
+    const presignData = await presignResponse
+      .json()
+      .catch(() => null);
 
     if (!presignResponse.ok) {
+      if (presignResponse.status === 401) {
+        throw new Error(
+          "Your session has expired. Please log in again."
+        );
+      }
+
       throw new Error(
-        presignData.message || `Unable to upload ${file.name}`
+        presignData?.message ||
+          `Unable to prepare ${file.name} for upload.`
       );
     }
 
     const uploadResponse = await fetch(presignData.uploadUrl, {
       method: "PUT",
       headers: {
-        "Content-Type": file.type,
+        "Content-Type": mimeType,
       },
       body: file,
     });
 
     if (!uploadResponse.ok) {
-      throw new Error(`Unable to upload ${file.name}`);
+      throw new Error(
+        `Failed to upload ${file.name}. Please check the R2 CORS configuration.`
+      );
     }
 
     return {
       objectKey: presignData.objectKey,
       originalName: file.name,
-      mimeType: file.type,
+      mimeType,
       size: file.size,
     };
   };
+
+
+
 
 
   const handleBookNow = async () => {
@@ -548,28 +691,42 @@ export default function EstimatePage() {
         size: number;
       }> = [];
 
-      try {
-        uploadedDocuments = await Promise.all(
-          documentFiles.map(uploadDocument)
-        );
-      } finally {
-        setIsUploadingDocuments(false);
+      if (documentFiles.length > 0) {
+        setIsUploadingDocuments(true);
+
+        try {
+          uploadedDocuments = await Promise.all(
+            documentFiles.map((file) => uploadDocument(file))
+          );
+        } catch (uploadError: any) {
+          console.error("Document upload failed:", uploadError);
+
+          toast.error(
+            uploadError.message ||
+              "One or more documents could not be uploaded."
+          );
+
+          return;
+        } finally {
+          setIsUploadingDocuments(false);
+        }
       }
+
+
 
       // Submit booking request to database
       const response = await fetch("/api/booking-request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customerName: formData.customerName,
-          customerEmail: formData.customerEmail,
-          customerPhone: formData.customerPhone,
-          customerCompany: formData.customerCompany,
-          jobEstimate: formData,
-          estimatedCost: estimate,
-          pdfUrl,
-          pdfFilename,
-        }),
+        customerName: formData.customerName,
+        customerEmail: formData.customerEmail,
+        customerPhone: formData.customerPhone,
+        customerCompany: formData.customerCompany,
+        jobEstimate: formData,
+        estimatedCost: estimate,
+        documents: uploadedDocuments,
+      }),
       });
 
       if (!response.ok) {
@@ -600,6 +757,7 @@ export default function EstimatePage() {
       });
 
       toast.success("Booking request submitted successfully!");
+      setDocumentFiles([]);
       router.push("/admin/job-requests");
     } catch (error) {
       console.error("Error submitting booking request:", error);
@@ -1090,16 +1248,20 @@ export default function EstimatePage() {
                       theme === "dark" ? "text-slate-200" : "text-slate-700"
                     }
                   >
-                    Job Postcodes * (Add multiple stops)
+                    {isLondon
+                      ? "Additional Job Postcodes (Optional)"
+                      : "Job Postcodes *"}
                   </Label>
                   <div className="space-y-2 mt-2">
                     {formData.postcodes.map((postcode, index) => (
                       <div key={index} className="flex items-center space-x-2">
                         <div className="relative flex-1">
                           <Input
-                            placeholder={`Postcode ${
-                              index + 1
-                            } (e.g., NN1 1AA)`}
+                            placeholder={
+                              isLondon
+                                ? `Optional additional postcode ${index + 1}`
+                                : `Postcode ${index + 1} (e.g., NN1 1AA)`
+                            }
                             value={postcode}
                             onChange={(e) =>
                               handlePostcodeChange(index, e.target.value)
@@ -1141,16 +1303,21 @@ export default function EstimatePage() {
                       }`}
                     >
                       <Plus className="h-4 w-4 mr-2" />
-                      Add Another Postcode
+                      {isLondon
+                        ? "Add Optional Postcode"
+                        : "Add Another Postcode"}
                     </Button>
                   </div>
                   <p
                     className={`text-xs mt-2 ${
-                      theme === "dark" ? "text-slate-400" : "text-slate-500"
+                      theme === "dark"
+                        ? "text-slate-400"
+                        : "text-slate-500"
                     }`}
                   >
-                    Round-trip distance and travel time calculated automatically
-                    from our Northampton office
+                    {isLondon
+                      ? "Optional: add postcodes only if this job includes additional stops after the selected starting point."
+                      : "Required: round-trip distance and travel time are calculated automatically from our Northampton office."}
                   </p>
                 </div>
 
@@ -1855,79 +2022,190 @@ export default function EstimatePage() {
                     </span>
                   </div>
 
-                  {/* Optional PDF Upload */}
-                  <div className="mt-4">
+ 
+ 
+
+
+                  {/* Estimate Document Upload */}
+                  <div className="mt-4 space-y-3">
                     <Label
-                      className={`flex items-center gap-2 mb-1 ${
+                      className={`flex items-center gap-2 ${
                         theme === "dark" ? "text-slate-200" : "text-slate-700"
                       }`}
                     >
                       <Paperclip className="h-4 w-4" />
-                      Attach PDF (Optional)
+                      Project Documents (Optional)
                     </Label>
-                    {pdfFile ? (
-                      <div
-                        className={`flex items-center gap-2 p-3 rounded-lg border ${
-                          theme === "dark"
-                            ? "bg-slate-700/50 border-slate-600"
-                            : "bg-white border-slate-200"
-                        }`}
+
+                    <p
+                      className={`text-xs ${
+                        theme === "dark" ? "text-slate-400" : "text-slate-500"
+                      }`}
+                    >
+                      Upload PDF, PNG, JPG, XLSX or CSV files. Maximum 25 MB
+                      per file and 10 files per estimate.
+                    </p>
+
+                    <div
+                      onDragEnter={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setIsDraggingDocuments(true);
+                      }}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setIsDraggingDocuments(true);
+                      }}
+                      onDragLeave={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setIsDraggingDocuments(false);
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setIsDraggingDocuments(false);
+
+                        const droppedFiles = Array.from(
+                          event.dataTransfer.files || []
+                        );
+
+                        handleDocumentSelection(droppedFiles);
+                      }}
+                      className={`rounded-lg border-2 border-dashed transition-colors ${
+                        isDraggingDocuments
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                          : theme === "dark"
+                            ? "border-slate-600 hover:border-blue-500"
+                            : "border-slate-300 hover:border-blue-400"
+                      }`}
+                    >
+                      <input
+                        id="estimate-document-input"
+                        type="file"
+                        multiple
+                        accept=".pdf,.png,.jpg,.jpeg,.xlsx,.csv"
+                        className="hidden"
+                        disabled={isBooking || isUploadingDocuments}
+                        onChange={(event) => {
+                          const selectedFiles = Array.from(
+                            event.target.files || []
+                          );
+
+                          handleDocumentSelection(selectedFiles);
+
+                          event.target.value = "";
+                        }}
+                      />
+
+                      <label
+                        htmlFor="estimate-document-input"
+                        className="flex cursor-pointer flex-col items-center justify-center gap-2 p-6 text-center"
                       >
-                        <FileTextIcon className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                        <Paperclip
+                          className={`h-7 w-7 ${
+                            isDraggingDocuments
+                              ? "text-blue-500"
+                              : "text-slate-400"
+                          }`}
+                        />
+
                         <span
-                          className={`text-sm flex-1 truncate ${
+                          className={`text-sm font-medium ${
                             theme === "dark"
                               ? "text-slate-200"
                               : "text-slate-700"
                           }`}
                         >
-                          {pdfFile.name}
+                          Drag and drop files here
                         </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setPdfFile(null)}
-                          className="h-6 w-6"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <label
-                        className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
-                          theme === "dark"
-                            ? "border-slate-600 hover:border-blue-500 text-slate-400 hover:text-blue-400"
-                            : "border-slate-300 hover:border-blue-400 text-slate-500 hover:text-blue-500"
-                        }`}
-                      >
-                        <Paperclip className="h-4 w-4" />
-                        <span className="text-sm">
-                          Click to attach a PDF document
+
+                        <span className="text-xs text-muted-foreground">
+                          or click to select files
                         </span>
-                        <input
-                          type="file"
-                          accept=".pdf,application/pdf"
-                          className="hidden"
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) setPdfFile(f);
-                          }}
-                        />
                       </label>
+                    </div>
+
+                    {documentFiles.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">
+                            Selected files ({documentFiles.length})
+                          </span>
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={isBooking || isUploadingDocuments}
+                            onClick={() => setDocumentFiles([])}
+                          >
+                            Remove all
+                          </Button>
+                        </div>
+
+                        {documentFiles.map((file, index) => (
+                          <div
+                            key={getFileIdentifier(file)}
+                            className={`flex items-center gap-3 rounded-lg border p-3 ${
+                              theme === "dark"
+                                ? "border-slate-600 bg-slate-700/50"
+                                : "border-slate-200 bg-white"
+                            }`}
+                          >
+                            <FileTextIcon className="h-5 w-5 flex-shrink-0 text-blue-500" />
+
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">
+                                {file.name}
+                              </p>
+
+                              <p className="text-xs text-muted-foreground">
+                                {(file.size / 1024 / 1024).toFixed(2)} MB
+                              </p>
+                            </div>
+
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              disabled={isBooking || isUploadingDocuments}
+                              onClick={() => {
+                                setDocumentFiles((currentFiles) =>
+                                  currentFiles.filter(
+                                    (_, fileIndex) => fileIndex !== index
+                                  )
+                                );
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
 
-                  {/* Book Now Button */}
+
+
+
+
+
+
+
                   <div className="mt-6">
                     <Button
                       onClick={handleBookNow}
-                      disabled={isBooking || isUploadingPdf}
+                      disabled={isBooking || isUploadingDocuments}
                       className="w-full"
                       size="lg"
                     >
-                      {isUploadingPdf
-                        ? "Uploading PDF..."
+                      {isUploadingDocuments
+                        ? `Uploading ${documentFiles.length} document${
+                            documentFiles.length === 1 ? "" : "s"
+                          }...`
                         : isBooking
                           ? "Submitting..."
                           : "Submit Job Request"}

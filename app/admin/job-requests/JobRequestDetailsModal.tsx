@@ -22,6 +22,7 @@ import {
   Sun,
   Hash,
   Navigation,
+  Paperclip,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -186,17 +187,36 @@ export function JobRequestDetailsModal({
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               {getStatusBadge(request.status)}
-              {request.pdfUrl && (
-                <Link
-                  href={`/api/download-pdf?url=${encodeURIComponent(request.pdfUrl)}${request.pdfFilename ? `&filename=${encodeURIComponent(request.pdfFilename)}` : ""}`}
-                  target="_blank"
-                >
-                  <Button variant="outline" size="sm">
-                    <FileText className="h-4 w-4 mr-2" />
-                    {request.pdfFilename ? `Download: ${request.pdfFilename}` : "Download PDF"}
-                  </Button>
-                </Link>
+              {request.documents?.length > 0 && (
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <Paperclip className="h-3 w-3" />
+                  {request.documents.length} attachment
+                  {request.documents.length === 1 ? "" : "s"}
+                </Badge>
               )}
+
+              {(!request.documents || request.documents.length === 0) &&
+                request.pdfUrl && (
+                  <Link
+                    href={`/api/download-pdf?url=${encodeURIComponent(
+                      request.pdfUrl
+                    )}${
+                      request.pdfFilename
+                        ? `&filename=${encodeURIComponent(
+                            request.pdfFilename
+                          )}`
+                        : ""
+                    }`}
+                    target="_blank"
+                  >
+                    <Button variant="outline" size="sm">
+                      <FileText className="mr-2 h-4 w-4" />
+                      {request.pdfFilename
+                        ? `Download: ${request.pdfFilename}`
+                        : "Download PDF"}
+                    </Button>
+                  </Link>
+                )}
               {isConverted && request.convertedToJobId && (
                 <Link href={`/job-portal/${request.convertedToJobId}`}>
                   <Button variant="outline" size="sm">
@@ -212,6 +232,84 @@ export function JobRequestDetailsModal({
         {/* Scrollable Content */}
         <ScrollArea className="flex-1 px-6">
           <div className="space-y-6 py-4">
+
+
+
+
+            {request.documents?.length > 0 && (
+  <div className="space-y-3">
+    <div className="flex items-center gap-2">
+      <Paperclip className="h-5 w-5" />
+
+      <h3 className="text-lg font-semibold">
+        Project Documents
+      </h3>
+    </div>
+
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {request.documents.map((document: any) => {
+        const isImage =
+          document.mimeType?.startsWith("image/");
+
+        return (
+          <div
+            key={document._id?.toString()}
+            className="overflow-hidden rounded-lg border bg-muted/20"
+          >
+            {isImage && (
+              <a
+                href={document.downloadPath}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <img
+                  src={document.downloadPath}
+                  alt={document.originalName}
+                  className="h-32 w-full object-cover"
+                />
+              </a>
+            )}
+
+            <div className="flex items-center gap-3 p-3">
+              {!isImage && (
+                <FileText className="h-8 w-8 flex-shrink-0 text-blue-500" />
+              )}
+
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
+                  {document.originalName}
+                </p>
+
+                <p className="text-xs text-muted-foreground">
+                  {(Number(document.size || 0) /
+                    1024 /
+                    1024).toFixed(2)}{" "}
+                  MB
+                </p>
+              </div>
+
+              <a
+                href={document.downloadPath}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button variant="outline" size="sm">
+                  <ExternalLink className="mr-1 h-4 w-4" />
+                  Open
+                </Button>
+              </a>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+)}
+
+
+
+
             {/* Customer & Job Info Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Customer Information */}
