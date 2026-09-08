@@ -1106,13 +1106,13 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
               <div className="lg:col-span-2">
                 {isEditing ? (
                   <JobDetailsForm
-  editedJob={editedJob}
-  setEditedJob={setEditedJob}
-  isAdmin={isAdmin}
-  workers={workers}
-  clients={clients}
-  confirmations={confirmations}
-/>
+                    editedJob={editedJob}
+                    setEditedJob={setEditedJob}
+                    isAdmin={isAdmin}
+                    workers={workers}
+                    clients={clients}
+                    confirmations={confirmations}
+                  />
                 ) : (
                   <>
                     {/* Display assigned workers */}
