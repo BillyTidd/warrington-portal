@@ -73,7 +73,7 @@ export async function GET(
       job: {
         jobName: job.jobName || 'Unnamed Job',
         jobDate: job.jobEstimate?.jobDate ?? null,
-        jobLocation: job.jobEstimate?.jobLocation || job.jobLocation || 'TBC',
+        jobLocation: resolvedJobLocation,
         numberOfWorkers: job.jobEstimate?.numberOfWorkers ?? null,
         jobType: job.jobEstimate?.jobType ?? null,
         jobShift: job.jobEstimate?.jobShift ?? null,

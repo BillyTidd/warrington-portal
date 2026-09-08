@@ -35,6 +35,34 @@ export async function POST(req: Request) {
       createdAt: new Date(),
     });
 
+
+
+    if (role === "customer") {
+      const now = new Date();
+
+      await db.collection("clients").updateOne(
+        {
+          customerAccountId: result.insertedId,
+        },
+        {
+          $set: {
+            name: company || name,
+            customerAccountId: result.insertedId,
+            updatedAt: now,
+          },
+          $setOnInsert: {
+            description: "Customer portal account",
+            createdAt: now,
+          },
+        },
+        {
+          upsert: true,
+        }
+      );
+    }
+
+
+
     return NextResponse.json(
       {
         message: "User created successfully",

@@ -509,17 +509,46 @@ export function JobRequestDetailsModal({
                     </div>
                   )}
 
-                  {/* Manager */}
-                  {request.jobEstimate.manager && (
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                  {/* Customer Site Manager */}
+                  {(
+                    request.jobEstimate.manager ||
+                    request.jobEstimate.managerDetails
+                  ) && (
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
                         <Users className="h-4 w-4 text-green-600" />
                       </div>
+
                       <div>
                         <p className="font-medium">
-                          {request.jobEstimate.manager}
+                          {request.jobEstimate.managerDetails
+                            ?.fullName ||
+                            request.jobEstimate.manager}
                         </p>
-                        <p className="text-muted-foreground text-xs">Manager</p>
+
+                        <p className="text-xs text-muted-foreground">
+                          Customer Site Manager
+                        </p>
+
+                        {request.jobEstimate.managerDetails
+                          ?.email && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {
+                              request.jobEstimate
+                                .managerDetails.email
+                            }
+                          </p>
+                        )}
+
+                        {request.jobEstimate.managerDetails
+                          ?.phone && (
+                          <p className="text-xs text-muted-foreground">
+                            {
+                              request.jobEstimate
+                                .managerDetails.phone
+                            }
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}

@@ -1,4 +1,5 @@
 import type { ObjectId } from "mongodb";
+import type { ManagerSnapshot } from "@/types/customer-site-manager";
 import type { JobDocument } from "@/types/job-document";
 
 export type WorkerType = "team-leader" | "general-fitter" | "labourer";
@@ -13,6 +14,9 @@ export interface JobEstimate {
   jobDescription?: string;
   workerTypes?: WorkerType[]; // Specific types of workers requested
   vehicleType?: string; // e.g., "small-van", "large-van", "truck"
+  manager_id?: string;
+  manager?: string;
+  managerDetails?: ManagerSnapshot;
 }
 
 export interface LaborBreakdown {

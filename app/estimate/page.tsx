@@ -58,6 +58,7 @@ import { redirect, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import Image from "next/image";
+import type { CustomerSiteManager } from "@/types/customer-site-manager";
 
 interface EstimateData {
   numberOfWorkers: number;
@@ -76,6 +77,7 @@ interface EstimateData {
   jobReference: string;
   londonStartingPoint: string;
   jobShift: string;
+  manager_id: string;
   manager: string;
 }
 
@@ -192,6 +194,7 @@ export default function EstimatePage() {
     jobReference: "",
     londonStartingPoint: "",
     jobShift: "day",
+    manager_id: "",
     manager: "",
   });
 
@@ -204,15 +207,19 @@ export default function EstimatePage() {
   const isLoggedIn = !!session?.user;
   const isCustomer = session?.user?.role === "customer";
   const isLondon = formData.team === "london";
-  // const showManagerDropdown = session?.user?.email === "jun@gmail.com";
+  // const showManagerDropdown = session?.user?.email === "zemishk101@gmail.com";
   const showManagerDropdown = true;
-  const MANAGERS = [
-    "John Smith",
-    "Sarah Johnson",
-    "Mike Davis",
-    "Emma Wilson",
-    "Chris Brown",
-  ];
+
+
+
+
+  const [siteManagers, setSiteManagers] = useState<
+    CustomerSiteManager[]
+  >([]);
+
+  const [isLoadingManagers, setIsLoadingManagers] =
+    useState(false);
+
   const isWeekendDate = (() => {
     if (!formData.jobDate) return false;
     const [y, m, d] = formData.jobDate.split("-").map(Number);
@@ -272,6 +279,65 @@ export default function EstimatePage() {
 
     fetchDynamicData();
   }, []);
+
+
+
+
+
+  useEffect(() => {
+    const fetchManagers = async () => {
+      if (
+        status !== "authenticated" ||
+        session?.user?.role !== "customer" ||
+        !session.user.id
+      ) {
+        setSiteManagers([]);
+        return;
+      }
+
+      setIsLoadingManagers(true);
+
+      try {
+        const response = await fetch(
+          `/api/v1/customers/${session.user.id}/managers`,
+          {
+            cache: "no-store",
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.message || "Unable to load managers"
+          );
+        }
+
+        setSiteManagers(
+          Array.isArray(data) ? data : []
+        );
+      } catch (error) {
+        console.error(
+          "Unable to load managers:",
+          error
+        );
+
+        toast.error("Unable to load your managers");
+      } finally {
+        setIsLoadingManagers(false);
+      }
+    };
+
+    fetchManagers();
+  }, [
+    status,
+    session?.user?.id,
+    session?.user?.role,
+  ]);
+
+
+
+
 
   // Debug log
   useEffect(() => {
@@ -926,20 +992,56 @@ export default function EstimatePage() {
                 </h3>
 
                 {/* Manager dropdown — only for jun@gmail.com */}
-                {showManagerDropdown && (
+                
+                
+
+
+                {isCustomer && (
                   <div>
-                    <Label
-                      className={
-                        theme === "dark" ? "text-slate-200" : "text-slate-700"
-                      }
-                    >
-                      Manager
-                    </Label>
+                    <div className="flex items-center justify-between gap-3">
+                      <Label
+                        className={
+                          theme === "dark"
+                            ? "text-slate-200"
+                            : "text-slate-700"
+                        }
+                      >
+                        Manager
+                      </Label>
+
+                      <Link
+                        href="/customer/managers"
+                        className="text-xs font-medium text-blue-600 hover:underline"
+                      >
+                        Manage managers
+                      </Link>
+                    </div>
+
                     <Select
-                      value={formData.manager}
-                      onValueChange={(value) =>
-                        setFormData((prev) => ({ ...prev, manager: value }))
-                      }
+                      value={formData.manager_id || "none"}
+                      disabled={isLoadingManagers}
+                      onValueChange={(value) => {
+                        if (value === "none") {
+                          setFormData((current) => ({
+                            ...current,
+                            manager_id: "",
+                            manager: "",
+                          }));
+
+                          return;
+                        }
+
+                        const selectedManager = siteManagers.find(
+                          (manager) => manager._id === value
+                        );
+
+                        setFormData((current) => ({
+                          ...current,
+                          manager_id: value,
+                          manager:
+                            selectedManager?.fullName || "",
+                        }));
+                      }}
                     >
                       <SelectTrigger
                         className={`mt-1 ${
@@ -948,18 +1050,42 @@ export default function EstimatePage() {
                             : "bg-white border-slate-300 text-slate-900"
                         }`}
                       >
-                        <SelectValue placeholder="Select a manager" />
+                        <SelectValue
+                          placeholder={
+                            isLoadingManagers
+                              ? "Loading managers..."
+                              : "Select a manager"
+                          }
+                        />
                       </SelectTrigger>
+
                       <SelectContent>
-                        {MANAGERS.map((name) => (
-                          <SelectItem key={name} value={name}>
-                            {name}
+                        <SelectItem value="none">
+                          No manager selected
+                        </SelectItem>
+
+                        {siteManagers.map((manager) => (
+                          <SelectItem
+                            key={manager._id}
+                            value={manager._id}
+                          >
+                            {manager.fullName}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+
+                    {!isLoadingManagers &&
+                      siteManagers.length === 0 && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          No active managers found. Create one
+                          from the Managers page.
+                        </p>
+                      )}
                   </div>
                 )}
+
+
 
                 {/* Team Selection */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

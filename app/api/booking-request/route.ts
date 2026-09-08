@@ -221,6 +221,72 @@ export async function POST(request: NextRequest) {
       );
     }
 
+
+
+    const client = await clientPromise;
+    const db = client.db();
+
+
+
+
+    let jobEstimateToSave = {
+      ...jobEstimate,
+    };
+
+    if (jobEstimate.manager_id) {
+      if (
+        !ObjectId.isValid(jobEstimate.manager_id) ||
+        !ObjectId.isValid(session.user.id)
+      ) {
+        return NextResponse.json(
+          { message: "Invalid manager selection" },
+          { status: 400 }
+        );
+      }
+
+      const selectedManager = await db
+        .collection("customer_site_managers")
+        .findOne({
+          _id: new ObjectId(
+            jobEstimate.manager_id
+          ),
+          customer_account_id: new ObjectId(
+            session.user.id
+          ),
+          status: "active",
+        });
+
+      if (!selectedManager) {
+        return NextResponse.json(
+          {
+            message:
+              "The selected manager does not belong to your customer account or is inactive",
+          },
+          { status: 400 }
+        );
+      }
+
+      const fullName =
+        `${selectedManager.firstName} ${selectedManager.lastName}`.trim();
+
+      jobEstimateToSave = {
+        ...jobEstimate,
+        manager_id:
+          selectedManager._id.toString(),
+        manager: fullName,
+        managerDetails: {
+          firstName: selectedManager.firstName,
+          lastName: selectedManager.lastName,
+          fullName,
+          email: selectedManager.email || null,
+          phone: selectedManager.phone || null,
+        },
+      };
+    }
+
+
+
+
     const verifiedDocuments: PendingJobDocument[] = [];
 
     let storageBucket: string | null = null;
@@ -329,8 +395,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const client = await clientPromise;
-    const db = client.db();
+    
 
     const bookingRequestId = new ObjectId();
     const now = new Date();
@@ -342,7 +407,7 @@ export async function POST(request: NextRequest) {
       customerPhone: customerPhone || null,
       customerCompany: customerCompany || null,
       customerId: session.user.id,
-      jobEstimate,
+      jobEstimate: jobEstimateToSave,
       estimatedCost,
       status: "pending",
       createdAt: now,

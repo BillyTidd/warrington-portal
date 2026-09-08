@@ -61,4 +61,8 @@ export interface Job {
   updatedByName: string;
   bookingRequestId?: string;
   postcode?: string;
+  managerId?: string | null;
+  managerName?: string | null;
+  managerEmail?: string | null;
+  managerPhone?: string | null;
 }

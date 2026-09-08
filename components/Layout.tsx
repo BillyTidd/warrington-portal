@@ -45,6 +45,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
           icon: LayoutDashboard,
         },
         {
+          href: "/customer/managers",
+          label: "Managers",
+          icon: Users,
+        },
+        {
           href: "/admin/job-requests",
           label: "My Job Requests",
           icon: ClipboardList,

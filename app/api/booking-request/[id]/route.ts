@@ -157,6 +157,32 @@ export async function PATCH(
           jobLocation: resolvedJobLocation,
           jobType: bookingRequest.jobEstimate.jobType,
 
+
+
+
+
+          managerId:
+            bookingRequest.jobEstimate.manager_id || null,
+
+          managerName:
+            bookingRequest.jobEstimate.managerDetails
+              ?.fullName ||
+            bookingRequest.jobEstimate.manager ||
+            null,
+
+          managerEmail:
+            bookingRequest.jobEstimate.managerDetails
+              ?.email || null,
+
+          managerPhone:
+            bookingRequest.jobEstimate.managerDetails
+              ?.phone || null,
+
+
+
+
+
+
           // Transfer full jobEstimate object to preserve all data including postcodes array
           jobEstimate: {
             ...bookingRequest.jobEstimate,

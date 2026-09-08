@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,17 +35,31 @@ import { Loader2, Plus, MoreHorizontal, Pen, Trash } from "lucide-react";
 import { toast } from "sonner";
 import { Layout } from "@/components/Layout";
 import api from "@/lib/api";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
+
+interface ClientManager {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  email?: string | null;
+  phone?: string | null;
+  status: "active" | "inactive";
+}
 
 interface Client {
   _id: string;
   name: string;
   description: string;
   createdAt: string;
+  customerAccountId?: string | null;
+  customerLogin?: string | null;
+  managers?: ClientManager[];
 }
 
 export default function ClientsPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -58,12 +73,25 @@ export default function ClientsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (session?.user.role || session?.user.role === "admin") {
-      fetchClients();
-    } else {
-      redirect("/dashboard");
+    if (status === "loading") {
+      return;
     }
-  }, [session]);
+
+    if (
+      status === "authenticated" &&
+      session?.user?.role === "admin"
+    ) {
+      fetchClients();
+      return;
+    }
+
+    if (status === "unauthenticated") {
+      router.replace("/login");
+      return;
+    }
+
+    router.replace("/dashboard");
+  }, [status, session?.user?.role, router]);
 
   useEffect(() => {
     if (editingClient) {
@@ -205,6 +233,8 @@ export default function ClientsPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Description</TableHead>
+                  <TableHead>Customer Login</TableHead>
+                  <TableHead>Managers</TableHead>
                   <TableHead>Created At</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -212,11 +242,87 @@ export default function ClientsPage() {
               <TableBody>
                 {clients.map((client) => (
                   <TableRow key={client._id}>
+                    
+                    
+
+
+
                     <TableCell>{client.name}</TableCell>
+
                     <TableCell>{client.description}</TableCell>
+
+                    <TableCell>
+                      {client.customerLogin ? (
+                        <div>
+                          <p className="font-medium">
+                            {client.customerLogin}
+                          </p>
+
+                          <p className="text-xs text-muted-foreground">
+                            Linked customer credentials
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          Not linked
+                        </span>
+                      )}
+                    </TableCell>
+
+                    <TableCell className="min-w-[240px]">
+                      {client.managers?.length ? (
+                        <div className="space-y-2">
+                          {client.managers.map((manager) => (
+                            <div
+                              key={manager._id}
+                              className="rounded-md border p-2"
+                            >
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-medium">
+                                  {manager.fullName}
+                                </span>
+
+                                <Badge
+                                  variant={
+                                    manager.status === "active"
+                                      ? "default"
+                                      : "secondary"
+                                  }
+                                >
+                                  {manager.status === "active"
+                                    ? "Active"
+                                    : "Inactive"}
+                                </Badge>
+                              </div>
+
+                              {manager.email && (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {manager.email}
+                                </p>
+                              )}
+
+                              {manager.phone && (
+                                <p className="text-xs text-muted-foreground">
+                                  {manager.phone}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          No managers
+                        </span>
+                      )}
+                    </TableCell>
+
                     <TableCell>
                       {new Date(client.createdAt).toLocaleString()}
                     </TableCell>
+
+
+
+
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

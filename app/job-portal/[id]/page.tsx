@@ -1375,7 +1375,8 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
               job.jobEstimate?.jobShift ||
               job.jobEstimate?.jobReference ||
               job.jobEstimate?.londonStartingPoint ||
-              job.jobEstimate?.manager) && (
+              job.jobEstimate?.manager ||
+              job.jobEstimate?.managerDetails) && (
               <Card className="mt-6 border-none shadow-lg">
                 <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40 pb-3">
                   <CardTitle className="text-lg flex items-center">
@@ -1447,12 +1448,34 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                         </p>
                       </div>
                     )}
-                    {job.jobEstimate?.manager && (
+                    {(
+                      job.jobEstimate?.manager ||
+                      job.jobEstimate?.managerDetails
+                    ) && (
                       <div>
-                        <p className="text-muted-foreground text-xs mb-1">
-                          Manager
+                        <p className="mb-1 text-xs text-muted-foreground">
+                          Customer Site Manager
                         </p>
-                        <p className="font-medium">{job.jobEstimate.manager}</p>
+
+                        <p className="font-medium">
+                          {job.jobEstimate?.managerDetails
+                            ?.fullName ||
+                            job.jobEstimate?.manager}
+                        </p>
+
+                        {job.jobEstimate?.managerDetails
+                          ?.email && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {job.jobEstimate.managerDetails.email}
+                          </p>
+                        )}
+
+                        {job.jobEstimate?.managerDetails
+                          ?.phone && (
+                          <p className="text-xs text-muted-foreground">
+                            {job.jobEstimate.managerDetails.phone}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
