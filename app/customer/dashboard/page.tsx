@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { format } from "date-fns"
@@ -28,29 +28,72 @@ export default function CustomerDashboard() {
     const [stats, setStats] = useState<DashboardStats | null>(null)
     const [isLoading, setIsLoading] = useState(true)
 
-    useEffect(() => {
-        if (status === "authenticated") {
-            if (session?.user?.role !== "customer") {
-                router.push("/job-portal")
-                return
-            }
-            fetchDashboardData()
-        }
-    }, [session, status])
-
-    const fetchDashboardData = async () => {
-        try {
-            const response = await fetch("/api/customer/dashboard")
-            if (!response.ok) throw new Error("Failed to fetch dashboard data")
-
-            const data = await response.json()
-            setStats(data)
-        } catch (error) {
-            console.error("Error fetching dashboard data:", error)
-        } finally {
-            setIsLoading(false)
-        }
+    const fetchDashboardData = useCallback(
+  async (showLoading = false) => {
+    if (showLoading) {
+      setIsLoading(true)
     }
+
+    try {
+      const response = await fetch(
+        "/api/customer/dashboard",
+        {
+          cache: "no-store",
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(
+          "Failed to fetch dashboard data"
+        )
+      }
+
+      const data = await response.json()
+      setStats(data)
+    } catch (error) {
+      console.error(
+        "Error fetching dashboard data:",
+        error
+      )
+    } finally {
+      if (showLoading) {
+        setIsLoading(false)
+      }
+    }
+  },
+  []
+)
+
+useEffect(() => {
+  if (status === "unauthenticated") {
+    router.push("/login?type=customer")
+    return
+  }
+
+  if (status !== "authenticated") {
+    return
+  }
+
+  if (session?.user?.role !== "customer") {
+    router.push("/job-portal")
+    return
+  }
+
+  fetchDashboardData(true)
+
+  const refreshInterval = window.setInterval(() => {
+    fetchDashboardData(false)
+  }, 10000)
+
+  return () => {
+    window.clearInterval(refreshInterval)
+  }
+}, [
+  session?.user?.role,
+  status,
+  router,
+  fetchDashboardData,
+])
 
     if (status === "loading" || isLoading) {
         return (

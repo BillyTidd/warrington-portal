@@ -77,10 +77,79 @@ export async function PATCH(
     // If approved, create a job
     if (status === "approved") {
       try {
-        // Find the customer
-        const customer = await db.collection("users").findOne({
-          email: bookingRequest.customerEmail,
-        });
+        // Find the authenticated customer account associated
+// with the booking request.
+let customer = null;
+
+if (
+  bookingRequest.customerId &&
+  ObjectId.isValid(bookingRequest.customerId)
+) {
+  customer = await db.collection("users").findOne({
+    _id: new ObjectId(bookingRequest.customerId),
+    role: "customer",
+  });
+}
+
+if (!customer && bookingRequest.customerEmail) {
+  customer = await db.collection("users").findOne({
+    email: bookingRequest.customerEmail,
+    role: "customer",
+  });
+}
+
+if (!customer) {
+  throw new Error(
+    "The booking request is not linked to a valid customer account"
+  );
+}
+
+let linkedClient = await db
+  .collection("clients")
+  .findOne({
+    $or: [
+      {
+        customerAccountId: customer._id,
+      },
+      {
+        customerAccountId: customer._id.toString(),
+      },
+      {
+        customer_account_id: customer._id,
+      },
+      {
+        customer_account_id: customer._id.toString(),
+      },
+    ],
+  });
+
+if (!linkedClient) {
+  const clientResult = await db
+    .collection("clients")
+    .insertOne({
+      name:
+        customer.company ||
+        bookingRequest.customerCompany ||
+        customer.name ||
+        bookingRequest.customerName,
+      description: "Customer Portal account",
+      customerAccountId: customer._id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+  linkedClient = await db
+    .collection("clients")
+    .findOne({
+      _id: clientResult.insertedId,
+    });
+}
+
+if (!linkedClient) {
+  throw new Error(
+    "Unable to resolve the booking request client record"
+  );
+}
 
         // Handle both old (single postcode) and new (multiple postcodes) formats
         let postCode = null;
@@ -145,11 +214,21 @@ export async function PATCH(
           clientPrice: finalEstimatedCost.totalCost,
 
           // Client information
-          clientId: customer?._id?.toString() || null,
-          clientName: bookingRequest.customerName,
-          clientEmail: bookingRequest.customerEmail,
-          clientPhone: bookingRequest.customerPhone,
-          clientCompany: bookingRequest.customerCompany || null,
+          customer_account_id: customer._id,
+clientId: linkedClient._id.toString(),
+clientName:
+  linkedClient.name ||
+  bookingRequest.customerCompany ||
+  bookingRequest.customerName,
+clientEmail: customer.email,
+clientPhone:
+  bookingRequest.customerPhone ||
+  customer.phone ||
+  null,
+clientCompany:
+  bookingRequest.customerCompany ||
+  customer.company ||
+  null,
 
           // Job details
           estimatedWorkers: bookingRequest.jobEstimate.numberOfWorkers,

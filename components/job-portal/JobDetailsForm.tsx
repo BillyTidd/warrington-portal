@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import type { CustomerAccountOption } from "@/types/customer-account";
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ interface JobDetailsFormProps {
   setEditedJob: (job: Partial<Job>) => void;
   isAdmin: boolean;
   workers: any[];
+  clients: CustomerAccountOption[];
   confirmations?: any[];
 }
 
@@ -31,9 +33,33 @@ export function JobDetailsForm({
   setEditedJob,
   isAdmin,
   workers,
+  clients,
   confirmations = [],
 }: JobDetailsFormProps) {
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>("");
+  const handleCustomerChange = (
+  customerAccountId: string
+) => {
+  const selectedCustomer = clients.find(
+    (customer) =>
+      customer.customerAccountId === customerAccountId
+  );
+
+  if (!selectedCustomer) {
+    return;
+  }
+
+  setEditedJob({
+    ...editedJob,
+    customer_account_id:
+      selectedCustomer.customerAccountId,
+    clientId: selectedCustomer.clientId || undefined,
+    clientName: selectedCustomer.displayName,
+    clientEmail: selectedCustomer.email,
+    clientPhone: selectedCustomer.phone || null,
+    clientCompany: selectedCustomer.company || null,
+  });
+};
 
   // Build a map: workerId -> best confirmation status for this job
   // If a worker has multiple confirmations (SMS + WhatsApp), prefer confirmed > declined > pending
@@ -134,17 +160,47 @@ export function JobDetailsForm({
       </CardHeader>
       <CardContent className="space-y-4 pt-6">
         <div>
-          <Label htmlFor="clientName">Client</Label>
-          <Input
-            id="clientName"
-            value={editedJob.clientName || ""}
-            onChange={(e) =>
-              setEditedJob({ ...editedJob, clientName: e.target.value })
-            }
-            required
-            className="mt-1"
-          />
-        </div>
+  <Label htmlFor="customerAccount">
+    Customer Account
+  </Label>
+
+  {isAdmin ? (
+    <Select
+      value={editedJob.customer_account_id || ""}
+      onValueChange={handleCustomerChange}
+    >
+      <SelectTrigger
+        id="customerAccount"
+        className="mt-1"
+      >
+        <SelectValue placeholder="Select a customer account" />
+      </SelectTrigger>
+
+      <SelectContent>
+        {clients.map((customer) => (
+          <SelectItem
+            key={customer.customerAccountId}
+            value={customer.customerAccountId}
+          >
+            <div className="flex flex-col">
+              <span>{customer.displayName}</span>
+              <span className="text-xs text-muted-foreground">
+                {customer.email}
+              </span>
+            </div>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  ) : (
+    <Input
+      id="customerAccount"
+      value={editedJob.clientName || ""}
+      disabled
+      className="mt-1"
+    />
+  )}
+</div>
 
         {isAdmin && (
           <div className="space-y-4">

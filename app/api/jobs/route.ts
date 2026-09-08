@@ -50,10 +50,33 @@ export async function GET(request: Request) {
       // Admin sees all jobs
       console.log("Admin user - showing all jobs");
     } else if (session.user.role === "customer") {
-      // Customer sees only jobs created from their booking requests
-      query.clientId = session.user.id;
-      console.log("Customer user - filtering by clientId:", session.user.id);
-    } else {
+  if (!ObjectId.isValid(session.user.id)) {
+    return NextResponse.json(
+      { message: "Invalid customer account" },
+      { status: 401 }
+    );
+  }
+
+  query.$and = [
+    {
+      $or: [
+        {
+          customer_account_id: new ObjectId(
+            session.user.id
+          ),
+        },
+        {
+          customer_account_id: session.user.id,
+        },
+
+        // Temporary fallback until migration is finished
+        {
+          clientId: session.user.id,
+        },
+      ],
+    },
+  ];
+} else {
       // Employee sees jobs they're assigned to work on
       query["workers.userId"] = session.user.id;
       console.log(
@@ -206,53 +229,221 @@ export async function GET(request: Request) {
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    if (session.user.role !== "admin") {
+      return NextResponse.json(
+        {
+          message:
+            "Only administrators can create manual jobs",
+        },
+        { status: 403 }
+      );
     }
 
     const jobData = await req.json();
-    const client = await clientPromise;
-    const db = client.db();
 
-    // Handle backward compatibility - convert single userId/workerName to workers array
-    if (!jobData.workers && jobData.userId) {
-      jobData.workers = [
+    if (!jobData.jobName?.trim()) {
+      return NextResponse.json(
+        { message: "Job name is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!jobData.assignDate || !jobData.expireDate) {
+      return NextResponse.json(
+        {
+          message:
+            "The job start date and due date are required",
+        },
+        { status: 400 }
+      );
+    }
+
+    const requestedCustomerAccountId = String(
+      jobData.customer_account_id || ""
+    );
+
+    if (
+      !requestedCustomerAccountId ||
+      !ObjectId.isValid(requestedCustomerAccountId)
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "A valid customer account must be selected",
+        },
+        { status: 400 }
+      );
+    }
+
+    const mongoClient = await clientPromise;
+    const db = mongoClient.db();
+
+    const customerAccountObjectId = new ObjectId(
+      requestedCustomerAccountId
+    );
+
+    const customerAccount = await db
+      .collection("users")
+      .findOne({
+        _id: customerAccountObjectId,
+        role: "customer",
+        isApproved: true,
+      });
+
+    if (!customerAccount) {
+      return NextResponse.json(
+        {
+          message:
+            "The selected customer account was not found or is inactive",
+        },
+        { status: 400 }
+      );
+    }
+
+    let linkedClient = await db
+      .collection("clients")
+      .findOne({
+        $or: [
+          {
+            customerAccountId: customerAccountObjectId,
+          },
+          {
+            customerAccountId:
+              requestedCustomerAccountId,
+          },
+          {
+            customer_account_id:
+              customerAccountObjectId,
+          },
+          {
+            customer_account_id:
+              requestedCustomerAccountId,
+          },
+        ],
+      });
+
+    if (!linkedClient) {
+      const clientInsertResult = await db
+        .collection("clients")
+        .insertOne({
+          name:
+            customerAccount.company ||
+            customerAccount.name ||
+            customerAccount.email,
+          description: "Customer Portal account",
+          customerAccountId: customerAccountObjectId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+
+      linkedClient = await db
+        .collection("clients")
+        .findOne({
+          _id: clientInsertResult.insertedId,
+        });
+    }
+
+    if (!linkedClient) {
+      return NextResponse.json(
+        {
+          message:
+            "Unable to create or resolve the client record",
+        },
+        { status: 500 }
+      );
+    }
+
+    let workers = Array.isArray(jobData.workers)
+      ? jobData.workers
+      : [];
+
+    if (workers.length === 0 && jobData.userId) {
+      workers = [
         {
           userId: jobData.userId,
-          workerName: jobData.workerName || "Unknown Worker",
+          workerName:
+            jobData.workerName || "Unknown Worker",
         },
       ];
-      // Remove old fields to avoid confusion
-      delete jobData.userId;
-      delete jobData.workerName;
     }
 
-    // If no workers are assigned, initialize empty array
-    if (!jobData.workers) {
-      jobData.workers = [];
-    }
+    const {
+      _id,
+      customer_account_id,
+      customerAccountId,
+      clientId,
+      clientName,
+      clientEmail,
+      clientPhone,
+      clientCompany,
+      createdAt,
+      updatedAt,
+      createdBy,
+      createdByName,
+      progressLogs,
+      userId,
+      workerName,
+      ...allowedJobData
+    } = jobData;
 
-    // Add created by info and timestamps
+    const now = new Date();
+
     const jobToInsert = {
-      ...jobData,
+      ...allowedJobData,
+
+      workers,
+
+      // Canonical customer credential link
+      customer_account_id: customerAccountObjectId,
+
+      // Existing Admin Client record link
+      clientId: linkedClient._id.toString(),
+
+      // Customer information snapshots
+      clientName:
+        linkedClient.name ||
+        customerAccount.company ||
+        customerAccount.name,
+      clientEmail: customerAccount.email,
+      clientPhone: customerAccount.phone || null,
+      clientCompany: customerAccount.company || null,
+
       createdBy: session.user.id,
       createdByName: session.user.name,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      progressLogs: [], // Initialize empty progress logs array
+      createdAt: now,
+      updatedAt: now,
+      progressLogs: [],
     };
 
-    const result = await db.collection("jobs").insertOne(jobToInsert);
+    const result = await db
+      .collection("jobs")
+      .insertOne(jobToInsert);
 
     const newJob = await db
       .collection("jobs")
-      .findOne({ _id: result.insertedId });
+      .findOne({
+        _id: result.insertedId,
+      });
 
-    return NextResponse.json(newJob, { status: 201 });
+    return NextResponse.json(newJob, {
+      status: 201,
+    });
   } catch (error) {
     console.error("Error in POST /api/jobs:", error);
+
     return NextResponse.json(
-      { message: "An error occurred while creating the job" },
+      {
+        message:
+          "An error occurred while creating the job",
+      },
       { status: 500 }
     );
   }

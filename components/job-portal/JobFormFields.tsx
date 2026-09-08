@@ -23,13 +23,14 @@ import {
 } from "@/components/ui/accordion";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Job, Worker } from "@/types/job";
+import type { CustomerAccountOption } from "@/types/customer-account";
 import type { Session } from "next-auth";
 
 interface JobFormFieldsProps {
   job: Partial<Job>;
   setJob: React.Dispatch<React.SetStateAction<Partial<Job>>>;
   workers: any[];
-  clients: any[];
+  clients: CustomerAccountOption[];
   isAdmin: boolean;
   handleWorkerSelect: (workerId: string) => void;
   handleClientSelect: (clientId: string) => void;
@@ -87,23 +88,43 @@ export function JobFormFields({
         />
       </div>
 
-      <div>
-        <Label htmlFor="client" className="text-base">
-          Client
-        </Label>
-        <Select value={job.clientId || ""} onValueChange={handleClientSelect}>
-          <SelectTrigger className="mt-1.5">
-            <SelectValue placeholder="Select a client" />
-          </SelectTrigger>
-          <SelectContent>
-            {clients.map((client) => (
-              <SelectItem key={client._id} value={client._id}>
-                {client.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+<div>
+  <Label htmlFor="customerAccount" className="text-base">
+    Customer Account
+  </Label>
+
+  <Select
+    value={job.customer_account_id || ""}
+    onValueChange={handleClientSelect}
+  >
+    <SelectTrigger id="customerAccount" className="mt-1.5">
+      <SelectValue placeholder="Select a customer account" />
+    </SelectTrigger>
+
+    <SelectContent>
+      {clients.map((customer) => (
+        <SelectItem
+          key={customer.customerAccountId}
+          value={customer.customerAccountId}
+        >
+          <div className="flex flex-col">
+            <span>{customer.displayName}</span>
+
+            <span className="text-xs text-muted-foreground">
+              {customer.email}
+            </span>
+          </div>
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+
+  {clients.length === 0 && (
+    <p className="mt-1 text-sm text-red-500">
+      No approved customer accounts are available.
+    </p>
+  )}
+</div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>

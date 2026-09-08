@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import type { CustomerAccountOption } from "@/types/customer-account";
 import { useSession } from "next-auth/react";
 import { parseISO, differenceInDays } from "date-fns";
 import {
@@ -91,7 +92,8 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const [progressAmount, setProgressAmount] = useState("");
   const [isSubmittingProgress, setIsSubmittingProgress] = useState(false);
   const [workers, setWorkers] = useState<{ _id: string; name: string; phone?: string; whatsappNumber?: string; role: string; isApproved: boolean }[]>([]);
-  const [clients, setClients] = useState<any[]>([]);
+  const [clients, setClients] =
+  useState<CustomerAccountOption[]>([]);
   const [confirmations, setConfirmations] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("details");
   const [showProgressForm, setShowProgressForm] = useState(false);
@@ -134,6 +136,21 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
     }
   }, [params.id, isAdmin]);
 
+  useEffect(() => {
+  if (!isClient || isEditing) {
+    return;
+  }
+
+  const refreshInterval = window.setInterval(() => {
+    fetchJobDetails(false);
+  }, 10000);
+
+  return () => {
+    window.clearInterval(refreshInterval);
+  };
+}, [isClient, isEditing, params.id]);
+
+
   // Listen for edit progress events
   useEffect(() => {
     const handleEditProgress = (event: any) => {
@@ -146,8 +163,12 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
     return () => window.removeEventListener("editProgress", handleEditProgress);
   }, []);
 
-  const fetchJobDetails = async () => {
+  const fetchJobDetails = async (
+  showLoading = true
+) => {
+  if (showLoading) {
     setIsLoading(true);
+  }
     try {
       const response = await fetch(`/api/jobs/${params.id}`);
       if (!response.ok) {
@@ -160,15 +181,19 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
       console.error("Error fetching job:", error);
       toast.error("Failed to load job details");
     } finally {
-      setIsLoading(false);
-    }
+  if (showLoading) {
+    setIsLoading(false);
+  }
+}
   };
 
   const fetchWorkersAndClients = async () => {
     try {
       const [workersRes, clientsRes, confirmationsRes] = await Promise.all([
         fetch("/api/admin/users"),
-        fetch("/api/clients"),
+        fetch("/api/v1/admin/customer-accounts", {
+  cache: "no-store",
+}),
         fetch(`/api/jobs/${params.id}/worker-confirmations`),
       ]);
 
@@ -185,7 +210,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
         .sort((a: any, b: any) => a.name.localeCompare(b.name));
 
       setWorkers(approvedWorkers);
-      setClients(clientsData);
+      setClients(clientsData.customers || []);
       setConfirmations(Array.isArray(confirmationsData) ? confirmationsData : []);
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -194,6 +219,11 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   };
 
   const handleSaveJob = async () => {
+    if (isAdmin && !editedJob.customer_account_id) {
+  toast.error("Please select a customer account");
+  return;
+}
+
     setIsSaving(true);
     try {
       const response = await fetch(`/api/jobs/${params.id}`, {
@@ -1076,12 +1106,13 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
               <div className="lg:col-span-2">
                 {isEditing ? (
                   <JobDetailsForm
-                    editedJob={editedJob}
-                    setEditedJob={setEditedJob}
-                    isAdmin={isAdmin}
-                    workers={workers}
-                    confirmations={confirmations}
-                  />
+  editedJob={editedJob}
+  setEditedJob={setEditedJob}
+  isAdmin={isAdmin}
+  workers={workers}
+  clients={clients}
+  confirmations={confirmations}
+/>
                 ) : (
                   <>
                     {/* Display assigned workers */}

@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Layout } from "@/components/Layout";
 import type { Job, Worker } from "@/types/job";
+import type { CustomerAccountOption } from "@/types/customer-account";
 import { JobFormFields } from "@/components/job-portal/JobFormFields";
 
 export default function NewJobPage() {
@@ -38,7 +39,7 @@ export default function NewJobPage() {
 function NewJobPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
   // Get date from URL params if available, otherwise use today's date
   const dateParam = searchParams.get("date");
@@ -56,7 +57,7 @@ function NewJobPageContent() {
     description: "",
   });
   const [workers, setWorkers] = useState<any[]>([]);
-  const [clients, setClients] = useState<any[]>([]);
+  const [clients, setClients] = useState<CustomerAccountOption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -73,60 +74,62 @@ function NewJobPageContent() {
   }, [dateParam]);
 
   useEffect(() => {
+    if (status === "loading") {
+      return;
+    }
+
+    if (status === "unauthenticated") {
+      router.replace("/login");
+      return;
+    }
+
+    if (session?.user?.role !== "admin") {
+      router.replace("/job-portal");
+      return;
+    }
+
     fetchData();
-  }, []);
+  }, [status, session?.user?.role]);
 
   const fetchData = async () => {
-    setIsLoading(true);
-    try {
-      // Fetch workers and clients data in parallel
-      const [workersRes, clientsRes] = await Promise.all([
-        fetch("/api/admin/users"),
-        fetch("/api/clients"),
-      ]);
+  setIsLoading(true);
 
-      if (!workersRes.ok) {
-        throw new Error("Failed to fetch workers");
-      }
+  try {
+    const [workersRes, customersRes] = await Promise.all([
+      fetch("/api/admin/users", {
+        cache: "no-store",
+      }),
+      fetch("/api/v1/admin/customer-accounts", {
+        cache: "no-store",
+      }),
+    ]);
 
-      if (!clientsRes.ok) {
-        throw new Error("Failed to fetch clients");
-      }
-
-      const workersData = await workersRes.json();
-      const clientsData = await clientsRes.json();
-
-      // Filter approved workers
-      const approvedWorkers = workersData.filter(
-        (user: any) => user.isApproved
-      );
-
-      setWorkers(approvedWorkers);
-      setClients(clientsData);
-
-      // If not admin, pre-assign the job to the current user
-      if (
-        session?.user?.role !== "admin" &&
-        session?.user?.id &&
-        session?.user?.name
-      ) {
-        setJob((prev) => ({
-          ...prev,
-          workers: [
-            {
-              userId: session.user.id!,
-              workerName: session.user.name!,
-            },
-          ],
-        }));
-      }
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("Failed to fetch required data");
-    } finally {
-      setIsLoading(false);
+    if (!workersRes.ok) {
+      throw new Error("Failed to fetch workers");
     }
-  };
+
+    if (!customersRes.ok) {
+      throw new Error("Failed to fetch customer accounts");
+    }
+
+    const workersData = await workersRes.json();
+    const customersData = await customersRes.json();
+
+    const approvedWorkers = workersData.filter(
+      (user: any) =>
+        user.isApproved &&
+        user.role === "employee"
+    );
+
+    setWorkers(approvedWorkers);
+    setClients(customersData.customers || []);
+  } catch (error) {
+    console.error("Error fetching data:", error);
+    toast.error("Failed to fetch workers or customers");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,10 +140,10 @@ function NewJobPageContent() {
       return;
     }
 
-    if (!job.clientName && !job.clientId) {
-      toast.error("Client is required");
-      return;
-    }
+    if (!job.customer_account_id) {
+  toast.error("Please select a customer account");
+  return;
+}
 
     if (job.workers?.length === 0) {
       toast.error("At least one worker must be assigned");
@@ -200,18 +203,36 @@ function NewJobPageContent() {
     }
   };
 
-  const handleClientSelect = (clientId: string) => {
-    const client = clients.find((c) => c._id === clientId);
-    if (!client) return;
+  const handleClientSelect = (
+  customerAccountId: string
+) => {
+  const selectedCustomer = clients.find(
+    (customer) =>
+      customer.customerAccountId === customerAccountId
+  );
 
-    setJob((prev) => ({
-      ...prev,
-      clientId: clientId,
-      clientName: client.name,
-    }));
-  };
+  if (!selectedCustomer) {
+    return;
+  }
 
-  if (isLoading) {
+  setJob((currentJob) => ({
+    ...currentJob,
+
+    // Authoritative link to users._id
+    customer_account_id:
+      selectedCustomer.customerAccountId,
+
+    // Keep the separate client record for compatibility
+    clientId: selectedCustomer.clientId || undefined,
+
+    // Store customer snapshots for display
+    clientName: selectedCustomer.displayName,
+    clientEmail: selectedCustomer.email,
+    clientPhone: selectedCustomer.phone || null,
+    clientCompany: selectedCustomer.company || null,
+  }));
+};
+  if (status === "loading" || isLoading) {
     return (
       <Layout>
         <div className="container mx-auto py-8 px-4">
@@ -225,6 +246,10 @@ function NewJobPageContent() {
       </Layout>
     );
   }
+
+  if (!isAdmin) {
+  return null;
+}
 
   return (
     <Layout>
@@ -292,7 +317,7 @@ interface NewJobFormProps {
   job: Partial<Job>;
   setJob: React.Dispatch<React.SetStateAction<Partial<Job>>>;
   workers: any[];
-  clients: any[];
+  clients: CustomerAccountOption[];
   isAdmin: boolean;
   handleWorkerSelect: (workerId: string) => void;
   handleClientSelect: (clientId: string) => void;

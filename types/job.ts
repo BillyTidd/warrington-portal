@@ -34,6 +34,10 @@ export interface Job {
   jobName?: any;
   hours?: any;
   clientId?: any;
+  customer_account_id?: string;
+  clientEmail?: string;
+  clientPhone?: string | null;
+  clientCompany?: string | null;
   workerName: string;
   assignDate: Date | any;
   expireDate: any | string;

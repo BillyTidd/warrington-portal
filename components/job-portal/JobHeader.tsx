@@ -15,6 +15,7 @@ interface JobHeaderProps {
   currentDate: Date;
   onNavigate: (direction: "prev" | "next") => void;
   onNewJob: () => void;
+  canCreateJob?: boolean;
   jobs: Job[];
   children?: React.ReactNode;
   onRefresh?: () => void;
@@ -140,6 +141,7 @@ export function JobHeader({
   currentDate,
   onNavigate,
   onNewJob,
+  canCreateJob = false,
   jobs,
   children,
   onRefresh,
@@ -167,10 +169,16 @@ export function JobHeader({
             </Button>
           )}
 
-          <Button onClick={onNewJob} size="sm" className="flex items-center gap-1">
-            <Plus className="h-4 w-4" />
-            New Job
-          </Button>
+          {canCreateJob && (
+  <Button
+    onClick={onNewJob}
+    size="sm"
+    className="flex items-center gap-1"
+  >
+    <Plus className="h-4 w-4" />
+    New Job
+  </Button>
+)}
 
           <DirectReportButton jobs={jobs} />
         </div>

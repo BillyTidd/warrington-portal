@@ -216,7 +216,17 @@ export default function JobPortalPage() {
         Object.fromEntries(params.entries())
       );
 
-      const response = await fetch(`/api/jobs?${params.toString()}`);
+      const jobsApi =
+  session?.user?.role === "customer"
+    ? "/api/v1/customer/jobs"
+    : "/api/jobs";
+
+const response = await fetch(
+  `${jobsApi}?${params.toString()}`,
+  {
+    cache: "no-store",
+  }
+);
       if (!response.ok) {
         throw new Error("Failed to fetch jobs");
       }
@@ -260,6 +270,7 @@ export default function JobPortalPage() {
     entriesPerPage,
     filters,
     shouldFetch,
+    session?.user?.role,
   ]);
 
   // Only run the effect when shouldFetch is true
@@ -296,6 +307,24 @@ export default function JobPortalPage() {
   useEffect(() => {
     setShouldFetch(true);
   }, []);
+
+
+  // Refresh the Customer Portal job list every 10 seconds.
+useEffect(() => {
+  if (session?.user?.role !== "customer") {
+    return;
+  }
+
+  const refreshInterval = window.setInterval(() => {
+    setShouldFetch(true);
+  }, 10000);
+
+  return () => {
+    window.clearInterval(refreshInterval);
+  };
+}, [session?.user?.role]);
+
+
 
   const handleNavigate = (direction: "prev" | "next") => {
     const newDate =
@@ -631,10 +660,12 @@ export default function JobPortalPage() {
               Clear Filters
             </Button>
           )}
-          <Button onClick={handleNewJob}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create New Job
-          </Button>
+          {session?.user?.role === "admin" && (
+  <Button onClick={handleNewJob}>
+    <Plus className="h-4 w-4 mr-2" />
+    Create New Job
+  </Button>
+)}
         </div>
       </div>
     );
@@ -648,6 +679,7 @@ export default function JobPortalPage() {
             currentDate={currentDate}
             onNavigate={handleNavigate}
             onNewJob={handleNewJob}
+            canCreateJob={session?.user?.role === "admin"}
             jobs={jobs}
             onRefresh={handleRefresh}
           >
