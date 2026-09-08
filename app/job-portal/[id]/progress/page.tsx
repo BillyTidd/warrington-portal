@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Job, Worker } from "@/types/job";
+import type { CustomerAccountOption } from "@/types/customer-account";
 import {
   Card,
   CardContent,
@@ -67,7 +68,8 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isSubmittingProgress, setIsSubmittingProgress] = useState(false);
   const [workers, setWorkers] = useState<any[]>([]);
-  const [clients, setClients] = useState<any[]>([]);
+  const [clients, setClients] =
+  useState<CustomerAccountOption[]>([]);
   const [activeTab, setActiveTab] = useState("details");
   const [showProgressForm, setShowProgressForm] = useState(false);
 
@@ -118,9 +120,13 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const fetchWorkersAndClients = async () => {
     try {
       const [workersRes, clientsRes] = await Promise.all([
-        fetch("/api/admin/users"),
-        fetch("/api/clients"),
-      ]);
+  fetch("/api/admin/users", {
+    cache: "no-store",
+  }),
+  fetch("/api/v1/admin/customer-accounts", {
+    cache: "no-store",
+  }),
+]);
 
       if (!workersRes.ok || !clientsRes.ok) {
         throw new Error("Failed to fetch data");
@@ -135,7 +141,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
       );
 
       setWorkers(approvedWorkers);
-      setClients(clientsData);
+setClients(clientsData.customers || []);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Failed to fetch workers and clients");
@@ -143,7 +149,12 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   };
 
   const handleSaveJob = async () => {
-    setIsSaving(true);
+  if (isAdmin && !editedJob.customer_account_id) {
+    toast.error("Please select a customer account");
+    return;
+  }
+
+  setIsSaving(true);
     try {
       const response = await fetch(`/api/jobs/${params.id}`, {
         method: "PUT",
@@ -569,6 +580,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                     setEditedJob={setEditedJob}
                     isAdmin={isAdmin}
                     workers={workers}
+                    clients={clients}
                   />
                 ) : (
                   <>
