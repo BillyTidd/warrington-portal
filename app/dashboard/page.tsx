@@ -1,7 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import type { DateRange } from "react-day-picker";
+import { startOfMonth } from "date-fns";
+import { BriefcaseBusiness, FileText, PoundSterling, Users } from "lucide-react";
+import { toast } from "sonner";
+
 import { Layout } from "@/components/Layout";
 import {
   Card,
@@ -10,58 +16,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  Download,
-  FileText,
-  DollarSign,
-  TrendingUp,
-  BarChart3,
-  ArrowUpRight,
-} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RecentEntries } from "@/components/dashboard/recent-entries";
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { StatCard } from "@/components/dashboard/stat-card";
 import { EmployeePerformanceChart } from "@/components/dashboard/employee-performance-chart";
 import { ClientDistributionChart } from "@/components/dashboard/client-distribution-chart";
 import { MonthlyRevenueChart } from "@/components/dashboard/monthly-revenue-chart";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { StatCard } from "@/components/dashboard/stat-card";
-import { Badge } from "@/components/ui/badge";
-import type { DateRange } from "react-day-picker";
-import { startOfMonth, startOfWeek } from "date-fns";
 import {
-  processEmployeePerformanceData,
+  getDashboardGroupBy,
   processClientDistributionData,
+  processEmployeePerformanceData,
   processMonthlyRevenueData,
   processSummaryData,
 } from "@/lib/chart-calculations";
-import { redirect } from "next/navigation";
-
-interface Entry {
-  _id: string;
-  date: string;
-  client: string;
-  description: string;
-  mileage: {
-    miles: number;
-    amount: number;
-  };
-  expenses: {
-    description: string;
-    amount: number;
-  };
-  overtime: {
-    hours: number;
-    amount: number;
-  };
-  sustenance: {
-    description: string;
-    amount: number;
-  };
-  totalAmount: number;
-  userId: string;
-  userName?: string;
-}
 
 interface SummaryData {
   totalEntries: number;
@@ -70,25 +37,13 @@ interface SummaryData {
   uniqueClients: number;
   uniqueEmployees: number;
   avgEntryValue: number;
-  avgInvoiceValue: number;
-  percentChange?: {
+  percentChange: {
     entries: number;
     invoices: number;
     amount: number;
   };
-  dateRange?: {
-    current: {
-      start: string;
-      end: string;
-    };
-    previous: {
-      start: string;
-      end: string;
-    };
-  };
 }
 
-// Initial state values to avoid repetition
 const initialSummaryData: SummaryData = {
   totalEntries: 0,
   totalInvoices: 0,
@@ -96,382 +51,303 @@ const initialSummaryData: SummaryData = {
   uniqueClients: 0,
   uniqueEmployees: 0,
   avgEntryValue: 0,
-  avgInvoiceValue: 0,
-  percentChange: {
-    entries: 0,
-    invoices: 0,
-    amount: 0,
-  },
+  percentChange: { entries: 0, invoices: 0, amount: 0 },
 };
 
-export default function Dashboard() {
-  const { data: session } = useSession();
-  const [isLoading, setIsLoading] = useState(true);
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [summaryData, setSummaryData] =
-    useState<SummaryData>(initialSummaryData);
-  if (session?.user?.role !== "admin") {
-    redirect("/create-entry");
+function trendFor(value: number): "up" | "down" | "neutral" {
+  if (value > 0) return "up";
+  if (value < 0) return "down";
+  return "neutral";
+}
 
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600">Access Denied</h1>
-          <p className="text-gray-600">
-            You must be an admin to view this page.
-          </p>
-        </div>
-      </div>
-    );
-  }
-  // Default to current month
-  const [timeframe, setTimeframe] = useState("month");
+function changeLabel(value: number) {
+  if (value === 0) return "No change from previous period";
+  return `${Math.abs(value)}% ${value > 0 ? "increase" : "decrease"} from previous period`;
+}
+
+export default function Dashboard() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const controllerRef = useRef<AbortController | null>(null);
+
+  const [timeframe, setTimeframe] = useState("thisMonth");
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
     to: new Date(),
   });
-
-  const [employeeData, setEmployeeData] = useState({
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [summaryData, setSummaryData] =
+    useState<SummaryData>(initialSummaryData);
+  const [employeeData, setEmployeeData] = useState<
+    ReturnType<typeof processEmployeePerformanceData>
+  >({
     chartData: [],
     employeeTotals: [],
   });
-  const [clientData, setClientData] = useState({
+  const [clientData, setClientData] = useState<
+    ReturnType<typeof processClientDistributionData>
+  >({
     chartData: [],
-    clientTotals: [],
+    totalAmount: 0,
   });
-  const [revenueData, setRevenueData] = useState({
+  const [costData, setCostData] = useState<
+    ReturnType<typeof processMonthlyRevenueData>
+  >({
     chartData: [],
-    statistics: {},
+    statistics: {
+      totalAmount: 0,
+      averageAmount: 0,
+      changeRate: 0,
+      entriesCount: 0,
+    },
   });
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Memoize query parameters to prevent unnecessary recalculations
   const queryParams = useMemo(() => {
     if (timeframe === "custom" && dateRange?.from && dateRange?.to) {
-      return `startDate=${dateRange.from.toISOString()}&endDate=${dateRange.to.toISOString()}`;
+      return new URLSearchParams({
+        startDate: dateRange.from.toISOString(),
+        endDate: dateRange.to.toISOString(),
+      }).toString();
     }
-    return `timeframe=${timeframe}`;
+
+    return new URLSearchParams({ timeframe }).toString();
   }, [timeframe, dateRange]);
 
-  // Fetch data with AbortController for cleanup
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
+  const fetchData = useCallback(
+    async (background = false) => {
+      controllerRef.current?.abort();
+      const controller = new AbortController();
+      controllerRef.current = controller;
 
-    // Create an AbortController to cancel fetch requests if component unmounts
-    const controller = new AbortController();
-    const signal = controller.signal;
+      if (background) setIsRefreshing(true);
+      else setIsLoading(true);
+      setError(null);
 
-    try {
-      // Use Promise.all to fetch data in parallel
-      const [
-        summaryResponse,
-        // entriesResponse,
-        employeeResponse,
-        clientPieResponse,
-        clientLineResponse,
-        revenueResponse,
-      ] = await Promise.all([
-        fetch(`/api/dashboard/summary?${queryParams}`, { signal }),
-        // fetch(`/api/entries?limit=5&${queryParams}`, { signal }),
-        fetch(`/api/dashboard/employee-performance?${queryParams}`, { signal }),
-        fetch(`/api/dashboard/client-distribution?${queryParams}`, { signal }),
-        fetch(`/api/dashboard/client-distribution?${queryParams}`, { signal }),
-        fetch(`/api/dashboard/monthly-revenue?${queryParams}`, { signal }),
-      ]);
+      try {
+        const responses = await Promise.all([
+          fetch(`/api/dashboard/summary?${queryParams}`, {
+            signal: controller.signal,
+            cache: "no-store",
+          }),
+          fetch(`/api/dashboard/employee-performance?${queryParams}`, {
+            signal: controller.signal,
+            cache: "no-store",
+          }),
+          fetch(`/api/dashboard/client-distribution?${queryParams}`, {
+            signal: controller.signal,
+            cache: "no-store",
+          }),
+          fetch(`/api/dashboard/monthly-revenue?${queryParams}`, {
+            signal: controller.signal,
+            cache: "no-store",
+          }),
+        ]);
 
-      if (summaryResponse.ok) {
-        const rawData = await summaryResponse.json();
-        // Process summary data on the frontend
-        const processedData: any = processSummaryData(
-          rawData.currentEntries,
-          rawData.currentInvoices,
-          rawData.previousEntries,
-          rawData.previousInvoices
+        const failedResponse = responses.find((response) => !response.ok);
+        if (failedResponse) {
+          let message = `Dashboard request failed (${failedResponse.status})`;
+          try {
+            const body = await failedResponse.json();
+            message = body.error || body.message || message;
+          } catch {
+            // The status-based message above is sufficient.
+          }
+          throw new Error(message);
+        }
+
+        const [summaryRaw, employeeRaw, clientRaw, costRaw] =
+          await Promise.all(responses.map((response) => response.json()));
+
+        setSummaryData(
+          processSummaryData(
+            summaryRaw.currentEntries,
+            summaryRaw.currentInvoiceCount,
+            summaryRaw.previousEntries,
+            summaryRaw.previousInvoiceCount
+          )
         );
-
-        // Add date range to processed data
-        processedData.dateRange = rawData.dateRange;
-
-        setSummaryData(processedData);
-      }
-
-      if (employeeResponse.ok) {
-        const rawData = await employeeResponse.json();
-        // Process employee performance data on the frontend
-        const processedData: any = processEmployeePerformanceData(
-          rawData.entries
+        setEmployeeData(processEmployeePerformanceData(employeeRaw.entries));
+        setClientData(processClientDistributionData(clientRaw.entries));
+        setCostData(
+          processMonthlyRevenueData(
+            costRaw.entries,
+            getDashboardGroupBy(timeframe)
+          )
         );
-        setEmployeeData(processedData);
+      } catch (requestError) {
+        if (
+          requestError instanceof Error &&
+          requestError.name !== "AbortError"
+        ) {
+          console.error("Error fetching dashboard data:", requestError);
+          setError(requestError.message);
+          toast.error("Unable to refresh the dashboard", {
+            description: requestError.message,
+          });
+        }
+      } finally {
+        if (controllerRef.current === controller) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
       }
+    },
+    [queryParams, timeframe]
+  );
 
-      if (clientPieResponse.ok) {
-        const rawData = await clientPieResponse.json();
-        // Process client distribution data on the frontend
-        const processedData: any = processClientDistributionData(
-          rawData.entries,
-          "pie"
-        );
-        setClientData(processedData);
-      }
-
-      if (revenueResponse.ok) {
-        const rawData = await revenueResponse.json();
-        // Process monthly revenue data on the frontend
-        const processedData: any = processMonthlyRevenueData(rawData.entries);
-        setRevenueData(processedData);
-      }
-    } catch (error: any) {
-      // Only log errors that aren't from aborting the fetch
-      if (error.name !== "AbortError") {
-        console.error("Error fetching dashboard data:", error);
-      }
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-
-    // Return the abort controller for cleanup
-    return controller;
-  }, [queryParams]);
-
-  // Initial data fetch with cleanup
   useEffect(() => {
-    const controller = fetchData();
-
-    // Cleanup function to abort fetch if component unmounts
-    return () => {
-      controller.then((c) => c.abort());
-    };
-  }, [fetchData]);
-
-  // Handle timeframe change - memoized to prevent recreation on each render
-  const handleTimeframeChange = useCallback((value: string) => {
-    setTimeframe(value);
-
-    // Reset date range if not custom
-    if (value !== "custom") {
-      // For non-custom timeframes, calculate the appropriate date range
-      const now = new Date();
-      let from, to;
-
-      switch (value) {
-        case "week":
-          from = startOfWeek(now);
-          to = new Date();
-          break;
-        case "month":
-          from = startOfMonth(now);
-          to = new Date();
-          break;
-        case "quarter":
-          from = new Date(
-            now.getFullYear(),
-            Math.floor(now.getMonth() / 3) * 3,
-            1
-          );
-          to = new Date();
-          break;
-        case "year":
-          from = new Date(now.getFullYear(), 0, 1);
-          to = new Date();
-          break;
-        case "last30":
-          from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          to = new Date();
-          break;
-        case "last90":
-          from = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-          to = new Date();
-          break;
-        default:
-          from = startOfMonth(now);
-          to = new Date();
-      }
-
-      setDateRange({ from, to });
+    if (status === "unauthenticated") {
+      router.replace("/login");
+      return;
     }
-  }, []);
 
-  // Handle date range change - memoized to prevent recreation on each render
-  const handleDateRangeChange = useCallback((range: DateRange | undefined) => {
-    setDateRange(range);
-    if (range?.from && range?.to) {
-      setTimeframe("custom");
+    if (status === "authenticated" && session?.user?.role !== "admin") {
+      router.replace("/create-entry");
+      return;
     }
-  }, []);
 
-  // Handle refresh - memoized to prevent recreation on each render
-  const handleRefresh = useCallback(() => {
-    setIsRefreshing(true);
-    fetchData();
-  }, [fetchData]);
+    if (status === "authenticated" && session?.user?.role === "admin") {
+      void fetchData();
+    }
 
-  // Memoize trend calculations to avoid recalculations on every render
-  const entriesTrend = useMemo(() => {
-    return summaryData.percentChange?.entries &&
-      summaryData.percentChange.entries >= 0
-      ? "up"
-      : "down";
-  }, [summaryData.percentChange?.entries]);
+    return () => controllerRef.current?.abort();
+  }, [fetchData, router, session?.user?.role, status]);
 
-  const invoicesTrend = useMemo(() => {
-    return summaryData.percentChange?.invoices &&
-      summaryData.percentChange.invoices >= 0
-      ? "up"
-      : "down";
-  }, [summaryData.percentChange?.invoices]);
+  if (status === "loading" || (status === "authenticated" && isLoading)) {
+    return (
+      <Layout>
+        <div className="space-y-6">
+          <Skeleton className="h-12 w-full" />
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Skeleton key={index} className="h-36" />
+            ))}
+          </div>
+          <Skeleton className="h-[460px]" />
+        </div>
+      </Layout>
+    );
+  }
 
-  const amountTrend = useMemo(() => {
-    return summaryData.percentChange?.amount &&
-      summaryData.percentChange.amount >= 0
-      ? "up"
-      : "down";
-  }, [summaryData.percentChange?.amount]);
-
-  // Memoize skeleton arrays to prevent recreation on each render
-  const skeletonArray = useMemo(() => Array.from({ length: 5 }), []);
+  if (status !== "authenticated" || session?.user?.role !== "admin") {
+    return null;
+  }
 
   return (
     <Layout>
-      <div className="flex flex-col gap-6">
+      <div className="space-y-6">
         <DashboardHeader
-          title="Dashboard"
-          description="Overview of your business performance"
+          title="Operations Dashboard"
+          description="Live operational activity, costs, clients, and invoices"
           timeframe={timeframe}
-          onTimeframeChange={handleTimeframeChange}
+          onTimeframeChange={setTimeframe}
           dateRange={dateRange}
-          onDateRangeChange={handleDateRangeChange}
-          onRefresh={handleRefresh}
+          onDateRangeChange={setDateRange}
+          onRefresh={() => void fetchData(true)}
           isLoading={isRefreshing}
         />
 
-        {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {error && (
+          <div className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+            <span>{error}. The last successfully loaded figures remain visible.</span>
+            <button
+              type="button"
+              className="font-semibold underline underline-offset-4"
+              onClick={() => void fetchData(true)}
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             title="Total Entries"
             value={summaryData.totalEntries}
             icon={<FileText className="h-4 w-4" />}
-            description={`${
-              summaryData.percentChange?.entries || 0
-            }% from previous period`}
-            trend={entriesTrend}
-            isLoading={isLoading}
+            description={changeLabel(summaryData.percentChange.entries)}
+            trend={trendFor(summaryData.percentChange.entries)}
             variant="blue"
-            secondaryValue={`£${summaryData.avgEntryValue.toLocaleString()}`}
-            secondaryLabel="avg. per entry"
+            secondaryValue={`£${summaryData.avgEntryValue.toLocaleString("en-GB", {
+              maximumFractionDigits: 0,
+            })}`}
+            secondaryLabel="average cost per entry"
           />
 
           <StatCard
-            title="Total Invoices"
+            title="Invoices Created"
             value={summaryData.totalInvoices}
-            icon={<DollarSign className="h-4 w-4" />}
-            description={`${
-              summaryData.percentChange?.invoices || 0
-            }% from previous period`}
-            trend={invoicesTrend}
-            isLoading={isLoading}
+            icon={<PoundSterling className="h-4 w-4" />}
+            description={changeLabel(summaryData.percentChange.invoices)}
+            trend={trendFor(summaryData.percentChange.invoices)}
             variant="green"
-            secondaryValue={`£${summaryData.avgInvoiceValue.toLocaleString()}`}
-            secondaryLabel="avg. per invoice"
           />
 
           <StatCard
-            title="Total Revenue"
-            value={`£${summaryData.totalAmount.toLocaleString()}`}
-            icon={<TrendingUp className="h-4 w-4" />}
-            description={`${
-              summaryData.percentChange?.amount || 0
-            }% from previous period`}
-            trend={amountTrend}
-            isLoading={isLoading}
+            title="Operational Costs"
+            value={`£${summaryData.totalAmount.toLocaleString("en-GB", {
+              maximumFractionDigits: 0,
+            })}`}
+            icon={<BriefcaseBusiness className="h-4 w-4" />}
+            description={changeLabel(summaryData.percentChange.amount)}
+            trend={trendFor(summaryData.percentChange.amount)}
             variant="amber"
+          />
+
+          <StatCard
+            title="Active Clients"
+            value={summaryData.uniqueClients}
+            icon={<Users className="h-4 w-4" />}
+            description={`${summaryData.uniqueEmployees} employees submitted entries`}
+            trend="neutral"
+            variant="indigo"
           />
         </div>
 
-        {/* Charts */}
-        <div className="space-y-6">
-            {/* Revenue Chart */}
-            <Card className="border-t-4 border-t-blue-500 dark:border-t-blue-400">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <div>
-                  <CardTitle className="text-base font-medium">
-                    Revenue Overview
-                  </CardTitle>
-                  <CardDescription>Revenue trends over time</CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent className="h-full pt-4">
-                {isLoading ? (
-                  <Skeleton className="h-full w-full" />
-                ) : (
-                  <MonthlyRevenueChart
-                    data={revenueData}
-                    timeframe={timeframe}
-                  />
-                )}
-              </CardContent>
-            </Card>
+        <Card className="border-t-4 border-t-blue-600">
+          <CardHeader>
+            <CardTitle>Operational Cost Trend</CardTitle>
+            <CardDescription>
+              Mileage, expenses, overtime, and sustenance recorded over time
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MonthlyRevenueChart data={costData} timeframe={timeframe} />
+          </CardContent>
+        </Card>
 
-            {/* Performance and Distribution Charts */}
-            <div className="grid gap-6 md:grid-cols-1">
-              <Card className="border-t-4 border-t-amber-500 dark:border-t-amber-400">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <div>
-                    <CardTitle className="text-base font-medium">
-                      Employee Performance
-                    </CardTitle>
-                    <CardDescription>
-                      Revenue generated by each employee
-                    </CardDescription>
-                  </div>
-                  <Button variant="ghost" size="icon">
-                    <BarChart3 className="h-4 w-4" />
-                  </Button>
-                </CardHeader>
-                <CardContent className="h-full pt-4">
-                  {isLoading ? (
-                    <div className="flex h-full items-center justify-center">
-                      <Skeleton className="h-[250px] w-full" />
-                    </div>
-                  ) : (
-                    <EmployeePerformanceChart
-                      data={employeeData}
-                      timeframe={timeframe}
-                    />
-                  )}
-                </CardContent>
-              </Card>
+        <div className="grid gap-6 xl:grid-cols-2">
+          <Card className="border-t-4 border-t-teal-600">
+            <CardHeader>
+              <CardTitle>Operational Cost by Employee</CardTitle>
+              <CardDescription>
+                Cost totals from each employee&apos;s submitted entries
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EmployeePerformanceChart
+                data={employeeData}
+                timeframe={timeframe}
+              />
+            </CardContent>
+          </Card>
 
-              <Card className="border-t-4 border-t-yellow-500 dark:border-t-yellow-400">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <div>
-                    <CardTitle className="text-base font-medium">
-                      Client Distribution
-                    </CardTitle>
-                    <CardDescription>
-                      Revenue distribution by client
-                    </CardDescription>
-                  </div>
-                  <Button variant="ghost" size="icon">
-                    <BarChart3 className="h-4 w-4" />
-                  </Button>
-                </CardHeader>
-                <CardContent className="h-full pt-4">
-                  {isLoading ? (
-                    <div className="flex h-full items-center justify-center">
-                      <Skeleton className="h-[250px] w-full" />
-                    </div>
-                  ) : (
-                    <ClientDistributionChart
-                      data={clientData}
-                      timeframe={timeframe}
-                    />
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Recent Entries */}
+          <Card className="border-t-4 border-t-violet-600">
+            <CardHeader>
+              <CardTitle>Operational Cost by Client</CardTitle>
+              <CardDescription>
+                Client share of employee expenses in the selected period
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ClientDistributionChart
+                data={clientData}
+                timeframe={timeframe}
+              />
+            </CardContent>
+          </Card>
         </div>
       </div>
     </Layout>

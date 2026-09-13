@@ -1,351 +1,225 @@
-import { format } from "date-fns";
+import { format, parseISO, startOfWeek } from "date-fns";
 
-/**
- * Utility functions for chart data calculations
- * This moves calculations from the backend to the frontend
- * for better performance and flexibility
- */
+type GroupBy = "day" | "week" | "month";
 
-/**
- * Process raw entries for employee performance chart
- */
-export function processEmployeePerformanceData(entries: any[]) {
-  if (!entries || entries.length === 0) {
-    return { chartData: [], employeeTotals: [] };
+interface DashboardEntry {
+  date?: unknown;
+  totalAmount?: unknown;
+  userName?: string | null;
+  client?: string | null;
+}
+
+function toAmount(value: unknown): number {
+  const amount = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function parseEntryDate(value: unknown): Date | null {
+  if (typeof value !== "string") return null;
+  const date = parseISO(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function createPeriod(date: Date, groupBy: GroupBy) {
+  if (groupBy === "month") {
+    return {
+      key: format(date, "yyyy-MM"),
+      label: format(date, "MMM yyyy"),
+    };
   }
 
-  // Process entries to group by date and employee
-  const dateData: any = {};
-  const employees: any = new Set();
-
-  // First, identify all employees
-  entries.forEach((entry) => {
-    if (entry.userName) {
-      employees.add(entry.userName);
-    }
-  });
-
-  // Group entries by date
-  entries.forEach((entry) => {
-    if (entry.userName) {
-      const date = new Date(entry.date);
-      const formattedDate = format(date, "MMM dd");
-
-      if (!dateData[formattedDate]) {
-        dateData[formattedDate] = {};
-        employees.forEach((employee: any) => {
-          dateData[formattedDate][employee] = 0;
-        });
-      }
-
-      dateData[formattedDate][entry.userName] += entry.totalAmount || 0;
-    }
-  });
-
-  // Convert to chart format
-  const chartData = Object.keys(dateData).map((date) => {
-    const dataPoint: any = { name: date };
-
-    employees.forEach((employee: any) => {
-      dataPoint[employee] = dateData[date][employee] || 0;
-    });
-
-    return dataPoint;
-  });
-
-  // Sort by date
-  chartData.sort((a, b) => {
-    const dateA = new Date(a.name);
-    const dateB = new Date(b.name);
-    return dateA.getTime() - dateB.getTime();
-  });
-
-  // Calculate totals for each employee
-  const employeeTotals = Array.from(employees).map((employee) => {
-    const total = entries
-      .filter((entry) => entry.userName === employee)
-      .reduce((sum, entry) => sum + (entry.totalAmount || 0), 0);
-
+  if (groupBy === "week") {
+    const weekStart = startOfWeek(date, { weekStartsOn: 1 });
     return {
-      name: employee,
-      total: total,
-      count: entries.filter((entry) => entry.userName === employee).length,
+      key: format(weekStart, "yyyy-MM-dd"),
+      label: `Week of ${format(weekStart, "d MMM")}`,
     };
-  });
-
-  // Sort employee totals by amount
-  employeeTotals.sort((a, b) => b.total - a.total);
+  }
 
   return {
-    chartData,
-    employeeTotals,
+    key: format(date, "yyyy-MM-dd"),
+    label: format(date, "d MMM"),
   };
 }
 
-/**
- * Process raw entries for client distribution chart
- */
-export function processClientDistributionData(
-  entries: any[],
-  chartType = "pie"
-) {
-  if (!entries || entries.length === 0) {
+export function getDashboardGroupBy(timeframe: string): GroupBy {
+  if (["thisYear", "lastYear", "year"].includes(timeframe)) return "month";
+  if (["thisQuarter", "quarter", "last90"].includes(timeframe)) return "week";
+  return "day";
+}
+
+export function processEmployeePerformanceData(entries: DashboardEntry[]) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return { chartData: [], employeeTotals: [] };
+  }
+
+  const totals = new Map<string, { total: number; count: number }>();
+
+  for (const entry of entries) {
+    const employee = entry.userName || "Unassigned employee";
+    const current = totals.get(employee) || { total: 0, count: 0 };
+    current.total += toAmount(entry.totalAmount);
+    current.count += 1;
+    totals.set(employee, current);
+  }
+
+  const employeeTotals = Array.from(totals, ([name, values]) => ({
+    name,
+    total: values.total,
+    count: values.count,
+  })).sort((a, b) => b.total - a.total);
+
+  return { chartData: employeeTotals, employeeTotals };
+}
+
+export function processClientDistributionData(entries: DashboardEntry[]) {
+  if (!Array.isArray(entries) || entries.length === 0) {
     return { chartData: [], totalAmount: 0 };
   }
 
-  if (chartType === "line") {
-    // For line chart: Group by date and client
-    const dateData: any = {};
-    const clients = new Set();
+  const totals = new Map<string, { amount: number; count: number }>();
 
-    // First, identify all clients
-    entries.forEach((entry) => {
-      if (entry.client) {
-        clients.add(entry.client);
-      }
-    });
+  for (const entry of entries) {
+    const client = entry.client || "Unassigned client";
+    const current = totals.get(client) || { amount: 0, count: 0 };
+    current.amount += toAmount(entry.totalAmount);
+    current.count += 1;
+    totals.set(client, current);
+  }
 
-    // Group entries by date
-    entries.forEach((entry) => {
-      if (entry.client) {
-        const date = new Date(entry.date);
-        const formattedDate = format(date, "MMM dd");
+  const totalAmount = Array.from(totals.values()).reduce(
+    (sum, client) => sum + client.amount,
+    0
+  );
 
-        if (!dateData[formattedDate]) {
-          dateData[formattedDate] = {};
-          clients.forEach((client: any) => {
-            dateData[formattedDate][client] = 0;
-          });
-        }
+  const allClients = Array.from(totals, ([name, values]) => ({
+    name,
+    value: values.amount,
+    amount: values.amount,
+    count: values.count,
+    percentage: totalAmount > 0 ? (values.amount / totalAmount) * 100 : 0,
+  })).sort((a, b) => b.amount - a.amount);
 
-        dateData[formattedDate][entry.client] += entry.totalAmount || 0;
-      }
-    });
+  const topClients = allClients.slice(0, 5);
+  const remainingClients = allClients.slice(5);
 
-    // Convert to chart format
-    const chartData = Object.keys(dateData).map((date) => {
-      const dataPoint: any = { name: date };
-
-      clients.forEach((client: any) => {
-        dataPoint[client] = dateData[date][client] || 0;
-      });
-
-      return dataPoint;
-    });
-
-    // Sort by date
-    chartData.sort((a, b) => {
-      const dateA = new Date(a.name);
-      const dateB = new Date(b.name);
-      return dateA.getTime() - dateB.getTime();
-    });
-
-    // Calculate totals for each client
-    const clientTotals = Array.from(clients).map((client) => {
-      const total = entries
-        .filter((entry) => entry.client === client)
-        .reduce((sum, entry) => sum + (entry.totalAmount || 0), 0);
-
-      return {
-        name: client,
-        total: total,
-        count: entries.filter((entry) => entry.client === client).length,
-      };
-    });
-
-    // Sort client totals by amount
-    clientTotals.sort((a, b) => b.total - a.total);
-
-    return {
-      chartData,
-      clientTotals,
-    };
-  } else {
-    // For pie chart: Group by client
-    const clientData: any = {};
-
-    entries.forEach((entry) => {
-      const client = entry.client;
-
-      if (!clientData[client]) {
-        clientData[client] = {
-          count: 0,
-          amount: 0,
-        };
-      }
-
-      clientData[client].count += 1;
-      clientData[client].amount += entry.totalAmount || 0;
-    });
-
-    // Calculate total entries and amount
-    const totalEntries = entries.length;
-    const totalAmount = entries.reduce(
-      (sum, entry) => sum + (entry.totalAmount || 0),
+  if (remainingClients.length > 0) {
+    const otherAmount = remainingClients.reduce(
+      (sum, client) => sum + client.amount,
+      0
+    );
+    const otherCount = remainingClients.reduce(
+      (sum, client) => sum + client.count,
       0
     );
 
-    // Convert to chart format
-    const chartData = Object.keys(clientData).map((client) => ({
-      name: client,
-      value: Math.round((clientData[client].count / totalEntries) * 100),
-      amount: clientData[client].amount,
-      count: clientData[client].count,
-      percentage: Math.round((clientData[client].amount / totalAmount) * 100),
-    }));
-
-    // Sort by value (percentage) descending
-    chartData.sort((a, b) => b.amount - a.amount);
-
-    // Limit to top 5 clients
-    const topClients = chartData.slice(0, 5);
-
-    return {
-      chartData: topClients,
-      totalAmount,
-    };
+    topClients.push({
+      name: "Other",
+      value: otherAmount,
+      amount: otherAmount,
+      count: otherCount,
+      percentage: totalAmount > 0 ? (otherAmount / totalAmount) * 100 : 0,
+    });
   }
+
+  return { chartData: topClients, totalAmount };
 }
 
-/**
- * Process raw entries for monthly revenue chart
- */
-export function processMonthlyRevenueData(entries: any[], groupBy = "month") {
-  if (!entries || entries.length === 0) {
+export function processMonthlyRevenueData(
+  entries: DashboardEntry[],
+  groupBy: GroupBy = "month"
+) {
+  if (!Array.isArray(entries) || entries.length === 0) {
     return {
       chartData: [],
       statistics: {
-        totalRevenue: 0,
-        averageRevenue: 0,
-        growthRate: 0,
+        totalAmount: 0,
+        averageAmount: 0,
+        changeRate: 0,
         entriesCount: 0,
       },
     };
   }
 
-  // Group by selected interval
-  const revenueData: any = {};
+  const grouped = new Map<
+    string,
+    { name: string; periodKey: string; total: number; count: number }
+  >();
 
-  // Format function based on groupBy
-  let formatString = "MMM dd";
-  if (groupBy === "month") {
-    formatString = "MMM yyyy";
-  } else if (groupBy === "week") {
-    formatString = "'Week' w, yyyy";
+  for (const entry of entries) {
+    const date = parseEntryDate(entry.date);
+    if (!date) continue;
+
+    const period = createPeriod(date, groupBy);
+    const current = grouped.get(period.key) || {
+      name: period.label,
+      periodKey: period.key,
+      total: 0,
+      count: 0,
+    };
+
+    current.total += toAmount(entry.totalAmount);
+    current.count += 1;
+    grouped.set(period.key, current);
   }
 
-  // Initialize with zero values
-  entries.forEach((entry) => {
-    const date = new Date(entry.date);
-    const formattedDate = format(date, formatString);
-
-    if (!revenueData[formattedDate]) {
-      revenueData[formattedDate] = {
-        total: 0,
-        count: 0,
-      };
-    }
-
-    revenueData[formattedDate].total += entry.totalAmount || 0;
-    revenueData[formattedDate].count += 1;
-  });
-
-  // Convert to chart format
-  const chartData = Object.keys(revenueData).map((date) => ({
-    name: date,
-    total: revenueData[date].total,
-    count: revenueData[date].count,
-  }));
-
-  // Sort by date
-  chartData.sort((a, b) => {
-    const dateA = new Date(a.name);
-    const dateB = new Date(b.name);
-    return dateA.getTime() - dateB.getTime();
-  });
-
-  // Calculate overall statistics
-  const totalRevenue = entries.reduce(
-    (sum, entry) => sum + (entry.totalAmount || 0),
-    0
+  const chartData = Array.from(grouped.values()).sort((a, b) =>
+    a.periodKey.localeCompare(b.periodKey)
   );
-  const averageRevenue = totalRevenue / (chartData.length || 1);
+  const totalAmount = chartData.reduce((sum, period) => sum + period.total, 0);
+  const averageAmount = chartData.length > 0 ? totalAmount / chartData.length : 0;
 
-  // Calculate growth rate (comparing first and last periods)
-  let growthRate = 0;
+  let changeRate = 0;
   if (chartData.length >= 2) {
-    const firstPeriod = chartData[0].total;
-    const lastPeriod = chartData[chartData.length - 1].total;
-    growthRate =
-      firstPeriod > 0 ? ((lastPeriod - firstPeriod) / firstPeriod) * 100 : 0;
+    const previous = chartData[chartData.length - 2].total;
+    const current = chartData[chartData.length - 1].total;
+    changeRate = previous > 0 ? ((current - previous) / previous) * 100 : 0;
   }
 
   return {
     chartData,
     statistics: {
-      totalRevenue,
-      averageRevenue,
-      growthRate,
+      totalAmount,
+      averageAmount,
+      changeRate: Math.round(changeRate),
       entriesCount: entries.length,
     },
   };
 }
 
-/**
- * Process raw entries and invoices for summary data
- */
 export function processSummaryData(
-  currentEntries: any[],
-  currentInvoices: any[],
-  previousEntries: any[],
-  previousInvoices: any[]
+  currentEntries: DashboardEntry[],
+  currentInvoiceCount: number,
+  previousEntries: DashboardEntry[],
+  previousInvoiceCount: number
 ) {
-  if (!currentEntries) currentEntries = [];
-  if (!currentInvoices) currentInvoices = [];
-  if (!previousEntries) previousEntries = [];
-  if (!previousInvoices) previousInvoices = [];
+  const safeCurrentEntries = Array.isArray(currentEntries) ? currentEntries : [];
+  const safePreviousEntries = Array.isArray(previousEntries)
+    ? previousEntries
+    : [];
 
-  // Calculate totals for current period
-  const totalEntries = currentEntries.length;
-  const totalInvoices = currentInvoices.length;
-  const totalAmount = currentEntries.reduce(
-    (sum, entry) => sum + (entry.totalAmount || 0),
+  const totalEntries = safeCurrentEntries.length;
+  const totalInvoices = toAmount(currentInvoiceCount);
+  const totalAmount = safeCurrentEntries.reduce(
+    (sum, entry) => sum + toAmount(entry.totalAmount),
+    0
+  );
+  const previousTotalAmount = safePreviousEntries.reduce(
+    (sum, entry) => sum + toAmount(entry.totalAmount),
     0
   );
 
-  // Get unique clients and employees
-  const uniqueClients = new Set(currentEntries.map((entry) => entry.client));
+  const uniqueClients = new Set(
+    safeCurrentEntries.map((entry) => entry.client).filter(Boolean)
+  );
   const uniqueEmployees = new Set(
-    currentEntries.map((entry) => entry.userName)
+    safeCurrentEntries.map((entry) => entry.userName).filter(Boolean)
   );
 
-  // Calculate totals for previous period
-  const previousTotalEntries = previousEntries.length;
-  const previousTotalInvoices = previousInvoices.length || 0;
-  const previousTotalAmount = previousEntries.reduce(
-    (sum, entry) => sum + (entry.totalAmount || 0),
-    0
-  );
-
-  // Calculate percent changes
   const calculatePercentChange = (current: number, previous: number) => {
     if (previous === 0) return current > 0 ? 100 : 0;
     return Math.round(((current - previous) / previous) * 100);
   };
-
-  const percentChange = {
-    entries: calculatePercentChange(totalEntries, previousTotalEntries),
-    invoices: calculatePercentChange(totalInvoices, previousTotalInvoices),
-    amount: calculatePercentChange(totalAmount, previousTotalAmount),
-  };
-
-  // Calculate average values
-  const avgEntryValue = totalEntries > 0 ? totalAmount / totalEntries : 0;
-  const avgInvoiceValue =
-    totalInvoices > 0
-      ? currentInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0) /
-        totalInvoices
-      : 0;
 
   return {
     totalEntries,
@@ -353,8 +227,17 @@ export function processSummaryData(
     totalAmount,
     uniqueClients: uniqueClients.size,
     uniqueEmployees: uniqueEmployees.size,
-    avgEntryValue,
-    avgInvoiceValue,
-    percentChange,
+    avgEntryValue: totalEntries > 0 ? totalAmount / totalEntries : 0,
+    percentChange: {
+      entries: calculatePercentChange(
+        totalEntries,
+        safePreviousEntries.length
+      ),
+      invoices: calculatePercentChange(
+        totalInvoices,
+        toAmount(previousInvoiceCount)
+      ),
+      amount: calculatePercentChange(totalAmount, previousTotalAmount),
+    },
   };
 }

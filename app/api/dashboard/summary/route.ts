@@ -1,19 +1,20 @@
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
-import clientPromise from "@/lib/mongodb";
 import { authOptions } from "@/lib/auth";
+import clientPromise from "@/lib/mongodb";
 import {
   calculateDateRange,
   calculatePreviousPeriod,
   formatDateForApi,
 } from "@/lib/date-helpers";
-import { getCachedData, setCachedData } from "@/lib/api-cache";
 
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user) {
       return NextResponse.json(
         { message: "Please log in to continue." },
@@ -21,157 +22,71 @@ export async function GET(request: Request) {
       );
     }
 
-    const { searchParams } = new URL(request.url);
-    const timeframe = searchParams.get("timeframe") || "month";
-    const startDateParam: any = searchParams.get("startDate");
-    const endDateParam: any = searchParams.get("endDate");
-
-    // Create a cache key based on the request parameters
-    const cacheKey = `summary:${timeframe}:${startDateParam || ""}:${
-      endDateParam || ""
-    }`;
-
-    // Try to get data from cache first
-    const cachedData = getCachedData(cacheKey);
-    if (cachedData) {
-      return NextResponse.json(cachedData);
+    if (session.user.role !== "admin") {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    const client = await clientPromise;
-    const db = client.db();
+    const { searchParams } = new URL(request.url);
+    const timeframe = searchParams.get("timeframe") || "thisMonth";
+    const startDateParam = searchParams.get("startDate");
+    const endDateParam = searchParams.get("endDate");
 
-    // Define date range based on timeframe or custom dates
     const { startDate: currentStartDate, endDate: currentEndDate } =
       calculateDateRange(timeframe, startDateParam, endDateParam);
-
-    // Format dates for MongoDB query
-    const currentStartIso = formatDateForApi(currentStartDate);
-    const currentEndIso = formatDateForApi(currentEndDate);
-
-    // Calculate previous period
     const { previousStartDate, previousEndDate } = calculatePreviousPeriod(
       currentStartDate,
       currentEndDate
     );
-    const previousStartIso = formatDateForApi(previousStartDate);
-    const previousEndIso = formatDateForApi(previousEndDate);
 
-    // Use aggregation pipeline for better performance
-    const currentEntriesAgg = db
-      .collection("entries")
-      .aggregate([
-        {
-          $match: {
-            date: {
-              $gte: currentStartIso,
-              $lte: currentEndIso,
-            },
-          },
-        },
-        {
-          $project: {
-            client: 1,
-            userName: 1,
-            totalAmount: 1,
-          },
-        },
-      ])
-      .toArray();
+    const currentStart = formatDateForApi(currentStartDate);
+    const currentEnd = formatDateForApi(currentEndDate);
+    const previousStart = formatDateForApi(previousStartDate);
+    const previousEnd = formatDateForApi(previousEndDate);
 
-    const previousEntriesAgg = db
-      .collection("entries")
-      .aggregate([
-        {
-          $match: {
-            date: {
-              $gte: previousStartIso,
-              $lte: previousEndIso,
-            },
-          },
-        },
-        {
-          $project: {
-            totalAmount: 1,
-          },
-        },
-      ])
-      .toArray();
+    const client = await clientPromise;
+    const db = client.db();
 
-    const currentInvoicesAgg = db
-      .collection("invoice")
-      .aggregate([
-        {
-          $match: {
-            createdAt: {
-              $gte: currentStartDate,
-              $lte: currentEndDate,
-            },
-          },
-        },
-        {
-          $project: {
-            totalAmount: 1,
-          },
-        },
-      ])
-      .toArray();
-
-    const previousInvoicesAgg = db
-      .collection("invoice")
-      .aggregate([
-        {
-          $match: {
-            createdAt: {
-              $gte: previousStartDate,
-              $lte: previousEndDate,
-            },
-          },
-        },
-        {
-          $count: "count",
-        },
-      ])
-      .toArray();
-
-    // Execute all queries in parallel
     const [
       currentEntries,
       previousEntries,
-      currentInvoices,
-      previousInvoicesCount,
+      currentInvoiceCount,
+      previousInvoiceCount,
     ] = await Promise.all([
-      currentEntriesAgg,
-      previousEntriesAgg,
-      currentInvoicesAgg,
-      previousInvoicesAgg,
+      db
+        .collection("entries")
+        .find(
+          { date: { $gte: currentStart, $lte: currentEnd } },
+          { projection: { client: 1, userName: 1, totalAmount: 1 } }
+        )
+        .toArray(),
+      db
+        .collection("entries")
+        .find(
+          { date: { $gte: previousStart, $lte: previousEnd } },
+          { projection: { totalAmount: 1 } }
+        )
+        .toArray(),
+      db.collection("invoice").countDocuments({
+        createdAt: { $gte: currentStartDate, $lte: currentEndDate },
+      }),
+      db.collection("invoice").countDocuments({
+        createdAt: { $gte: previousStartDate, $lte: previousEndDate },
+      }),
     ]);
 
-    const previousInvoices =
-      previousInvoicesCount.length > 0
-        ? { count: previousInvoicesCount[0].count }
-        : { count: 0 };
-
-    const result = {
-      currentEntries,
-      currentInvoices,
-      previousEntries,
-      previousInvoices,
-      dateRange: {
-        current: {
-          start: currentStartDate,
-          end: currentEndDate,
-        },
-        previous: {
-          start: previousStartDate,
-          end: previousEndDate,
+    return NextResponse.json(
+      {
+        currentEntries,
+        previousEntries,
+        currentInvoiceCount,
+        previousInvoiceCount,
+        dateRange: {
+          current: { start: currentStartDate, end: currentEndDate },
+          previous: { start: previousStartDate, end: previousEndDate },
         },
       },
-    };
-
-    // Cache the result for 5 minutes (adjust TTL as needed)
-    setCachedData(cacheKey, result, 5 * 60 * 1000);
-
-    return NextResponse.json(result);
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (error) {
     console.error("Error fetching summary data:", error);
     return NextResponse.json(

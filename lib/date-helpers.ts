@@ -1,154 +1,166 @@
 import {
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
-  subDays,
-  startOfYear,
-  endOfYear,
-  startOfQuarter,
-  endOfQuarter,
-  startOfDay,
+  differenceInCalendarDays,
   endOfDay,
-  parseISO,
+  endOfMonth,
+  endOfYear,
+  format,
   isValid,
+  parseISO,
+  startOfDay,
+  startOfMonth,
+  startOfQuarter,
+  startOfYear,
+  subDays,
 } from "date-fns";
 
-/**
- * Calculate date ranges based on timeframe
- */
+export type DashboardTimeframe =
+  | "today"
+  | "yesterday"
+  | "last7"
+  | "last30"
+  | "last90"
+  | "thisMonth"
+  | "lastMonth"
+  | "thisQuarter"
+  | "thisYear"
+  | "lastYear"
+  | "week"
+  | "month"
+  | "quarter"
+  | "year"
+  | "custom";
+
 export function calculateDateRange(
   timeframe: string,
-  customStartDate?: string,
-  customEndDate?: string
+  customStartDate?: string | null,
+  customEndDate?: string | null
 ) {
   const now = new Date();
-  let startDate: Date;
-  let endDate = now;
 
   if (customStartDate && customEndDate) {
-    // Custom date range - ensure we parse ISO strings correctly
-    try {
-      startDate = parseISO(customStartDate);
-      endDate = parseISO(customEndDate);
+    const parsedStart = parseISO(customStartDate);
+    const parsedEnd = parseISO(customEndDate);
 
-      // Validate dates
-      if (!isValid(startDate) || !isValid(endDate)) {
-        throw new Error("Invalid date format");
-      }
+    if (!isValid(parsedStart) || !isValid(parsedEnd)) {
+      throw new Error("Invalid custom date range");
+    }
 
-      // Ensure start of day for start date and end of day for end date
-      startDate = startOfDay(startDate);
-      endDate = endOfDay(endDate);
-    } catch (error) {
-      console.error("Error parsing custom dates:", error);
-      // Fallback to current month if date parsing fails
-      startDate = startOfMonth(now);
-      endDate = endOfMonth(now);
+    const startDate = startOfDay(parsedStart);
+    const endDate = endOfDay(parsedEnd);
+
+    if (startDate > endDate) {
+      throw new Error("The start date must be before the end date");
     }
-  } else {
-    // Predefined timeframes
-    switch (timeframe) {
-      case "week":
-        startDate = startOfWeek(now);
-        endDate = endOfWeek(now);
-        break;
-      case "month":
-        startDate = startOfMonth(now);
-        endDate = endOfMonth(now);
-        break;
-      case "quarter":
-        startDate = startOfQuarter(now);
-        endDate = endOfQuarter(now);
-        break;
-      case "year":
-        startDate = startOfYear(now);
-        endDate = endOfYear(now);
-        break;
-      case "last30":
-        startDate = startOfDay(subDays(now, 30));
-        endDate = endOfDay(now);
-        break;
-      case "last90":
-        startDate = startOfDay(subDays(now, 90));
-        endDate = endOfDay(now);
-        break;
-      case "today":
-        startDate = startOfDay(now);
-        endDate = endOfDay(now);
-        break;
-      case "yesterday":
-        const yesterday = subDays(now, 1);
-        startDate = startOfDay(yesterday);
-        endDate = endOfDay(yesterday);
-        break;
-      case "thisMonth":
-        startDate = startOfMonth(now);
-        endDate = endOfDay(now);
-        break;
-      case "lastMonth":
-        startDate = startOfMonth(subDays(startOfMonth(now), 1));
-        endDate = endOfMonth(subDays(startOfMonth(now), 1));
-        break;
-      case "thisYear":
-        startDate = startOfYear(now);
-        endDate = endOfDay(now);
-        break;
-      default:
-        startDate = startOfMonth(now);
-        endDate = endOfMonth(now);
-    }
+
+    return { startDate, endDate };
   }
 
-  return { startDate, endDate };
+  switch (timeframe) {
+    case "today":
+      return { startDate: startOfDay(now), endDate: endOfDay(now) };
+
+    case "yesterday": {
+      const yesterday = subDays(now, 1);
+      return {
+        startDate: startOfDay(yesterday),
+        endDate: endOfDay(yesterday),
+      };
+    }
+
+    case "last7":
+    case "week":
+      return {
+        startDate: startOfDay(subDays(now, 6)),
+        endDate: endOfDay(now),
+      };
+
+    case "last30":
+      return {
+        startDate: startOfDay(subDays(now, 29)),
+        endDate: endOfDay(now),
+      };
+
+    case "last90":
+      return {
+        startDate: startOfDay(subDays(now, 89)),
+        endDate: endOfDay(now),
+      };
+
+    case "lastMonth": {
+      const previousMonth = subDays(startOfMonth(now), 1);
+      return {
+        startDate: startOfMonth(previousMonth),
+        endDate: endOfMonth(previousMonth),
+      };
+    }
+
+    case "thisQuarter":
+    case "quarter":
+      return {
+        startDate: startOfQuarter(now),
+        endDate: endOfDay(now),
+      };
+
+    case "thisYear":
+    case "year":
+      return {
+        startDate: startOfYear(now),
+        endDate: endOfDay(now),
+      };
+
+    case "lastYear": {
+      const previousYear = new Date(now.getFullYear() - 1, 0, 1);
+      return {
+        startDate: startOfYear(previousYear),
+        endDate: endOfYear(previousYear),
+      };
+    }
+
+    case "thisMonth":
+    case "month":
+    default:
+      return {
+        startDate: startOfMonth(now),
+        endDate: endOfDay(now),
+      };
+  }
 }
 
-/**
- * Calculate previous period date range
- */
 export function calculatePreviousPeriod(
   currentStartDate: Date,
   currentEndDate: Date
 ) {
-  // Calculate previous period of same length
-  const rangeDuration = currentEndDate.getTime() - currentStartDate.getTime();
-  const previousEndDate = new Date(currentStartDate.getTime() - 1); // 1ms before current start
-  const previousStartDate = new Date(previousEndDate.getTime() - rangeDuration);
+  const numberOfDays =
+    differenceInCalendarDays(currentEndDate, currentStartDate) + 1;
+  const previousEndDate = endOfDay(subDays(currentStartDate, 1));
+  const previousStartDate = startOfDay(
+    subDays(previousEndDate, numberOfDays - 1)
+  );
 
   return { previousStartDate, previousEndDate };
 }
 
-/**
- * Calculate date range for a specific year
- */
 export function calculateYearRange(year: string) {
-  const yearNum = Number.parseInt(year);
-  const startDate = startOfYear(new Date(yearNum, 0, 1));
-  const endDate = endOfYear(new Date(yearNum, 0, 1));
+  const parsedYear = Number.parseInt(year, 10);
 
-  return { startDate, endDate };
-}
-
-/**
- * Format date for API requests
- * @param date Date to format
- * @returns ISO string with timezone handling
- */
-export function formatDateForApi(date: Date): string {
-  return date.toISOString();
-}
-
-/**
- * Safely parse date string from API
- * @param dateString Date string from API
- * @returns Valid Date object or current date if invalid
- */
-export function parseDateFromApi(dateString: string): Date {
-  try {
-    const date = parseISO(dateString);
-    return isValid(date) ? date : new Date();
-  } catch (error) {
-    console.error("Error parsing date from API:", error);
-    return new Date();
+  if (!Number.isInteger(parsedYear)) {
+    throw new Error("Invalid year");
   }
+
+  const yearDate = new Date(parsedYear, 0, 1);
+  return {
+    startDate: startOfYear(yearDate),
+    endDate: endOfYear(yearDate),
+  };
+}
+
+// Entry documents currently store dates as strings such as 2026-09-13.
+// Dashboard entry queries must use that same representation.
+export function formatDateForApi(date: Date): string {
+  return format(date, "yyyy-MM-dd");
+}
+
+export function parseDateFromApi(dateString: string): Date {
+  const parsedDate = parseISO(dateString);
+  return isValid(parsedDate) ? parsedDate : new Date();
 }
