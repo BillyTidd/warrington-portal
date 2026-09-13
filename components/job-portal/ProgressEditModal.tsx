@@ -31,7 +31,7 @@ interface ProgressEditModalProps {
   progressLog: JobProgressLog | null;
   onUpdate: (
     logId: string,
-    updates: { cost?: number; jobStatus: string; overtimeCost?: number; vehicleUsage?: any }
+    updates: { cost?: number; jobStatus: string; overtimeCost?: number; costTreatment?: "billable" | "absorbed"; vehicleUsage?: any }
   ) => Promise<void>;
   currencySymbol?: string;
 }
@@ -45,6 +45,9 @@ export function ProgressEditModal({
 }: ProgressEditModalProps) {
   const [cost, setCost] = useState<string>("");
   const [jobStatus, setJobStatus] = useState<string>("pending");
+  const [costTreatment, setCostTreatment] = useState<
+  "billable" | "absorbed" | undefined
+>(undefined);
   const [isUpdating, setIsUpdating] = useState(false);
 
   // Update local state when progressLog changes or modal opens
@@ -57,6 +60,17 @@ export function ProgressEditModal({
         0;
       setCost(logCost.toString());
       setJobStatus(progressLog.jobStatus || "pending");
+      if (progressLog.costTreatment) {
+  setCostTreatment(progressLog.costTreatment);
+} else if (progressLog.jobStatus === "approved") {
+  // Backward compatibility for historical approved entries
+  setCostTreatment(
+    progressLog.workType === "regular" ? "billable" : "absorbed"
+  );
+} else {
+  // New worker-submitted entries require an Admin decision
+  setCostTreatment(undefined);
+}
     }
   }, [progressLog, isOpen]);
 
@@ -67,10 +81,16 @@ export function ProgressEditModal({
     setIsUpdating(true);
     try {
       const costValue = Number.parseFloat(cost) || 0;
-      const updates: any = {
-        jobStatus,
-      };
-
+      if (jobStatus === "approved" && costValue > 0 && !costTreatment) {
+  toast.error(
+    "Select Billable Cost or Absorbed Cost before approving this entry"
+  );
+  return;
+}
+     const updates: any = {
+  jobStatus,
+  ...(costTreatment ? { costTreatment } : {}),
+};
       // Update the appropriate cost field based on the work type or existing structure
       if (progressLog.workType === "extra" && progressLog.overtimeHours) {
         updates.overtimeCost = costValue;
@@ -133,6 +153,38 @@ export function ProgressEditModal({
               />
             </div>
           </div>
+
+          <div className="space-y-2">
+  <Label htmlFor="costTreatment">Cost Treatment</Label>
+
+  <Select
+    value={costTreatment}
+    onValueChange={(value: "billable" | "absorbed") =>
+      setCostTreatment(value)
+    }
+  >
+    <SelectTrigger id="costTreatment">
+      <SelectValue placeholder="Select cost treatment" />
+    </SelectTrigger>
+
+    <SelectContent>
+      <SelectItem value="billable">
+        Billable Cost — add to client price
+      </SelectItem>
+
+      <SelectItem value="absorbed">
+        Absorbed Cost — reduce profit
+      </SelectItem>
+    </SelectContent>
+  </Select>
+
+  <p className="text-xs text-muted-foreground">
+    Billable costs are added to the client price. Absorbed costs reduce the
+    job profit.
+  </p>
+</div>
+
+
 
           <div className="space-y-2">
             <Label htmlFor="status">Status</Label>

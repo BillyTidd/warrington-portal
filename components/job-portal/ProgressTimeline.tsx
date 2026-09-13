@@ -144,57 +144,105 @@ export function ProgressTimeline({
   };
 
   // Function to render cost badge
-  const renderCostBadge = (
-    cost: number | undefined,
-    status?: string,
-    workType?: string,
-    originalCost?: number
-  ) => {
-    if (cost === undefined || cost <= 0) return null;
+const renderCostBadge = (
+  cost: number | undefined,
+  status?: string,
+  workType?: string,
+  originalCost?: number,
+  costTreatment?:
+    | "billable"
+    | "absorbed"
+    | null
+) => {
+  if (cost === undefined) {
+    return null;
+  }
 
-    let badgeClass =
-      "border-amber-600 text-amber-600 dark:text-amber-400 dark:border-amber-500";
-    if (status === "approved") {
-      badgeClass =
-        "border-green-600 text-green-600 dark:text-green-400 dark:border-green-500";
-    } else if (status === "rejected") {
-      badgeClass =
-        "border-red-600 text-red-600 dark:text-red-400 dark:border-red-500";
-    } else if (status === "pending") {
-      badgeClass =
-        "border-amber-600 text-amber-600 dark:text-amber-400 dark:border-amber-500";
-    }
+  const numericCost = Number(cost);
 
-    const isBillable = workType === "regular";
+  if (
+    !Number.isFinite(numericCost) ||
+    numericCost <= 0
+  ) {
+    return null;
+  }
 
-    // Workers always see what they originally submitted, never an
-    // admin-edited amount. Admin and client see the current (live) value.
-    const isWorkerView = !isAdmin && !isClient;
-    const displayCost =
-      isWorkerView && originalCost !== undefined ? originalCost : cost;
+  let badgeClass =
+    "border-amber-600 text-amber-600 dark:text-amber-400 dark:border-amber-500";
 
-    return (
-      <>
-        <Badge variant="outline" className={`${badgeClass} flex items-center`}>
-          {currencySymbol}
-          {displayCost.toFixed(2)}
+  if (status === "approved") {
+    badgeClass =
+      "border-green-600 text-green-600 dark:text-green-400 dark:border-green-500";
+  } else if (status === "rejected") {
+    badgeClass =
+      "border-red-600 text-red-600 dark:text-red-400 dark:border-red-500";
+  }
+
+  // Use the saved Admin decision.
+  // Fall back to the old rule only for
+  // historical approved records.
+  const treatment =
+    costTreatment ??
+    (status === "approved"
+      ? workType === "regular"
+        ? "billable"
+        : "absorbed"
+      : null);
+
+  const isBillable =
+    treatment === "billable";
+
+  // A worker sees the originally submitted amount.
+  // An Admin sees the current Admin-edited amount.
+  const isWorkerView =
+    !isAdmin && !isClient;
+
+  const displayCost =
+    isWorkerView &&
+    originalCost !== undefined
+      ? Number(originalCost)
+      : numericCost;
+
+  return (
+    <>
+      <Badge
+        variant="outline"
+        className={`${badgeClass} flex items-center`}
+      >
+        {currencySymbol}
+        {displayCost.toFixed(2)}
+      </Badge>
+
+      {/* Only the Admin sees the accounting treatment */}
+      {isAdmin && treatment && (
+        <Badge
+          variant="outline"
+          className={`text-[10px] px-1.5 py-0 h-4 leading-4 font-normal flex items-center ${
+            isBillable
+              ? "border-blue-500 text-blue-600 dark:text-blue-400"
+              : "border-amber-500 text-amber-600 dark:text-amber-400"
+          }`}
+        >
+          {isBillable
+            ? "Billable"
+            : "Absorbed"}
         </Badge>
-        {/* Billable/Absorbed classification is internal cost accounting — admin only */}
-        {isAdmin && (
+      )}
+
+      {/* Show Admin that the worker entry still needs a decision */}
+      {isAdmin &&
+        status === "pending" &&
+        !treatment && (
           <Badge
             variant="outline"
-            className={`text-[10px] px-1.5 py-0 h-4 leading-4 font-normal flex items-center ${
-              isBillable
-                ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                : "border-amber-500 text-amber-600 dark:text-amber-400"
-            }`}
+            className="text-[10px] px-1.5 py-0 h-4 leading-4 font-normal border-gray-400 text-gray-600"
           >
-            {isBillable ? "Billable" : "Absorbed"}
+            Awaiting classification
           </Badge>
         )}
-      </>
-    );
-  };
+    </>
+  );
+};
 
   return (
     <>
@@ -318,26 +366,27 @@ export function ProgressTimeline({
                         <>
                           {log.vehicleUsage &&
                             renderCostBadge(
-                              log.vehicleUsage.totalCost,
-                              log.jobStatus,
-                              log.workType,
-                              log.originalCost
-                            )}
+  log.vehicleUsage.totalCost,
+  log.jobStatus,
+  log.workType,
+  log.originalCost,
+  log.costTreatment
+)}
                           {log.overtimeCost &&
                             renderCostBadge(
-                              log.overtimeCost,
-                              log.jobStatus,
-                              log.workType,
-                              log.originalCost
-                            )}
+  log.overtimeCost,
+  log.jobStatus,
+  log.workType,
+  log.originalCost
+)}
                           {!log.vehicleUsage &&
                             !log.overtimeCost &&
                             renderCostBadge(
-                              log.cost,
-                              log.jobStatus,
-                              log.workType,
-                              log.originalCost
-                            )}
+  log.cost,
+  log.jobStatus,
+  log.workType,
+  log.originalCost
+)}
                         </>
                       )}
                     </div>

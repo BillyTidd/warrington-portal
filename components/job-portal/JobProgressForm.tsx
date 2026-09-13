@@ -36,6 +36,7 @@ interface JobProgressFormProps {
   isSubmitting: boolean;
   onSubmit: (progressData: Partial<any>) => Promise<void>;
   onCancel: () => void;
+  isAdmin?: boolean;
   progressDescription?: string;
   setProgressDescription?: (value: string) => void;
   progressAmount?: string;
@@ -50,6 +51,7 @@ export function JobProgressForm({
   isSubmitting,
   onSubmit,
   onCancel,
+  isAdmin = false,
   progressDescription: externalProgressDescription,
   setProgressDescription: externalSetProgressDescription,
   progressAmount: externalProgressAmount,
@@ -83,6 +85,9 @@ export function JobProgressForm({
   const [workType, setWorkType] = useState<"regular" | "extra" | "vehicle">(
     "regular"
   );
+  const [costTreatment, setCostTreatment] = useState<
+  "billable" | "absorbed" | undefined
+>(undefined);
   const [overtimeHours, setOvertimeHours] = useState<number | undefined>(
     undefined
   );
@@ -277,6 +282,13 @@ export function JobProgressForm({
       return;
     }
 
+    const numericAmount = Number.parseFloat(progressAmount || "0");
+
+if (isAdmin && numericAmount > 0 && !costTreatment) {
+  toast.error("Please select Billable Cost or Absorbed Cost");
+  return;
+}
+
     let description = progressDescription?.trim();
     if (!description) {
       if (workType === "extra") {
@@ -298,6 +310,7 @@ export function JobProgressForm({
       amount: progressAmount ? Number.parseFloat(progressAmount) : 0,
       status,
       workType,
+      costTreatment: isAdmin ? costTreatment : undefined,
       overtimeHours: workType === "extra" ? overtimeHours : undefined,
       vehicleUsage: workType === "vehicle" ? vehicleUsage : undefined,
     };
@@ -314,6 +327,7 @@ export function JobProgressForm({
     }
 
     setWorkType("regular");
+    setCostTreatment(undefined);
     setOvertimeHours(undefined);
     setStatus("In Progress");
     setSelectedVehicle(null);
@@ -360,6 +374,37 @@ export function JobProgressForm({
               </SelectContent>
             </Select>
           </div>
+
+
+          {isAdmin && (
+  <div>
+    <Label htmlFor="costTreatment">Cost Treatment</Label>
+
+    <Select
+      value={costTreatment}
+      onValueChange={(value: "billable" | "absorbed") =>
+        setCostTreatment(value)
+      }
+    >
+      <SelectTrigger id="costTreatment" className="mt-1">
+        <SelectValue placeholder="Select cost treatment" />
+      </SelectTrigger>
+
+      <SelectContent>
+        <SelectItem value="billable">
+          Billable Cost — add to client price
+        </SelectItem>
+
+        <SelectItem value="absorbed">
+          Absorbed Cost — reduce profit
+        </SelectItem>
+      </SelectContent>
+    </Select>
+  </div>
+)}
+
+
+
 
           {workType === "extra" && (
             <div>

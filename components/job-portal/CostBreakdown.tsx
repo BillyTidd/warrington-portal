@@ -20,8 +20,21 @@ interface CostBreakdownProps {
   currencySymbol?: string;
 }
 
-const getLogCost = (log: JobProgressLog) =>
-  log.overtimeCost || log.vehicleUsage?.totalCost || log.cost || 0;
+const getLogCost = (
+  log: JobProgressLog
+): number => {
+  const rawCost =
+    log.overtimeCost ??
+    log.vehicleUsage?.totalCost ??
+    log.cost ??
+    0;
+
+  const numericCost = Number(rawCost);
+
+  return Number.isFinite(numericCost)
+    ? numericCost
+    : 0;
+};
 
 export function CostBreakdown({
   progressLogs,
@@ -30,7 +43,14 @@ export function CostBreakdown({
   profit,
   currencySymbol = "£",
 }: CostBreakdownProps) {
-  const costedLogs = (progressLogs || []).filter((log) => getLogCost(log) > 0);
+  const costedLogs = (
+  progressLogs || []
+).filter(
+  (log) =>
+    log.jobStatus === "approved" &&
+    !log.statusChange &&
+    getLogCost(log) > 0
+);
   const paidWorkers = (workers || []).filter(
     (worker) => (worker.paymentRate || 0) > 0
   );
@@ -79,7 +99,14 @@ export function CostBreakdown({
                       new Date(a.timestamp).getTime()
                   )
                   .map((log) => {
-                    const isBillable = log.workType === "regular";
+                    const treatment =
+  log.costTreatment ??
+  (log.workType === "regular"
+    ? "billable"
+    : "absorbed");
+
+const isBillable =
+  treatment === "billable";
                     return (
                       <div
                         key={log._id}

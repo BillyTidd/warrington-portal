@@ -232,6 +232,9 @@ setClients(clientsData.customers || []);
             ? Number.parseFloat(progressData.amount.toString())
             : undefined,
         workType: progressData.workType,
+costTreatment: isAdmin
+  ? progressData.costTreatment
+  : undefined,
         overtimeHours: progressData.overtimeHours,
       };
 
@@ -620,6 +623,7 @@ setClients(clientsData.customers || []);
                       <JobProgressForm
                         onSubmit={handleAddProgress}
                         onCancel={() => setShowProgressForm(false)}
+                        isAdmin={isAdmin}
                         isSubmitting={isSubmittingProgress}
                         workerHourlyRate={workerHourlyRate}
                         currencySymbol="£"

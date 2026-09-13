@@ -23,6 +23,7 @@ export interface JobProgressLog {
   vehicleUsage?: any;
   jobStatus?: string;
   workType?: string; // Added for job status tracking
+  costTreatment?: "billable" | "absorbed" | null;
 }
 
 export interface Job {

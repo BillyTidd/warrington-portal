@@ -296,6 +296,9 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
       const apiData = {
         details: progressData.description,
         workType: progressData.workType,
+        costTreatment: isAdmin
+  ? progressData.costTreatment
+  : undefined,
         cost:
           progressData.workType === "extra"
             ? progressData.overtimeHours * workerHourlyRate
@@ -377,6 +380,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
       jobStatus: string;
       overtimeCost?: number;
       vehicleUsage?: any;
+      costTreatment?: "billable" | "absorbed";
     }
   ) => {
     try {
@@ -635,24 +639,63 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   // Split approved costs into billable (Expenses entries, already passed
   // through to clientPrice on approval — no profit impact) vs absorbed
   // (Overtime/Mileage — internal costs that actually reduce profit)
-  const getApprovedCostsBreakdown = () => {
-    if (!job?.progressLogs) return { billable: 0, absorbed: 0 };
-    return job.progressLogs
-      .filter((log: any) => log.jobStatus === "approved" && !log.statusChange)
-      .reduce(
-        (acc: any, log: any) => {
-          const cost =
-            log.overtimeCost || log.vehicleUsage?.totalCost || log.cost || 0;
-          if (log.workType === "regular") {
-            acc.billable += cost;
-          } else {
-            acc.absorbed += cost;
-          }
-          return acc;
+const getApprovedCostsBreakdown = () => {
+  if (!job?.progressLogs) {
+    return {
+      billable: 0,
+      absorbed: 0,
+    };
+  }
+
+  return job.progressLogs
+    .filter(
+      (log: any) =>
+        log.jobStatus === "approved" &&
+        !log.statusChange
+    )
+    .reduce(
+      (
+        totals: {
+          billable: number;
+          absorbed: number;
         },
-        { billable: 0, absorbed: 0 }
-      );
-  };
+        log: any
+      ) => {
+        const rawCost =
+          log.overtimeCost ??
+          log.vehicleUsage?.totalCost ??
+          log.cost ??
+          0;
+
+        const parsedCost = Number(rawCost);
+
+        const cost = Number.isFinite(parsedCost)
+          ? parsedCost
+          : 0;
+
+        // Use the Admin's selection.
+        // Use the old workType rule only for
+        // historical approved records.
+        const treatment =
+          log.costTreatment ??
+          (log.workType === "regular"
+            ? "billable"
+            : "absorbed");
+
+        if (treatment === "billable") {
+          totals.billable += cost;
+        } else {
+          totals.absorbed += cost;
+        }
+
+        return totals;
+      },
+      {
+        billable: 0,
+        absorbed: 0,
+      }
+    );
+};
 
   // Render detailed worker payment information for admin view
   const renderAdminWorkerPayments = () => {
@@ -757,11 +800,21 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           0
         )
       : job.workerPaymentRate || 0;
-    const { billable: billableCosts, absorbed: absorbedCosts } =
-      getApprovedCostsBreakdown();
-    const totalCosts = totalWorkerPayments + billableCosts + absorbedCosts;
-    const profit = clientPrice - totalCosts;
-    const profitMargin = clientPrice > 0 ? (profit / clientPrice) * 100 : 0;
+const { billable: billableCosts, absorbed: absorbedCosts } =
+  getApprovedCostsBreakdown();
+
+const totalCosts =
+  totalWorkerPayments +
+  billableCosts +
+  absorbedCosts;
+
+const profit =
+  clientPrice - totalCosts;
+
+const profitMargin =
+  clientPrice > 0
+    ? (profit / clientPrice) * 100
+    : 0;
 
     // Count pending approvals
     const pendingCount =
@@ -945,6 +998,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                 <JobProgressForm
                   onSubmit={handleAddProgress}
                   onCancel={() => setShowProgressForm(false)}
+                  isAdmin={isAdmin}
                   isSubmitting={isSubmittingProgress}
                   workerHourlyRate={workerHourlyRate}
                   currencySymbol="£"
@@ -1151,6 +1205,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                       <JobProgressForm
                         onSubmit={handleAddProgress}
                         onCancel={() => setShowProgressForm(false)}
+                        isAdmin={isAdmin}
                         isSubmitting={isSubmittingProgress}
                         workerHourlyRate={workerHourlyRate}
                         currencySymbol="£"

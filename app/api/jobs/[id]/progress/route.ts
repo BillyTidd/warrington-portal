@@ -6,21 +6,72 @@ import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { authOptions } from "@/lib/auth";
 
+
+
+type CostTreatment = "billable" | "absorbed";
+
+const isValidCostTreatment = (
+  value: unknown
+): value is CostTreatment => {
+  return value === "billable" || value === "absorbed";
+};
+
+const getProgressCost = (log: any): number => {
+  const rawCost =
+    log.overtimeCost ??
+    log.vehicleUsage?.totalCost ??
+    log.cost ??
+    0;
+
+  const numericCost = Number(rawCost);
+
+  return Number.isFinite(numericCost) ? numericCost : 0;
+};
+
+const getAccountingTreatment = (
+  log: any
+): CostTreatment | null => {
+  if (isValidCostTreatment(log.costTreatment)) {
+    return log.costTreatment;
+  }
+
+  // Backward compatibility for historical approved entries
+  if (log.jobStatus === "approved") {
+    return log.workType === "regular"
+      ? "billable"
+      : "absorbed";
+  }
+
+  return null;
+};
+
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    // 1. Authenticate the user
     const session = await getServerSession(authOptions);
+
     if (!session?.user) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
+    // 2. Validate the job ID
     const jobId = params.id;
+
     if (!jobId || !ObjectId.isValid(jobId)) {
-      return NextResponse.json({ message: "Invalid job ID" }, { status: 400 });
+      return NextResponse.json(
+        { message: "Invalid job ID" },
+        { status: 400 }
+      );
     }
 
+    // 3. Read the submitted progress information
     const {
       details,
       workType,
@@ -30,15 +81,74 @@ export async function POST(
       vehicleUsage,
       statusChange,
       newStatus,
-      jobStatus = "pending", // Default to pending for new progress entries
+      costTreatment,
     } = await request.json();
 
-    // Capture the cost as originally submitted, once, so it can still be
-    // shown to the worker even if admin later edits the amount before approving.
-    const originalCost = overtimeCost || vehicleUsage?.totalCost || cost || 0;
+    // 4. Connect to MongoDB and load the job
+    const client = await clientPromise;
+    const db = client.db();
 
+    const job = await db.collection("jobs").findOne({
+      _id: new ObjectId(jobId),
+    });
+
+    if (!job) {
+      return NextResponse.json(
+        { message: "Job not found" },
+        { status: 404 }
+      );
+    }
+
+    // 5. Check whether this is an Admin
+    const isAdmin = session.user.role === "admin";
+
+    // 6. Check whether this worker is assigned to the job
+    const isAssignedWorker =
+      job.workers?.some(
+        (worker: any) =>
+          worker.userId?.toString() ===
+          session.user.id?.toString()
+      ) ||
+      job.workerId?.toString() ===
+        session.user.id?.toString();
+
+    // Only Admins and assigned workers can create progress entries
+    if (!isAdmin && !isAssignedWorker) {
+      return NextResponse.json(
+        {
+          message:
+            "You are not authorized to update this job",
+        },
+        { status: 403 }
+      );
+    }
+
+    // 7. Calculate the actual cost without double-counting
+    const originalCost = getProgressCost({
+      cost,
+      overtimeCost,
+      vehicleUsage,
+    });
+
+    // 8. When an Admin adds a cost, the Admin must select its treatment
+    if (
+      !statusChange &&
+      isAdmin &&
+      originalCost > 0 &&
+      !isValidCostTreatment(costTreatment)
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Select Billable Cost or Absorbed Cost before adding this cost",
+        },
+        { status: 400 }
+      );
+    }
+
+    // 9. Build the new progress entry
     const progressLog = {
-      _id: new ObjectId().toString(), // Add a unique ID for each progress log
+      _id: new ObjectId().toString(),
       timestamp: new Date(),
       updatedBy: session.user.id,
       updatedByName: session.user.name,
@@ -47,45 +157,62 @@ export async function POST(
       cost,
       overtimeHours,
       overtimeCost,
-      vehicleUsage, // Store vehicle usage data
+      vehicleUsage,
       originalCost,
       statusChange,
       newStatus: statusChange ? newStatus : null,
-      jobStatus: statusChange ? null : jobStatus, // Don't set jobStatus for status change entries
+
+      // Every new cost starts as pending
+      jobStatus: statusChange ? null : "pending",
+
+      // A worker cannot select Billable or Absorbed.
+      // Only an Admin-submitted cost can initially have a treatment.
+      costTreatment:
+        statusChange || originalCost <= 0
+          ? null
+          : isAdmin
+            ? costTreatment
+            : null,
     };
 
-    const client = await clientPromise;
-    const db = client.db();
-
-    // Update the job with the new progress log
+    // 10. Add the entry to the job
     const result = await db.collection("jobs").updateOne(
-      { _id: new ObjectId(jobId) },
       {
-        $push: { progressLogs: progressLog } as any,
+        _id: new ObjectId(jobId),
+      },
+      {
+        $push: {
+          progressLogs: progressLog,
+        } as any,
         $set: {
           updatedBy: session.user.id,
           updatedByName: session.user.name,
           updatedAt: new Date(),
-          ...(statusChange ? { status: newStatus } : {}),
+          ...(statusChange
+            ? { status: newStatus }
+            : {}),
         },
       }
     );
 
-    if (result.modifiedCount === 0) {
+    if (result.matchedCount === 0) {
       return NextResponse.json(
         { message: "Failed to update job progress" },
         { status: 400 }
       );
     }
 
-    // Get the updated job
+    // 11. Return the updated job
     const updatedJob = await db
       .collection("jobs")
-      .findOne({ _id: new ObjectId(jobId) });
+      .findOne({
+        _id: new ObjectId(jobId),
+      });
 
     return NextResponse.json(updatedJob);
   } catch (error) {
     console.error("Error updating job progress:", error);
+
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }
@@ -98,25 +225,49 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    // 1. Authenticate the user
     const session = await getServerSession(authOptions);
+
     if (!session?.user) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
-    // Only admins can edit progress
+    // 2. Only Admins can approve, reject or edit costs
     if (session.user.role !== "admin") {
       return NextResponse.json(
-        { message: "Only admins can edit progress entries" },
+        {
+          message:
+            "Only admins can edit progress entries",
+        },
         { status: 403 }
       );
     }
 
+    // 3. Validate the job ID
     const jobId = params.id;
+
     if (!jobId || !ObjectId.isValid(jobId)) {
-      return NextResponse.json({ message: "Invalid job ID" }, { status: 400 });
+      return NextResponse.json(
+        { message: "Invalid job ID" },
+        { status: 400 }
+      );
     }
 
-    const { logId, cost, jobStatus, details, workType, overtimeHours, overtimeCost, vehicleUsage } = await request.json();
+    // 4. Read the submitted changes
+    const {
+      logId,
+      cost,
+      jobStatus,
+      details,
+      workType,
+      overtimeHours,
+      overtimeCost,
+      vehicleUsage,
+      costTreatment,
+    } = await request.json();
 
     if (!logId) {
       return NextResponse.json(
@@ -125,18 +276,50 @@ export async function PATCH(
       );
     }
 
+    // 5. Validate the selected treatment
+    if (
+      costTreatment !== undefined &&
+      !isValidCostTreatment(costTreatment)
+    ) {
+      return NextResponse.json(
+        { message: "Invalid cost treatment" },
+        { status: 400 }
+      );
+    }
+
+    // 6. Validate the approval status
+    if (
+      jobStatus !== undefined &&
+      !["pending", "approved", "rejected"].includes(
+        jobStatus
+      )
+    ) {
+      return NextResponse.json(
+        { message: "Invalid approval status" },
+        { status: 400 }
+      );
+    }
+
+    // 7. Load the existing job
     const client = await clientPromise;
     const db = client.db();
 
-    // Fetch the existing entry first — needed to work out whether an
-    // Expenses entry is newly approved, un-approved, or had its amount
-    // changed while already approved, so we can adjust clientPrice correctly.
-    const job = await db.collection("jobs").findOne({ _id: new ObjectId(jobId) });
+    const job = await db.collection("jobs").findOne({
+      _id: new ObjectId(jobId),
+    });
+
     if (!job) {
-      return NextResponse.json({ message: "Job not found" }, { status: 404 });
+      return NextResponse.json(
+        { message: "Job not found" },
+        { status: 404 }
+      );
     }
 
-    const existingLog = job.progressLogs?.find((log: any) => log._id === logId);
+    // 8. Find the existing progress entry
+    const existingLog = job.progressLogs?.find(
+      (log: any) => log._id === logId
+    );
+
     if (!existingLog) {
       return NextResponse.json(
         { message: "Progress log not found" },
@@ -144,65 +327,154 @@ export async function PATCH(
       );
     }
 
-    // Build the update object dynamically based on provided fields
+    // 9. Create a temporary version containing the proposed changes
+    // This is used to calculate the accounting difference safely.
+    const proposedLog = {
+      ...existingLog,
+      ...(cost !== undefined ? { cost } : {}),
+      ...(jobStatus !== undefined
+        ? { jobStatus }
+        : {}),
+      ...(details !== undefined ? { details } : {}),
+      ...(workType !== undefined
+        ? { workType }
+        : {}),
+      ...(overtimeHours !== undefined
+        ? { overtimeHours }
+        : {}),
+      ...(overtimeCost !== undefined
+        ? { overtimeCost }
+        : {}),
+      ...(vehicleUsage !== undefined
+        ? { vehicleUsage }
+        : {}),
+      ...(costTreatment !== undefined
+        ? { costTreatment }
+        : {}),
+    };
+
+    // 10. Calculate the previous and proposed amounts
+    const previousCost =
+      getProgressCost(existingLog);
+
+    const newCost =
+      getProgressCost(proposedLog);
+
+    const previousStatus =
+      existingLog.jobStatus;
+
+    const newStatus =
+      proposedLog.jobStatus;
+
+    // 11. Require an Admin selection when approving a new cost
+    if (
+      newStatus === "approved" &&
+      previousStatus !== "approved" &&
+      newCost > 0 &&
+      !isValidCostTreatment(
+        proposedLog.costTreatment
+      )
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Select Billable Cost or Absorbed Cost before approving this entry",
+        },
+        { status: 400 }
+      );
+    }
+
+    // 12. Determine the accounting treatment
+    const previousTreatment =
+      getAccountingTreatment(existingLog);
+
+    const newTreatment =
+      getAccountingTreatment(proposedLog);
+
+    // 13. Work out how much of the old entry was added
+    // to the client price.
+    const previousBillableContribution =
+      previousStatus === "approved" &&
+      previousTreatment === "billable"
+        ? previousCost
+        : 0;
+
+    // 14. Work out how much of the new entry should
+    // be added to the client price.
+    const newBillableContribution =
+      newStatus === "approved" &&
+      newTreatment === "billable"
+        ? newCost
+        : 0;
+
+    // 15. Calculate only the required price adjustment
+    const clientPriceDelta =
+      newBillableContribution -
+      previousBillableContribution;
+
+    // 16. Build the MongoDB update fields
     const updateFields: any = {
       updatedBy: session.user.id,
       updatedByName: session.user.name,
       updatedAt: new Date(),
     };
 
-    // Only update fields that are provided
     if (cost !== undefined) {
       updateFields["progressLogs.$.cost"] = cost;
     }
+
     if (jobStatus !== undefined) {
-      updateFields["progressLogs.$.jobStatus"] = jobStatus;
+      updateFields["progressLogs.$.jobStatus"] =
+        jobStatus;
     }
+
     if (details !== undefined) {
-      updateFields["progressLogs.$.details"] = details;
+      updateFields["progressLogs.$.details"] =
+        details;
     }
+
     if (workType !== undefined) {
-      updateFields["progressLogs.$.workType"] = workType;
+      updateFields["progressLogs.$.workType"] =
+        workType;
     }
+
     if (overtimeHours !== undefined) {
-      updateFields["progressLogs.$.overtimeHours"] = overtimeHours;
+      updateFields[
+        "progressLogs.$.overtimeHours"
+      ] = overtimeHours;
     }
+
     if (overtimeCost !== undefined) {
-      updateFields["progressLogs.$.overtimeCost"] = overtimeCost;
+      updateFields[
+        "progressLogs.$.overtimeCost"
+      ] = overtimeCost;
     }
+
     if (vehicleUsage !== undefined) {
-      updateFields["progressLogs.$.vehicleUsage"] = vehicleUsage;
+      updateFields[
+        "progressLogs.$.vehicleUsage"
+      ] = vehicleUsage;
     }
 
-    // Expenses entries (materials/purchases) get billed straight through to
-    // the client price once approved — Overtime and Mileage are unaffected,
-    // since those are treated as internal costs already priced into the quote.
-    const mongoUpdate: any = { $set: updateFields };
-
-    if (existingLog.workType === "regular") {
-      const previousCost = existingLog.cost || 0;
-      const previousStatus = existingLog.jobStatus;
-      const newCost = cost !== undefined ? cost : previousCost;
-      const newStatus = jobStatus !== undefined ? jobStatus : previousStatus;
-
-      const wasApproved = previousStatus === "approved";
-      const isApproved = newStatus === "approved";
-
-      let clientPriceDelta = 0;
-      if (wasApproved && isApproved) {
-        clientPriceDelta = newCost - previousCost; // amount changed while approved
-      } else if (!wasApproved && isApproved) {
-        clientPriceDelta = newCost; // newly approved
-      } else if (wasApproved && !isApproved) {
-        clientPriceDelta = -previousCost; // un-approved / rejected
-      }
-
-      if (clientPriceDelta !== 0) {
-        mongoUpdate.$inc = { clientPrice: clientPriceDelta };
-      }
+    if (costTreatment !== undefined) {
+      updateFields[
+        "progressLogs.$.costTreatment"
+      ] = costTreatment;
     }
 
-    // Find and update the specific progress log
+    // 17. Build the final MongoDB operation
+    const mongoUpdate: any = {
+      $set: updateFields,
+    };
+
+    // Change clientPrice only when necessary
+    if (clientPriceDelta !== 0) {
+      mongoUpdate.$inc = {
+        clientPrice: clientPriceDelta,
+      };
+    }
+
+    // 18. Update the progress entry
     const result = await db.collection("jobs").updateOne(
       {
         _id: new ObjectId(jobId),
@@ -211,28 +483,36 @@ export async function PATCH(
       mongoUpdate
     );
 
-    if (result.modifiedCount === 0) {
+    if (result.matchedCount === 0) {
       return NextResponse.json(
-        { message: "Progress log not found or failed to update" },
+        {
+          message:
+            "Progress log not found or failed to update",
+        },
         { status: 404 }
       );
     }
 
-    // Get the updated job
+    // 19. Return the updated job
     const updatedJob = await db
       .collection("jobs")
-      .findOne({ _id: new ObjectId(jobId) });
+      .findOne({
+        _id: new ObjectId(jobId),
+      });
 
     return NextResponse.json(updatedJob);
   } catch (error) {
-    console.error("Error updating progress log:", error);
+    console.error(
+      "Error updating progress log:",
+      error
+    );
+
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }
     );
   }
 }
-
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -365,12 +645,19 @@ export async function DELETE(
     const isAdmin = session.user.role === "admin";
     const isCreator = logToDelete.updatedBy === session.user.id;
 
-    if (!isAdmin && !isCreator) {
-      return NextResponse.json(
-        { message: "You don't have permission to delete this log" },
-        { status: 403 }
-      );
-    }
+if (
+  !isAdmin &&
+  (!isCreator ||
+    logToDelete.jobStatus !== "pending")
+) {
+  return NextResponse.json(
+    {
+      message:
+        "You can only delete your own pending entries",
+    },
+    { status: 403 }
+  );
+}
 
     // Create the pull query based on what we have
     let pullCriteria: any = {};
@@ -403,9 +690,19 @@ export async function DELETE(
 
     // If the entry being removed was an approved Expenses entry, its cost was
     // already added to clientPrice — reverse that so the total stays accurate.
-    if (logToDelete.workType === "regular" && logToDelete.jobStatus === "approved") {
-      deleteUpdate.$inc = { clientPrice: -(logToDelete.cost || 0) };
-    }
+const deletedTreatment =
+  getAccountingTreatment(logToDelete);
+
+if (
+  logToDelete.jobStatus === "approved" &&
+  deletedTreatment === "billable"
+) {
+  deleteUpdate.$inc = {
+    clientPrice: -getProgressCost(
+      logToDelete
+    ),
+  };
+}
 
     const result = await db.collection("jobs").updateOne(
       { _id: new ObjectId(jobId) },
