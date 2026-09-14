@@ -7,9 +7,10 @@ export interface PendingJobDocument {
 
 export interface JobDocument extends PendingJobDocument {
   _id: string;
-  bookingRequestId: string;
+  bookingRequestId?: string | null;
   jobId?: string | null;
   uploadedBy: string;
+  uploadedByRole?: "admin" | "customer";
   downloadPath: string;
   createdAt: string | Date;
 }

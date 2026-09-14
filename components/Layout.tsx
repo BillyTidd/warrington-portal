@@ -21,6 +21,7 @@ import {
   LayoutDashboard,
   ClipboardList,
   TruckIcon,
+  BadgePoundSterling,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import Image from "next/image";
@@ -48,6 +49,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
           href: "/customer/managers",
           label: "Managers",
           icon: Users,
+        },
+        {
+          href: "/customer/worker-types",
+          label: "Worker Types & Rates",
+          icon: BadgePoundSterling,
         },
         {
           href: "/admin/job-requests",
@@ -81,6 +87,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
         ? [{ href: "/task-reports", label: "Tasks Reports", icon: FileText }]
         : []),
       { href: "/job-portal", label: "Job Portal", icon: Package },
+      ...(userRole === "admin"
+        ? [
+            {
+              href: "/job-portal/dashboard",
+              label: "Job Analytics",
+              icon: LayoutDashboard,
+            },
+          ]
+        : []),
       ...(userRole === "admin"
         ? [{ href: "/job-portal/reports", label: "Job Reports", icon: Package }]
         : []),

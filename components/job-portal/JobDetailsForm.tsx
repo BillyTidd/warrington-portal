@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PoundSterling, Clock, Plus, Trash2, User } from "lucide-react";
 import type { Job } from "@/types/job";
-import { useState } from "react";
+import type { CustomerSiteManager } from "@/types/customer-site-manager";
+import { useEffect, useState } from "react";
 
 interface JobDetailsFormProps {
   editedJob: Partial<Job>;
@@ -37,6 +38,71 @@ export function JobDetailsForm({
   confirmations = [],
 }: JobDetailsFormProps) {
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>("");
+  const [customerManagers, setCustomerManagers] = useState<
+    CustomerSiteManager[]
+  >([]);
+  const [isLoadingManagers, setIsLoadingManagers] = useState(false);
+
+  useEffect(() => {
+    const loadManagers = async () => {
+      if (!isAdmin || !editedJob.customer_account_id) {
+        setCustomerManagers([]);
+        return;
+      }
+
+      setIsLoadingManagers(true);
+
+      try {
+        const response = await fetch(
+          `/api/v1/customers/${editedJob.customer_account_id}/managers`,
+          { cache: "no-store" }
+        );
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.message || "Unable to load customer managers"
+          );
+        }
+
+        setCustomerManagers(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Unable to load customer managers:", error);
+        setCustomerManagers([]);
+      } finally {
+        setIsLoadingManagers(false);
+      }
+    };
+
+    loadManagers();
+  }, [editedJob.customer_account_id, isAdmin]);
+
+  useEffect(() => {
+    if (editedJob.workers) {
+      return;
+    }
+
+    if (editedJob.userId) {
+      setEditedJob({
+        ...editedJob,
+        workers: [
+          {
+            userId: editedJob.userId,
+            workerName: editedJob.workerName || "",
+            paymentRate: editedJob.workerPaymentRate || 0,
+            hourlyRate: editedJob.workerHourlyRate || 0,
+          },
+        ],
+      });
+      return;
+    }
+
+    setEditedJob({
+      ...editedJob,
+      workers: [],
+    });
+  }, [editedJob, setEditedJob]);
+
   const handleCustomerChange = (
   customerAccountId: string
 ) => {
@@ -58,6 +124,10 @@ export function JobDetailsForm({
     clientEmail: selectedCustomer.email,
     clientPhone: selectedCustomer.phone || null,
     clientCompany: selectedCustomer.company || null,
+    managerId: null,
+    managerName: null,
+    managerEmail: null,
+    managerPhone: null,
   });
 };
 
@@ -132,27 +202,6 @@ export function JobDetailsForm({
     });
   };
 
-  // Initialize workers array if it doesn't exist
-  if (!editedJob.workers && editedJob.userId) {
-    // Convert old format to new format
-    setEditedJob({
-      ...editedJob,
-      workers: [
-        {
-          userId: editedJob.userId,
-          workerName: editedJob.workerName || "",
-          paymentRate: editedJob.workerPaymentRate || 0,
-          hourlyRate: editedJob.workerHourlyRate || 0,
-        },
-      ],
-    });
-  } else if (!editedJob.workers) {
-    setEditedJob({
-      ...editedJob,
-      workers: [],
-    });
-  }
-
   return (
     <Card className="border-none shadow-lg">
       <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40">
@@ -201,6 +250,66 @@ export function JobDetailsForm({
     />
   )}
 </div>
+
+        {isAdmin && editedJob.customer_account_id && (
+          <div>
+            <Label htmlFor="editCustomerManager">Customer Manager</Label>
+            <Select
+              value={editedJob.managerId || "none"}
+              onValueChange={(managerId) => {
+                if (managerId === "none") {
+                  setEditedJob({
+                    ...editedJob,
+                    managerId: null,
+                    managerName: null,
+                    managerEmail: null,
+                    managerPhone: null,
+                  });
+                  return;
+                }
+
+                const selectedManager = customerManagers.find(
+                  (manager) => manager._id === managerId
+                );
+
+                if (!selectedManager) return;
+
+                setEditedJob({
+                  ...editedJob,
+                  managerId: selectedManager._id,
+                  managerName: selectedManager.fullName,
+                  managerEmail: selectedManager.email || null,
+                  managerPhone: selectedManager.phone || null,
+                });
+              }}
+              disabled={isLoadingManagers}
+            >
+              <SelectTrigger id="editCustomerManager" className="mt-1">
+                <SelectValue
+                  placeholder={
+                    isLoadingManagers
+                      ? "Loading managers..."
+                      : "Select a manager"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No manager</SelectItem>
+                {customerManagers.map((manager) => (
+                  <SelectItem key={manager._id} value={manager._id}>
+                    {manager.fullName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {customerManagers.length === 0 && !isLoadingManagers && (
+              <p className="mt-1 text-sm text-muted-foreground">
+                This customer has no active managers.
+              </p>
+            )}
+          </div>
+        )}
 
         {isAdmin && (
           <div className="space-y-4">
@@ -359,51 +468,32 @@ export function JobDetailsForm({
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="assignDate">Start Date</Label>
-            <Input
-              id="assignDate"
-              type="date"
-              value={
-                editedJob.assignDate
-                  ? format(
-                      typeof editedJob.assignDate === "string"
-                        ? parseISO(editedJob.assignDate)
-                        : editedJob.assignDate,
-                      "yyyy-MM-dd"
-                    )
-                  : ""
-              }
-              onChange={(e) =>
-                setEditedJob({ ...editedJob, assignDate: e.target.value })
-              }
-              required
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label htmlFor="expireDate">Due Date</Label>
-            <Input
-              id="expireDate"
-              type="date"
-              value={
-                editedJob.expireDate
-                  ? format(
-                      typeof editedJob.expireDate === "string"
-                        ? parseISO(editedJob.expireDate)
-                        : editedJob.expireDate,
-                      "yyyy-MM-dd"
-                    )
-                  : ""
-              }
-              onChange={(e) =>
-                setEditedJob({ ...editedJob, expireDate: e.target.value })
-              }
-              required
-              className="mt-1"
-            />
-          </div>
+        <div>
+          <Label htmlFor="assignDate">Start Date</Label>
+          <Input
+            id="assignDate"
+            type="date"
+            value={
+              editedJob.assignDate
+                ? format(
+                    typeof editedJob.assignDate === "string"
+                      ? parseISO(editedJob.assignDate)
+                      : editedJob.assignDate,
+                    "yyyy-MM-dd"
+                  )
+                : ""
+            }
+            onChange={(event) => {
+              const selectedDate = event.target.value;
+              setEditedJob({
+                ...editedJob,
+                assignDate: selectedDate,
+                expireDate: selectedDate,
+              });
+            }}
+            required
+            className="mt-1"
+          />
         </div>
 
         {isAdmin && (

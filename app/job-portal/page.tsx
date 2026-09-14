@@ -82,6 +82,8 @@ export default function JobPortalPage() {
   const router = useRouter();
   const initialRenderRef = useRef(true);
   const previousViewModeRef = useRef<"list" | "calendar">("list");
+  const backgroundRefreshRef = useRef(false);
+  const backgroundErrorShownRef = useRef(false);
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -111,7 +113,6 @@ export default function JobPortalPage() {
 
   // State to track when to fetch data
   const [shouldFetch, setShouldFetch] = useState(true);
-  const [noJobsFound, setNoJobsFound] = useState(false);
 
   // Update searchTerm when debounced value changes
   useEffect(() => {
@@ -179,8 +180,11 @@ export default function JobPortalPage() {
   const fetchJobs = useCallback(async () => {
     if (!shouldFetch) return;
 
-    setIsLoading(true);
-    setNoJobsFound(false);
+    const isBackgroundRefresh = backgroundRefreshRef.current;
+
+    if (!isBackgroundRefresh) {
+      setIsLoading(true);
+    }
 
     try {
       // Build query parameters
@@ -233,11 +237,7 @@ const response = await fetch(
 
       const data = await response.json();
       setJobs(data.jobs);
-
-      // Check if no jobs were found
-      if (data.jobs.length === 0) {
-        setNoJobsFound(true);
-      }
+      backgroundErrorShownRef.current = false;
 
       // Update pagination info if available
       if (data.pagination) {
@@ -257,11 +257,20 @@ const response = await fetch(
       setShouldFetch(false);
     } catch (error) {
       console.error("Error fetching jobs:", error);
-      toast.error("Failed to fetch job data");
+      if (
+        !isBackgroundRefresh ||
+        !backgroundErrorShownRef.current
+      ) {
+        toast.error("Failed to fetch job data");
+        backgroundErrorShownRef.current = true;
+      }
       // Reset the fetch flag even on error
       setShouldFetch(false);
     } finally {
-      setIsLoading(false);
+      if (!isBackgroundRefresh) {
+        setIsLoading(false);
+      }
+      backgroundRefreshRef.current = false;
     }
   }, [
     currentDate,
@@ -316,6 +325,7 @@ useEffect(() => {
   }
 
   const refreshInterval = window.setInterval(() => {
+    backgroundRefreshRef.current = true;
     setShouldFetch(true);
   }, 10000);
 
@@ -437,6 +447,7 @@ useEffect(() => {
 
   // Manual refresh function
   const handleRefresh = () => {
+    backgroundRefreshRef.current = false;
     setShouldFetch(true);
   };
 

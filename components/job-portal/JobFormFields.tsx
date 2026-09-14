@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X, DollarSign, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import type { Job, Worker } from "@/types/job";
 import type { CustomerAccountOption } from "@/types/customer-account";
+import type { CustomerSiteManager } from "@/types/customer-site-manager";
 import type { Session } from "next-auth";
 
 interface JobFormFieldsProps {
@@ -50,6 +51,44 @@ export function JobFormFields({
   const currentUserId = session?.user?.id || "";
   const currentUserName = session?.user?.name || "";
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
+  const [customerManagers, setCustomerManagers] = useState<
+    CustomerSiteManager[]
+  >([]);
+  const [isLoadingManagers, setIsLoadingManagers] = useState(false);
+
+  useEffect(() => {
+    const loadManagers = async () => {
+      if (!job.customer_account_id || !isAdmin) {
+        setCustomerManagers([]);
+        return;
+      }
+
+      setIsLoadingManagers(true);
+
+      try {
+        const response = await fetch(
+          `/api/v1/customers/${job.customer_account_id}/managers`,
+          { cache: "no-store" }
+        );
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.message || "Unable to load customer managers"
+          );
+        }
+
+        setCustomerManagers(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Unable to load customer managers:", error);
+        setCustomerManagers([]);
+      } finally {
+        setIsLoadingManagers(false);
+      }
+    };
+
+    loadManagers();
+  }, [job.customer_account_id, isAdmin]);
 
   const removeWorker = (workerId: string) => {
     setJob((prev) => ({
@@ -126,34 +165,90 @@ export function JobFormFields({
   )}
 </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {isAdmin && job.customer_account_id && (
         <div>
-          <Label htmlFor="assignDate" className="text-base">
-            Start Date
+          <Label htmlFor="customerManager" className="text-base">
+            Customer Manager
           </Label>
-          <Input
-            id="assignDate"
-            type="date"
-            value={job.assignDate || ""}
-            onChange={(e) => setJob({ ...job, assignDate: e.target.value })}
-            className="mt-1.5"
-            required
-          />
-        </div>
 
-        <div>
-          <Label htmlFor="expireDate" className="text-base">
-            Due Date
-          </Label>
-          <Input
-            id="expireDate"
-            type="date"
-            value={job.expireDate || ""}
-            onChange={(e) => setJob({ ...job, expireDate: e.target.value })}
-            className="mt-1.5"
-            required
-          />
+          <Select
+            value={job.managerId || "none"}
+            onValueChange={(managerId) => {
+              if (managerId === "none") {
+                setJob({
+                  ...job,
+                  managerId: null,
+                  managerName: null,
+                  managerEmail: null,
+                  managerPhone: null,
+                });
+                return;
+              }
+
+              const selectedManager = customerManagers.find(
+                (manager) => manager._id === managerId
+              );
+
+              if (!selectedManager) return;
+
+              setJob({
+                ...job,
+                managerId: selectedManager._id,
+                managerName: selectedManager.fullName,
+                managerEmail: selectedManager.email || null,
+                managerPhone: selectedManager.phone || null,
+              });
+            }}
+            disabled={isLoadingManagers}
+          >
+            <SelectTrigger id="customerManager" className="mt-1.5">
+              <SelectValue
+                placeholder={
+                  isLoadingManagers
+                    ? "Loading managers..."
+                    : "Select a manager"
+                }
+              />
+            </SelectTrigger>
+
+            <SelectContent>
+              <SelectItem value="none">No manager</SelectItem>
+              {customerManagers.map((manager) => (
+                <SelectItem key={manager._id} value={manager._id}>
+                  {manager.fullName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {customerManagers.length === 0 && !isLoadingManagers && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              This customer has no active managers.
+            </p>
+          )}
         </div>
+      )}
+
+      <div>
+        <Label htmlFor="assignDate" className="text-base">
+          Start Date
+        </Label>
+        <Input
+          id="assignDate"
+          type="date"
+          value={job.assignDate || ""}
+          onChange={(event) => {
+            const selectedDate = event.target.value;
+            setJob({
+              ...job,
+              assignDate: selectedDate,
+              // Internal compatibility value.
+              expireDate: selectedDate,
+            });
+          }}
+          className="mt-1.5"
+          required
+        />
       </div>
 
       <div>

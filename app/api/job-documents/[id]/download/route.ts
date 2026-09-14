@@ -10,8 +10,16 @@ import { authOptions } from "@/lib/auth";
 import clientPromise from "@/lib/mongodb";
 import { getObjectStorage } from "@/lib/object-storage";
 
+function asObjectId(value: unknown) {
+  const stringValue = value?.toString();
+
+  return stringValue && ObjectId.isValid(stringValue)
+    ? new ObjectId(stringValue)
+    : null;
+}
+
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -31,14 +39,12 @@ export async function GET(
       );
     }
 
-    const client = await clientPromise;
-    const db = client.db();
+    const mongoClient = await clientPromise;
+    const db = mongoClient.db();
 
     const document = await db
       .collection("job_documents")
-      .findOne({
-        _id: new ObjectId(params.id),
-      });
+      .findOne({ _id: new ObjectId(params.id) });
 
     if (!document) {
       return NextResponse.json(
@@ -47,25 +53,54 @@ export async function GET(
       );
     }
 
-    let hasAccess = false;
-
-    if (session.user.role === "admin") {
-      hasAccess = true;
-    }
+    let hasAccess = session.user.role === "admin";
 
     if (
       !hasAccess &&
       session.user.role === "customer" &&
       document.bookingRequestId
     ) {
-      const ownedBookingRequest = await db
-        .collection("booking-requests")
-        .findOne({
-          _id: document.bookingRequestId,
-          customerId: session.user.id,
+      const bookingRequestObjectId = asObjectId(
+        document.bookingRequestId
+      );
+
+      if (bookingRequestObjectId) {
+        const ownedBookingRequest = await db
+          .collection("booking-requests")
+          .findOne({
+            _id: bookingRequestObjectId,
+            customerId: session.user.id,
+          });
+
+        hasAccess = Boolean(ownedBookingRequest);
+      }
+    }
+
+    if (
+      !hasAccess &&
+      session.user.role === "customer" &&
+      document.jobId
+    ) {
+      const jobObjectId = asObjectId(document.jobId);
+      const customerAccountObjectId = asObjectId(
+        session.user.id
+      );
+
+      if (jobObjectId && customerAccountObjectId) {
+        const ownedJob = await db.collection("jobs").findOne({
+          _id: jobObjectId,
+          $or: [
+            { customer_account_id: customerAccountObjectId },
+            { customer_account_id: session.user.id },
+            { customerAccountId: customerAccountObjectId },
+            { customerAccountId: session.user.id },
+            // Temporary compatibility for legacy jobs.
+            { clientId: session.user.id },
+          ],
         });
 
-      hasAccess = Boolean(ownedBookingRequest);
+        hasAccess = Boolean(ownedJob);
+      }
     }
 
     if (
@@ -73,21 +108,19 @@ export async function GET(
       session.user.role === "employee" &&
       document.jobId
     ) {
-      const assignedJob = await db
-        .collection("jobs")
-        .findOne({
-          _id: document.jobId,
+      const jobObjectId = asObjectId(document.jobId);
+
+      if (jobObjectId) {
+        const assignedJob = await db.collection("jobs").findOne({
+          _id: jobObjectId,
           $or: [
-            {
-              "workers.userId": session.user.id,
-            },
-            {
-              userId: session.user.id,
-            },
+            { "workers.userId": session.user.id },
+            { userId: session.user.id },
           ],
         });
 
-      hasAccess = Boolean(assignedJob);
+        hasAccess = Boolean(assignedJob);
+      }
     }
 
     if (!hasAccess) {
@@ -111,27 +144,20 @@ export async function GET(
       document.mimeType === "application/pdf" ||
       document.mimeType?.startsWith("image/");
 
-    const dispositionType = shouldOpenInline
-      ? "inline"
-      : "attachment";
-
     const command = new GetObjectCommand({
       Bucket: document.bucket || bucket,
       Key: document.objectKey,
       ResponseContentType:
         document.mimeType || "application/octet-stream",
-      ResponseContentDisposition:
-        `${dispositionType}; filename*=UTF-8''${encodeURIComponent(
-          originalName
-        )}`,
+      ResponseContentDisposition: `${
+        shouldOpenInline ? "inline" : "attachment"
+      }; filename*=UTF-8''${encodeURIComponent(originalName)}`,
     });
 
     const secureDownloadUrl = await getSignedUrl(
       storageClient,
       command,
-      {
-        expiresIn: 300,
-      }
+      { expiresIn: 300 }
     );
 
     const response = NextResponse.redirect(

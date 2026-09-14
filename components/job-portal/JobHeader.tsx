@@ -146,6 +146,7 @@ export function JobHeader({
   children,
   onRefresh,
 }: JobHeaderProps) {
+  const { data: session } = useSession();
   const currentMonth = format(currentDate, "MMMM yyyy");
 
   return (
@@ -180,7 +181,9 @@ export function JobHeader({
   </Button>
 )}
 
-          <DirectReportButton jobs={jobs} />
+          {session?.user?.role && session.user.role !== "customer" && (
+            <DirectReportButton jobs={jobs} />
+          )}
         </div>
       </div>
 

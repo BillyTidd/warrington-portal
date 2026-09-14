@@ -48,10 +48,8 @@ function NewJobPageContent() {
   const [job, setJob] = useState<Partial<any>>({
     jobName: "",
     assignDate: defaultDate,
-    expireDate: format(
-      new Date(new Date().setMonth(new Date().getMonth() + 1)),
-      "yyyy-MM-dd"
-    ),
+    // Kept internally for compatibility with existing calendar/report code.
+    expireDate: defaultDate,
     status: "pending",
     workers: [],
     description: "",
@@ -69,6 +67,7 @@ function NewJobPageContent() {
       setJob((prev) => ({
         ...prev,
         assignDate: dateParam,
+        expireDate: dateParam,
       }));
     }
   }, [dateParam]);
@@ -230,6 +229,13 @@ function NewJobPageContent() {
     clientEmail: selectedCustomer.email,
     clientPhone: selectedCustomer.phone || null,
     clientCompany: selectedCustomer.company || null,
+
+    // A manager belongs to one customer, so reset it whenever the
+    // selected customer account changes.
+    managerId: null,
+    managerName: null,
+    managerEmail: null,
+    managerPhone: null,
   }));
 };
   if (status === "loading" || isLoading) {

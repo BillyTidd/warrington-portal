@@ -17,6 +17,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
+    if (
+      session.user.role !== "admin" &&
+      session.user.role !== "customer"
+    ) {
+      return NextResponse.json(
+        { message: "You do not have access to booking requests" },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const page = Number.parseInt(searchParams.get("page") || "1");
     const limit = Number.parseInt(searchParams.get("limit") || "10");
@@ -125,7 +135,19 @@ export async function GET(request: NextRequest) {
         groupedDocuments[bookingId] = [];
       }
 
-      groupedDocuments[bookingId].push(document);
+      groupedDocuments[bookingId].push({
+        _id: document._id,
+        bookingRequestId: document.bookingRequestId,
+        jobId: document.jobId,
+        originalName: document.originalName,
+        mimeType: document.mimeType,
+        size: document.size,
+        downloadPath:
+          document.downloadPath ||
+          `/api/job-documents/${document._id.toString()}/download`,
+        uploadedByRole: document.uploadedByRole,
+        createdAt: document.createdAt,
+      });
 
       return groupedDocuments;
     }, {});
@@ -298,7 +320,7 @@ export async function POST(request: NextRequest) {
       storageBucket = bucket;
 
       const requiredObjectPrefix =
-        `estimate-documents/${session.user.id}/`;
+        `customer-job-documents/${session.user.id}/`;
 
       const documentKeys = documents.map(
         (document: PendingJobDocument) => document.objectKey

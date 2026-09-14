@@ -5,10 +5,16 @@ const allowedFiles: Record<string, string[]> = {
   png: ["image/png"],
   jpg: ["image/jpeg"],
   jpeg: ["image/jpeg"],
+  doc: ["application/msword"],
+  docx: [
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ],
+  xls: ["application/vnd.ms-excel"],
   xlsx: [
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ],
   csv: ["text/csv", "application/csv", "application/vnd.ms-excel"],
+  txt: ["text/plain"],
 };
 
 export function validateJobDocument(
@@ -27,7 +33,7 @@ export function validateJobDocument(
   const extension = fileName.split(".").pop()?.toLowerCase();
 
   if (!extension || !allowedFiles[extension]) {
-    return "Only PDF, PNG, JPG, XLSX and CSV files are supported";
+    return "Only PDF, PNG, JPG, Word, Excel, CSV and TXT files are supported";
   }
 
   if (!allowedFiles[extension].includes(mimeType)) {

@@ -6,6 +6,67 @@ import clientPromise from "@/lib/mongodb";
 import { authOptions } from "@/lib/auth";
 import { ObjectId } from "mongodb";
 
+function normalizedClientPrice(job: any) {
+  const rawPrice =
+    job.clientPrice ??
+    job.estimatedCost?.totalCost ??
+    job.estimatedCosts?.totalCost ??
+    job.jobEstimate?.estimatedCost?.totalCost ??
+    job.jobEstimate?.estimatedCosts?.totalCost ??
+    0;
+
+  const parsedPrice = Number(rawPrice);
+  return Number.isFinite(parsedPrice) ? parsedPrice : 0;
+}
+
+function safeDocument(document: any) {
+  return {
+    _id: document._id,
+    originalName: document.originalName,
+    mimeType: document.mimeType,
+    size: document.size,
+    downloadPath:
+      document.downloadPath ||
+      `/api/job-documents/${document._id.toString()}/download`,
+    uploadedByRole: document.uploadedByRole,
+    createdAt: document.createdAt,
+  };
+}
+
+function safeCustomerJob(job: any) {
+  const customerJob = { ...job };
+  delete customerJob.workerPaymentRate;
+  delete customerJob.workerHourlyRate;
+
+  customerJob.workers = Array.isArray(job.workers)
+    ? job.workers.map((worker: any) => ({
+        userId: worker.userId,
+        workerName: worker.workerName,
+      }))
+    : [];
+
+  customerJob.progressLogs = Array.isArray(job.progressLogs)
+    ? job.progressLogs.map((entry: any) => {
+        const safeEntry = { ...entry };
+        delete safeEntry.cost;
+        delete safeEntry.originalCost;
+        delete safeEntry.overtimeCost;
+        delete safeEntry.costTreatment;
+
+        if (safeEntry.vehicleUsage) {
+          const safeVehicleUsage = { ...safeEntry.vehicleUsage };
+          delete safeVehicleUsage.totalCost;
+          delete safeVehicleUsage.pricePerMile;
+          safeEntry.vehicleUsage = safeVehicleUsage;
+        }
+
+        return safeEntry;
+      })
+    : [];
+
+  return customerJob;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
@@ -28,45 +89,37 @@ export async function GET(
     const client = await clientPromise;
     const db = client.db();
 
-    // Build query with role-based filtering
     const query: any = { _id: new ObjectId(id) };
 
-    // Apply role-based filtering
-    if (session.user.role === "admin") {
-      // Admin can see any job
-    } else if (session.user.role === "customer") {
-  if (!ObjectId.isValid(session.user.id)) {
-    return NextResponse.json(
-      { message: "Invalid customer account" },
-      { status: 401 }
-    );
-  }
+    if (session.user.role === "customer") {
+      if (!ObjectId.isValid(session.user.id)) {
+        return NextResponse.json(
+          { message: "Invalid customer account" },
+          { status: 401 }
+        );
+      }
 
-  query.$and = [
-    {
-      $or: [
-        {
-          customer_account_id: new ObjectId(
-            session.user.id
-          ),
-        },
-        {
-          customer_account_id: session.user.id,
-        },
+      const customerAccountId = new ObjectId(session.user.id);
 
-        // Temporary fallback for pre-migration jobs
-        {
-          clientId: session.user.id,
-        },
-      ],
-    },
-  ];
-} else {
-      // Employee can only see jobs they're assigned to
-      query["workers.userId"] = session.user.id;
+      query.$or = [
+        { customer_account_id: customerAccountId },
+        { customer_account_id: session.user.id },
+        { customerAccountId: customerAccountId },
+        { customerAccountId: session.user.id },
+        // Temporary fallback for legacy records.
+        { clientId: session.user.id },
+      ];
+    } else if (session.user.role === "employee") {
+      query.$or = [
+        { "workers.userId": session.user.id },
+        { userId: session.user.id },
+      ];
+    } else if (session.user.role !== "admin") {
+      return NextResponse.json(
+        { message: "You do not have permission to view this job" },
+        { status: 403 }
+      );
     }
-
-    console.log("Job detail query:", JSON.stringify(query, null, 2));
 
     const job = await db.collection("jobs").findOne(query);
 
@@ -77,22 +130,26 @@ export async function GET(
       );
     }
 
-    // Fetch client details if available
-    if (job.clientId) {
+    job.clientPrice = normalizedClientPrice(job);
+    job.managerName =
+      job.managerName ||
+      job.jobEstimate?.managerDetails?.fullName ||
+      job.jobEstimate?.manager ||
+      null;
+
+    // Fetch client details if the legacy clients record is available.
+    if (job.clientId && ObjectId.isValid(job.clientId.toString())) {
       try {
         const clientData = await db
           .collection("clients")
-          .findOne({ _id: new ObjectId(job.clientId) });
+          .findOne({ _id: new ObjectId(job.clientId.toString()) });
         job.client = clientData || { name: job.clientName || "Unknown Client" };
       } catch (error) {
         console.error("Error fetching client data:", error);
         job.client = { name: job.clientName || "Unknown Client" };
       }
     }
-    
-
-
-    job.documents = await db
+    const documents = await db
       .collection("job_documents")
       .find({
         jobId: job._id,
@@ -102,9 +159,16 @@ export async function GET(
       })
       .toArray();
 
+    job.documents = documents.map(safeDocument);
 
-
-    return NextResponse.json(job);
+    return NextResponse.json(
+      session.user.role === "customer" ? safeCustomerJob(job) : job,
+      {
+        headers: {
+          "Cache-Control": "no-store, max-age=0",
+        },
+      }
+    );
   } catch (error) {
     console.error("Error in GET /api/jobs/[id]:", error);
     return NextResponse.json(
@@ -215,6 +279,42 @@ export async function PUT(
         );
       }
 
+      if (!jobData.assignDate) {
+        return NextResponse.json(
+          { message: "The job start date is required" },
+          { status: 400 }
+        );
+      }
+
+      let selectedManager: any = null;
+
+      if (jobData.managerId) {
+        if (!ObjectId.isValid(String(jobData.managerId))) {
+          return NextResponse.json(
+            { message: "Invalid customer manager" },
+            { status: 400 }
+          );
+        }
+
+        selectedManager = await db
+          .collection("customer_site_managers")
+          .findOne({
+            _id: new ObjectId(String(jobData.managerId)),
+            customer_account_id: customerAccountObjectId,
+            status: "active",
+          });
+
+        if (!selectedManager) {
+          return NextResponse.json(
+            {
+              message:
+                "The selected manager does not belong to this customer or is inactive",
+            },
+            { status: 400 }
+          );
+        }
+      }
+
       let linkedClient = await db
         .collection("clients")
         .findOne({
@@ -293,10 +393,15 @@ export async function PUT(
         clientEmail,
         clientPhone,
         clientCompany,
+        managerId,
+        managerName,
+        managerEmail,
+        managerPhone,
         createdAt,
         createdBy,
         createdByName,
         progressLogs,
+        documents,
         userId,
         workerName,
         ...allowedJobData
@@ -304,6 +409,8 @@ export async function PUT(
 
       updateData = {
         ...allowedJobData,
+        assignDate: jobData.assignDate,
+        expireDate: jobData.assignDate,
         workers,
         customer_account_id:
           customerAccountObjectId,
@@ -315,6 +422,16 @@ export async function PUT(
         clientEmail: customerAccount.email,
         clientPhone: customerAccount.phone || null,
         clientCompany: customerAccount.company || null,
+        managerId: selectedManager?._id?.toString() || null,
+        managerName:
+          selectedManager?.fullName ||
+          (selectedManager
+            ? `${selectedManager.firstName || ""} ${
+                selectedManager.lastName || ""
+              }`.trim()
+            : null),
+        managerEmail: selectedManager?.email || null,
+        managerPhone: selectedManager?.phone || null,
       };
     } else {
       // Workers can only update these existing fields.

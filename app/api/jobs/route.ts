@@ -256,15 +256,18 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!jobData.assignDate || !jobData.expireDate) {
+    if (!jobData.assignDate) {
       return NextResponse.json(
         {
-          message:
-            "The job start date and due date are required",
+          message: "The job start date is required",
         },
         { status: 400 }
       );
     }
+
+    // Keep the legacy field aligned with Start Date so existing calendar and
+    // report code continues to work without showing a separate Due Date.
+    jobData.expireDate = jobData.assignDate;
 
     const requestedCustomerAccountId = String(
       jobData.customer_account_id || ""
@@ -306,6 +309,35 @@ export async function POST(req: Request) {
         },
         { status: 400 }
       );
+    }
+
+    let selectedManager: any = null;
+
+    if (jobData.managerId) {
+      if (!ObjectId.isValid(String(jobData.managerId))) {
+        return NextResponse.json(
+          { message: "Invalid customer manager" },
+          { status: 400 }
+        );
+      }
+
+      selectedManager = await db
+        .collection("customer_site_managers")
+        .findOne({
+          _id: new ObjectId(String(jobData.managerId)),
+          customer_account_id: customerAccountObjectId,
+          status: "active",
+        });
+
+      if (!selectedManager) {
+        return NextResponse.json(
+          {
+            message:
+              "The selected manager does not belong to this customer or is inactive",
+          },
+          { status: 400 }
+        );
+      }
     }
 
     let linkedClient = await db
@@ -384,11 +416,16 @@ export async function POST(req: Request) {
       clientEmail,
       clientPhone,
       clientCompany,
+      managerId,
+      managerName,
+      managerEmail,
+      managerPhone,
       createdAt,
       updatedAt,
       createdBy,
       createdByName,
       progressLogs,
+      documents,
       userId,
       workerName,
       ...allowedJobData
@@ -415,6 +452,17 @@ export async function POST(req: Request) {
       clientEmail: customerAccount.email,
       clientPhone: customerAccount.phone || null,
       clientCompany: customerAccount.company || null,
+
+      managerId: selectedManager?._id?.toString() || null,
+      managerName:
+        selectedManager?.fullName ||
+        (selectedManager
+          ? `${selectedManager.firstName || ""} ${
+              selectedManager.lastName || ""
+            }`.trim()
+          : null),
+      managerEmail: selectedManager?.email || null,
+      managerPhone: selectedManager?.phone || null,
 
       createdBy: session.user.id,
       createdByName: session.user.name,

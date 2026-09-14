@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { CustomerAccountOption } from "@/types/customer-account";
 import { useSession } from "next-auth/react";
-import { parseISO, differenceInDays } from "date-fns";
 import {
   Loader2,
   AlertTriangle,
@@ -71,12 +70,30 @@ import { JobProgressForm } from "@/components/job-portal/JobProgressForm";
 import { ProgressSummary } from "@/components/job-portal/ProgressSummary";
 import { ProgressTimeline } from "@/components/job-portal/ProgressTimeline";
 // import { ProgressEditModal } from "@/components/job-portal/ProgressEditModal";
-import { FinancialSummary } from "@/components/job-portal/FinancialSummary";
 import { CostBreakdown } from "@/components/job-portal/CostBreakdown";
-import { generateJobPDF } from "@/lib/excelGenerator";
 import { PDFButton } from "@/components/job-portal/PDFButton";
 import { ProgressEditModal } from "@/components/job-portal/ProgressEditModal";
 import { WorkerConfirmations } from "@/components/job-portal/WorkerConfirmations";
+
+const DOCUMENT_MIME_TYPES: Record<string, string> = {
+  pdf: "application/pdf",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  doc: "application/msword",
+  docx:
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx:
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  csv: "text/csv",
+  txt: "text/plain",
+};
+
+function getDocumentMimeType(file: File) {
+  const extension = file.name.split(".").pop()?.toLowerCase() || "";
+  return file.type || DOCUMENT_MIME_TYPES[extension] || "";
+}
 
 export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -88,8 +105,6 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [progressDescription, setProgressDescription] = useState("");
-  const [progressAmount, setProgressAmount] = useState("");
   const [isSubmittingProgress, setIsSubmittingProgress] = useState(false);
   const [workers, setWorkers] = useState<{ _id: string; name: string; phone?: string; whatsappNumber?: string; role: string; isApproved: boolean }[]>([]);
   const [clients, setClients] =
@@ -97,6 +112,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const [confirmations, setConfirmations] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("details");
   const [showProgressForm, setShowProgressForm] = useState(false);
+  const backgroundJobErrorShownRef = useRef(false);
 
   // Progress edit modal state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -104,9 +120,9 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
     null
   );
 
-  // PDF / Documents state
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [isUploadingPdf, setIsUploadingPdf] = useState(false);
+  // R2 job-document upload state
+  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
+  const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
 
   const isAdmin = session?.user?.role === "admin";
   const isClient = session?.user?.role === "customer";
@@ -177,9 +193,13 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
       const data = await response.json();
       setJob(data);
       setEditedJob(data);
+      backgroundJobErrorShownRef.current = false;
     } catch (error) {
       console.error("Error fetching job:", error);
-      toast.error("Failed to load job details");
+      if (showLoading || !backgroundJobErrorShownRef.current) {
+        toast.error("Failed to load job details");
+        backgroundJobErrorShownRef.current = true;
+      }
     } finally {
   if (showLoading) {
     setIsLoading(false);
@@ -470,47 +490,85 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
     }
   };
 
-  const handleGeneratePDF = async () => {
-    if (!job) return;
-
-    try {
-      const doc = await generateJobPDF(job, session);
-      doc.save(`job-${job._id}-report.pdf`);
-      toast.success("PDF report generated successfully");
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-      toast.error("Failed to generate PDF report");
+  const handleUploadDocuments = async () => {
+    if (documentFiles.length === 0 || !job) {
+      return;
     }
-  };
 
-  const handleUploadPdf = async () => {
-    if (!pdfFile || !job) return;
-    setIsUploadingPdf(true);
+    setIsUploadingDocuments(true);
+
     try {
-      const uploadFormData = new FormData();
-      uploadFormData.append("file", pdfFile);
-      const uploadRes = await fetch("/api/upload-cloudinary", {
-        method: "POST",
-        body: uploadFormData,
-      });
-      if (!uploadRes.ok) throw new Error("Failed to upload PDF");
-      const { url, filename } = await uploadRes.json();
+      const uploadedDocuments = await Promise.all(
+        documentFiles.map(async (file) => {
+          const mimeType = getDocumentMimeType(file);
 
-      // PATCH the job with new pdfUrl and pdfFilename
-      const updateRes = await fetch(`/api/jobs/${params.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...job, pdfUrl: url, pdfFilename: filename }),
-      });
-      if (!updateRes.ok) throw new Error("Failed to update job with PDF");
+          const presignResponse = await fetch(
+            "/api/job-documents/presign",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                fileName: file.name,
+                mimeType,
+                size: file.size,
+              }),
+            }
+          );
 
-      await fetchJobDetails();
-      setPdfFile(null);
-      toast.success("PDF uploaded successfully");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to upload PDF");
+          const presignData = await presignResponse.json();
+
+          if (!presignResponse.ok) {
+            throw new Error(
+              presignData.message || `Unable to prepare ${file.name}`
+            );
+          }
+
+          const uploadResponse = await fetch(presignData.uploadUrl, {
+            method: "PUT",
+            headers: { "Content-Type": mimeType },
+            body: file,
+          });
+
+          if (!uploadResponse.ok) {
+            throw new Error(`Failed to upload ${file.name}`);
+          }
+
+          return {
+            objectKey: presignData.objectKey,
+            originalName: file.name,
+            mimeType,
+            size: file.size,
+          };
+        })
+      );
+
+      const attachResponse = await fetch(
+        `/api/jobs/${params.id}/documents`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ documents: uploadedDocuments }),
+        }
+      );
+
+      const attachData = await attachResponse.json();
+
+      if (!attachResponse.ok) {
+        throw new Error(
+          attachData.message || "Unable to attach documents"
+        );
+      }
+
+      setDocumentFiles([]);
+      await fetchJobDetails(false);
+      toast.success("Documents uploaded successfully");
+    } catch (error) {
+      console.error("Document upload failed:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Document upload failed"
+      );
     } finally {
-      setIsUploadingPdf(false);
+      setIsUploadingDocuments(false);
     }
   };
 
@@ -816,12 +874,6 @@ const profitMargin =
     ? (profit / clientPrice) * 100
     : 0;
 
-    // Count pending approvals
-    const pendingCount =
-      job.progressLogs?.filter(
-        (log: any) => log.jobStatus === "pending" && !log.statusChange
-      ).length || 0;
-
     return (
       <Card className="mb-6 border-none shadow-lg overflow-hidden">
         <CardHeader className="bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 pb-3">
@@ -906,8 +958,7 @@ const profitMargin =
   };
 
   const renderClientFinancialOverview = () => {
-    const clientPrice = job.clientPrice || 0;
-    const approvedCosts = getApprovedCosts(); // Only approved costs
+    const clientPrice = Number(job.clientPrice) || 0;
 
     return (
       <Card className="mb-6 border-none shadow-lg overflow-hidden">
@@ -918,20 +969,11 @@ const profitMargin =
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Price</p>
-              <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400">
-                £{clientPrice.toFixed(2)}
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Approved Costs</p>
-              <p className="text-xl font-bold text-red-500">
-                -£{approvedCosts.toFixed(2)}
-              </p>
-            </div>
+          <div className="space-y-1">
+            <p className="text-sm text-muted-foreground">Job Price</p>
+            <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+              £{clientPrice.toFixed(2)}
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -975,12 +1017,9 @@ const profitMargin =
     );
   }
 
-  const daysRemaining = differenceInDays(parseISO(job.expireDate), new Date());
-  const isOverdue = daysRemaining < 0 && job.status !== "completed";
   const progressPercentage =
     job.status === "completed" ? 100 : job.status === "in-progress" ? 50 : 0;
   const approvedCosts = getApprovedCosts();
-  const profit = (job.clientPrice || 0) - approvedCosts;
   const totalWorkerPayments = job.workers
     ? job.workers.reduce(
         (sum: number, worker: any) => sum + (worker.paymentRate || 0),
@@ -1071,8 +1110,6 @@ const profitMargin =
           isAdmin={isAdmin}
           canEditJob={canEditJob}
           canUpdateJob={canUpdateJob}
-          daysRemaining={daysRemaining}
-          isOverdue={isOverdue}
           progressPercentage={progressPercentage}
           setEditedJob={setEditedJob}
           setIsEditing={setIsEditing}
@@ -1082,11 +1119,13 @@ const profitMargin =
           isAssignedToMe={isAssignedToMe}
         />
 
-        {/* PDF Generation Buttons */}
-        <div className="flex flex-col sm:flex-row sm:justify-end mb-4 gap-2">
-          <PDFButton job={job} variant="outline" />
-          <PDFButton job={job} variant="outline" saveToDatabase={true} />
-        </div>
+        {/* Customers must not generate internal job reports. */}
+        {(isAdmin || isWorker) && (
+          <div className="mb-4 flex flex-col justify-end gap-2 sm:flex-row">
+            <PDFButton job={job} variant="outline" />
+            <PDFButton job={job} variant="outline" saveToDatabase={true} />
+          </div>
+        )}
 
         {/* Status Update Section */}
         {canUpdateJob && !isEditing && (
@@ -1175,18 +1214,14 @@ const profitMargin =
                     {/* Display worker payment information if assigned to this job */}
                     {renderWorkerPayment()}
 
-                    <JobDescription description={job.description} />
+                    <JobDescription job={job} isCustomer={isClient} />
                   </>
                 )}
               </div>
 
               {/* Right column - Job stats */}
               <div className="lg:col-span-1 space-y-6">
-                <JobTimeline
-                  job={job}
-                  daysRemaining={daysRemaining}
-                  isOverdue={isOverdue}
-                />
+                <JobTimeline job={job} />
                 <JobStatusCard
                   status={job.status || "pending"}
                   progressPercentage={progressPercentage}
@@ -1389,65 +1424,120 @@ const profitMargin =
                 </CardContent>
               </Card>
 
-              {/* Upload / Replace PDF */}
-              {(isAdmin || isAssignedToMe) && (
+              {/* Admin and the owning customer can add R2-backed documents. */}
+              {(isAdmin || isClient) && (
                 <Card className="border-none shadow-lg">
-                  <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40 pb-3">
-                    <CardTitle className="text-lg flex items-center">
-                      <Upload className="h-5 w-5 mr-2 text-amber-500" />
-                      {job.pdfUrl ? "Replace PDF" : "Upload PDF"}
+                  <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50 pb-3 dark:from-amber-950/40 dark:to-yellow-950/40">
+                    <CardTitle className="flex items-center text-lg">
+                      <Upload className="mr-2 h-5 w-5 text-amber-500" />
+                      Upload Documents
                     </CardTitle>
                     <CardDescription>
-                      {job.pdfUrl
-                        ? "Uploading a new PDF will replace the current one"
-                        : "Attach a PDF document to this job"}
+                      Upload PDF, image, Word, Excel, CSV or TXT files. Maximum
+                      25 MB per file and 10 files at once.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="pt-4 space-y-3">
-                    {pdfFile ? (
-                      <div className="flex items-center gap-2 p-3 rounded-lg border">
-                        <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                        <span className="text-sm flex-1 truncate">
-                          {pdfFile.name}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => setPdfFile(null)}
-                        >
-                          <span className="text-xs">✕</span>
-                        </Button>
+
+                  <CardContent className="space-y-4 pt-4">
+                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-muted-foreground transition-colors hover:border-amber-400 hover:text-amber-600">
+                      <Paperclip className="h-5 w-5" />
+                      <span>Select one or more documents</span>
+
+                      <input
+                        type="file"
+                        multiple
+                        accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                        className="hidden"
+                        disabled={isUploadingDocuments}
+                        onChange={(event) => {
+                          const selectedFiles = Array.from(
+                            event.target.files || []
+                          );
+
+                          const invalidFile = selectedFiles.find(
+                            (file) => file.size > 25 * 1024 * 1024
+                          );
+
+                          if (invalidFile) {
+                            toast.error(
+                              `${invalidFile.name} exceeds the 25 MB limit`
+                            );
+                            event.target.value = "";
+                            return;
+                          }
+
+                          if (
+                            documentFiles.length + selectedFiles.length >
+                            10
+                          ) {
+                            toast.error(
+                              "You can upload a maximum of 10 files at once"
+                            );
+                            event.target.value = "";
+                            return;
+                          }
+
+                          setDocumentFiles((currentFiles) => [
+                            ...currentFiles,
+                            ...selectedFiles,
+                          ]);
+                          event.target.value = "";
+                        }}
+                      />
+                    </label>
+
+                    {documentFiles.length > 0 && (
+                      <div className="space-y-2">
+                        {documentFiles.map((file, index) => (
+                          <div
+                            key={`${file.name}-${file.size}-${index}`}
+                            className="flex items-center gap-3 rounded-md border p-3"
+                          >
+                            <FileText className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                            <span className="min-w-0 flex-1 truncate text-sm">
+                              {file.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {(file.size / 1024 / 1024).toFixed(2)} MB
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={isUploadingDocuments}
+                              onClick={() =>
+                                setDocumentFiles((currentFiles) =>
+                                  currentFiles.filter(
+                                    (_, fileIndex) => fileIndex !== index
+                                  )
+                                )
+                              }
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        ))}
                       </div>
-                    ) : (
-                      <label className="flex items-center justify-center gap-2 p-4 rounded-lg border-2 border-dashed cursor-pointer hover:border-amber-400 transition-colors text-muted-foreground hover:text-amber-500">
-                        <Paperclip className="h-4 w-4" />
-                        <span className="text-sm">Click to select a PDF</span>
-                        <input
-                          type="file"
-                          accept=".pdf,application/pdf"
-                          className="hidden"
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) setPdfFile(f);
-                          }}
-                        />
-                      </label>
                     )}
+
                     <Button
-                      onClick={handleUploadPdf}
-                      disabled={!pdfFile || isUploadingPdf}
+                      type="button"
                       className="w-full"
+                      disabled={
+                        documentFiles.length === 0 || isUploadingDocuments
+                      }
+                      onClick={handleUploadDocuments}
                     >
-                      {isUploadingPdf ? (
+                      {isUploadingDocuments ? (
                         <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Uploading...
                         </>
                       ) : (
                         <>
-                          <Upload className="h-4 w-4 mr-2" />
-                          {job.pdfUrl ? "Replace PDF" : "Upload PDF"}
+                          <Upload className="mr-2 h-4 w-4" />
+                          Upload {documentFiles.length || ""} Document
+                          {documentFiles.length === 1 ? "" : "s"}
                         </>
                       )}
                     </Button>

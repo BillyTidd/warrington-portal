@@ -31,7 +31,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Loader2, Plus, MoreHorizontal, Pen, Trash } from "lucide-react";
+import {
+  BadgePoundSterling,
+  Loader2,
+  MoreHorizontal,
+  Pen,
+  Plus,
+  Trash,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Layout } from "@/components/Layout";
 import api from "@/lib/api";
@@ -341,6 +348,18 @@ export default function ClientsPage() {
                             Copy client Name
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
+                          {client.customerAccountId && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                router.push(
+                                  `/admin/customers/${client.customerAccountId}/worker-types`
+                                )
+                              }
+                            >
+                              <BadgePoundSterling className="mr-2 h-4 w-4" />
+                              Worker Types &amp; Rates
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             onClick={() => {
                               setEditingClient(client);

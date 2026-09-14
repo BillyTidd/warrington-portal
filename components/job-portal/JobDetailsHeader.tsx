@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { format, parseISO } from "date-fns";
 import {
   ArrowLeft,
   ChevronRight,
@@ -49,8 +48,6 @@ interface JobDetailsHeaderProps {
   isAdmin: boolean;
   canUpdateJob: boolean;
   canEditJob: boolean;
-  daysRemaining: number;
-  isOverdue: boolean;
   progressPercentage: number;
   isAssignedToMe: boolean;
 }
@@ -68,8 +65,6 @@ export function JobDetailsHeader({
   isAdmin,
   canUpdateJob,
   canEditJob,
-  daysRemaining,
-  isOverdue,
   progressPercentage,
   isAssignedToMe,
 }: JobDetailsHeaderProps) {
@@ -82,7 +77,6 @@ export function JobDetailsHeader({
     (worker) => worker.userId === session?.user?.id
   );
   const paymentRate = currentWorker?.paymentRate || job.workerPaymentRate;
-  const hourlyRate = currentWorker?.hourlyRate || job.workerHourlyRate;
 
   const handleGeneratePDF = async () => {
     setIsGeneratingPDF(true);
@@ -137,14 +131,6 @@ export function JobDetailsHeader({
             )}
             <div className="flex items-center gap-2">
               <StatusBadge status={job.status || "pending"} variant="solid" />
-              {isOverdue && (
-                <StatusBadge
-                  status="overdue"
-                  variant="solid"
-                  label={`Overdue by ${Math.abs(daysRemaining)} days`}
-                />
-              )}
-
               {/* Show payment badge if assigned to me */}
               {isAssignedToMe && paymentRate && (
                 <Badge className="bg-emerald-500 hover:bg-emerald-600">
@@ -213,19 +199,22 @@ export function JobDetailsHeader({
                       Add Expenses/Progress
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem
-                    onClick={handleGeneratePDF}
-                    disabled={isGeneratingPDF}
-                  >
-                    {isGeneratingPDF ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Download className="mr-2 h-4 w-4" />
-                    )}
-                    {isGeneratingPDF
-                      ? "Generating PDF..."
-                      : "Download PDF Report"}
-                  </DropdownMenuItem>
+                  {session?.user?.role &&
+                    session.user.role !== "customer" && (
+                    <DropdownMenuItem
+                      onClick={handleGeneratePDF}
+                      disabled={isGeneratingPDF}
+                    >
+                      {isGeneratingPDF ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="mr-2 h-4 w-4" />
+                      )}
+                      {isGeneratingPDF
+                        ? "Generating PDF..."
+                        : "Download PDF Report"}
+                    </DropdownMenuItem>
+                  )}
                   {isAdmin && (
                     <DropdownMenuItem
                       onClick={() => setIsDeleteDialogOpen(true)}
@@ -242,7 +231,7 @@ export function JobDetailsHeader({
         </div>
 
         <div className="mt-6 pt-6 border-t border-white/20">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="text-white/80">
               <div className="text-xs uppercase">Client</div>
               <div className="font-medium mt-1">{job.clientName}</div>
@@ -252,12 +241,6 @@ export function JobDetailsHeader({
               <div className="font-medium mt-1 flex items-center">
                 <Users className="h-3 w-3 mr-1" />
                 {workerCount} {workerCount === 1 ? "Worker" : "Workers"}
-              </div>
-            </div>
-            <div className="text-white/80">
-              <div className="text-xs uppercase">Due Date</div>
-              <div className="font-medium mt-1">
-                {format(parseISO(job.expireDate), "MMM d, yyyy")}
               </div>
             </div>
             <div className="text-white/80">

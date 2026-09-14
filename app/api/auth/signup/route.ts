@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { hash } from "bcrypt";
 import clientPromise from "@/lib/mongodb";
+import { ensureCustomerWorkerTypes } from "@/lib/customer-worker-types";
 
 export async function POST(req: Request) {
   try {
@@ -59,6 +60,18 @@ export async function POST(req: Request) {
           upsert: true,
         }
       );
+
+      // The customer rates endpoint also initializes these lazily. Do not
+      // leave a successfully-created user unable to sign in if this optional
+      // setup is temporarily unavailable.
+      try {
+        await ensureCustomerWorkerTypes(db, result.insertedId);
+      } catch (workerTypeError) {
+        console.error(
+          "Unable to initialize customer worker types during signup:",
+          workerTypeError
+        );
+      }
     }
 
 

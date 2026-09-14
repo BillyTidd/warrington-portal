@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { parseISO, differenceInDays } from "date-fns";
 import {
   Loader2,
   AlertTriangle,
@@ -485,8 +484,6 @@ costTreatment: isAdmin
     );
   }
 
-  const daysRemaining = differenceInDays(parseISO(job.expireDate), new Date());
-  const isOverdue = daysRemaining < 0 && job.status !== "completed";
   const progressPercentage =
     job.status === "completed" ? 100 : job.status === "in-progress" ? 50 : 0;
   const totalCost =
@@ -508,8 +505,6 @@ costTreatment: isAdmin
           isAdmin={isAdmin}
           canEditJob={canEditJob}
           canUpdateJob={canUpdateJob}
-          daysRemaining={daysRemaining}
-          isOverdue={isOverdue}
           progressPercentage={progressPercentage}
           setEditedJob={setEditedJob}
           setIsEditing={setIsEditing}
@@ -519,17 +514,19 @@ costTreatment: isAdmin
           isAssignedToMe={isAssignedToMe}
         />
 
-        {/* PDF Generation Button */}
-        <div className="flex justify-end mb-4">
-          <Button
-            variant="outline"
-            onClick={handleGeneratePDF}
-            className="flex items-center gap-2"
-          >
-            <FileText className="h-4 w-4" />
-            Generate PDF Report
-          </Button>
-        </div>
+        {/* Internal PDF reports are not available in the customer portal. */}
+        {["admin", "employee"].includes(session?.user?.role || "") && (
+          <div className="mb-4 flex justify-end">
+            <Button
+              variant="outline"
+              onClick={handleGeneratePDF}
+              className="flex items-center gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              Generate PDF Report
+            </Button>
+          </div>
+        )}
 
         {/* Status Update Section */}
         {canUpdateJob && !isEditing && (
@@ -593,18 +590,17 @@ costTreatment: isAdmin
                     {/* Display worker payment information if assigned to this job */}
                     {renderWorkerPayment()}
 
-                    <JobDescription description={job.description} />
+                    <JobDescription
+                      job={job}
+                      isCustomer={session?.user?.role === "customer"}
+                    />
                   </>
                 )}
               </div>
 
               {/* Right column - Job stats */}
               <div className="lg:col-span-1 space-y-6">
-                <JobTimeline
-                  job={job}
-                  daysRemaining={daysRemaining}
-                  isOverdue={isOverdue}
-                />
+                <JobTimeline job={job} />
                 <JobStatusCard
                   status={job.status || "pending"}
                   progressPercentage={progressPercentage}

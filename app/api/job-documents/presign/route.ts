@@ -18,7 +18,10 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user || session.user.role !== "customer") {
+    if (
+      !session?.user ||
+      !["admin", "customer"].includes(session.user.role || "")
+    ) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -32,8 +35,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const uploadContext =
+      session.user.role === "admin"
+        ? "admin-job-documents"
+        : "customer-job-documents";
+
     const objectKey =
-      `estimate-documents/${session.user.id}/` +
+      `${uploadContext}/${session.user.id}/` +
       `${randomUUID()}-${safeFilename(fileName)}`;
 
     const { client, bucket } = getObjectStorage();

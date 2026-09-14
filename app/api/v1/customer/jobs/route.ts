@@ -188,9 +188,44 @@ export async function GET(request: NextRequest) {
             .limit(limit)
             .toArray();
 
+    const normalizedJobs = jobs.map((job: any) => {
+      const rawPrice =
+        job.clientPrice ??
+        job.estimatedCost?.totalCost ??
+        job.estimatedCosts?.totalCost ??
+        job.jobEstimate?.estimatedCost?.totalCost ??
+        job.jobEstimate?.estimatedCosts?.totalCost ??
+        0;
+
+      const parsedPrice = Number(rawPrice);
+      const safeJob = { ...job };
+      delete safeJob.workerPaymentRate;
+      delete safeJob.workerHourlyRate;
+      delete safeJob.progressLogs;
+      delete safeJob.estimatedCost;
+      delete safeJob.estimatedCosts;
+      delete safeJob.jobEstimate;
+
+      return {
+        ...safeJob,
+        clientPrice: Number.isFinite(parsedPrice) ? parsedPrice : 0,
+        managerName:
+          job.managerName ||
+          job.jobEstimate?.managerDetails?.fullName ||
+          job.jobEstimate?.manager ||
+          null,
+        workers: Array.isArray(job.workers)
+          ? job.workers.map((worker: any) => ({
+              userId: worker.userId,
+              workerName: worker.workerName,
+            }))
+          : [],
+      };
+    });
+
     return NextResponse.json(
       {
-        jobs,
+        jobs: normalizedJobs,
         pagination: {
           total,
           page,
