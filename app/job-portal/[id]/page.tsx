@@ -24,6 +24,7 @@ import {
   Sun,
   Navigation,
   Hash,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -74,6 +75,7 @@ import { CostBreakdown } from "@/components/job-portal/CostBreakdown";
 import { PDFButton } from "@/components/job-portal/PDFButton";
 import { ProgressEditModal } from "@/components/job-portal/ProgressEditModal";
 import { WorkerConfirmations } from "@/components/job-portal/WorkerConfirmations";
+import type { JobDocument } from "@/types/job-document";
 
 const DOCUMENT_MIME_TYPES: Record<string, string> = {
   pdf: "application/pdf",
@@ -123,6 +125,10 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   // R2 job-document upload state
   const [documentFiles, setDocumentFiles] = useState<File[]>([]);
   const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
+  const [documentToDelete, setDocumentToDelete] =
+    useState<JobDocument | null>(null);
+  const [isDeletingDocument, setIsDeletingDocument] =
+    useState(false);
 
   const isAdmin = session?.user?.role === "admin";
   const isClient = session?.user?.role === "customer";
@@ -569,6 +575,47 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
       );
     } finally {
       setIsUploadingDocuments(false);
+    }
+  };
+
+  const handleDeleteDocument = async () => {
+    if (!documentToDelete || !isAdmin) {
+      return;
+    }
+
+    setIsDeletingDocument(true);
+
+    try {
+      const response = await fetch(
+        `/api/job-documents/${encodeURIComponent(
+          documentToDelete._id
+        )}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Unable to remove document"
+        );
+      }
+
+      setDocumentToDelete(null);
+      await fetchJobDetails(false);
+      toast.success("Document removed successfully");
+    } catch (error) {
+      console.error("Document deletion failed:", error);
+
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to remove document"
+      );
+    } finally {
+      setIsDeletingDocument(false);
     }
   };
 
@@ -1364,16 +1411,33 @@ const profitMargin =
                                 </p>
                               </div>
 
-                              <a
-                                href={document.downloadPath}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                <Button variant="outline" size="sm">
-                                  <ExternalLink className="mr-1 h-4 w-4" />
-                                  Open
-                                </Button>
-                              </a>
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={document.downloadPath}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  <Button variant="outline" size="sm">
+                                    <ExternalLink className="mr-1 h-4 w-4" />
+                                    Open
+                                  </Button>
+                                </a>
+
+                                {isAdmin && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950"
+                                    onClick={() =>
+                                      setDocumentToDelete(document)
+                                    }
+                                  >
+                                    <Trash2 className="mr-1 h-4 w-4" />
+                                    Remove
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
@@ -1756,6 +1820,56 @@ const profitMargin =
                   </>
                 ) : (
                   "Delete Job"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={Boolean(documentToDelete)}
+          onOpenChange={(open) => {
+            if (!open && !isDeletingDocument) {
+              setDocumentToDelete(null);
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Remove this document permanently?
+              </AlertDialogTitle>
+
+              <AlertDialogDescription>
+                {documentToDelete?.originalName || "This document"} will be
+                removed from the job and from private file storage. This action
+                cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeletingDocument}>
+                Cancel
+              </AlertDialogCancel>
+
+              <AlertDialogAction
+                className="bg-red-600 hover:bg-red-700"
+                disabled={isDeletingDocument}
+                onClick={(event) => {
+                  event.preventDefault();
+                  handleDeleteDocument();
+                }}
+              >
+                {isDeletingDocument ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Removing...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Remove Document
+                  </>
                 )}
               </AlertDialogAction>
             </AlertDialogFooter>

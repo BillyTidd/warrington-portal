@@ -155,14 +155,17 @@ export async function POST(
       );
     }
 
-    if (
-      session.user.role !== "customer" ||
-      session.user.id !== params.customerAccountId
-    ) {
+    const isAdmin = session.user.role === "admin";
+
+    const isCustomerOwner =
+      session.user.role === "customer" &&
+      session.user.id === params.customerAccountId;
+
+    if (!isAdmin && !isCustomerOwner) {
       return NextResponse.json(
         {
           message:
-            "You can create managers only for your own account",
+            "You do not have permission to create managers for this account",
         },
         { status: 403 }
       );
@@ -259,6 +262,7 @@ export async function POST(
       phone: phone || null,
       status: "active",
       createdBy: session.user.id,
+      createdByRole: session.user.role,
       createdAt: now,
       updatedAt: now,
       deactivatedAt: null,
@@ -276,7 +280,23 @@ export async function POST(
      */
     await db.collection("clients").updateOne(
       {
-        customerAccountId,
+        $or: [
+          {
+            customerAccountId,
+          },
+          {
+            customerAccountId:
+              params.customerAccountId,
+          },
+          {
+            customer_account_id:
+              customerAccountId,
+          },
+          {
+            customer_account_id:
+              params.customerAccountId,
+          },
+        ],
       },
       {
         $set: {

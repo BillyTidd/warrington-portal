@@ -130,42 +130,31 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex h-full flex-col">
       <div
         className={`flex h-14 items-center justify-center border-b px-4 ${
-          isCustomerLayout
-            ? "bg-gradient-to-r from-blue-600 to-indigo-600"
-            : theme !== "dark"
-            ? "bg-white"
-            : ""
+          theme !== "dark" ? "bg-white" : "bg-background"
         }`}
       >
         <Link
-          className={`flex items-center gap-2 font-semibold ${
-            isCustomerLayout ? "text-white" : ""
-          }`}
+          className="flex w-full items-center justify-center"
           href={isCustomerLayout ? "/customer/dashboard" : "/"}
         >
-          {isCustomerLayout ? (
-            <>
-              <Package className="h-6 w-6" />
-              <span>Customer Portal</span>
-            </>
+          {theme === "dark" ? (
+            <Image
+              src="/new-logo-dark.png"
+              alt="Warrington's"
+              width={190}
+              height={64}
+              className="h-10 w-auto object-contain"
+              priority
+            />
           ) : (
-            <>
-              {theme === "dark" ? (
-                <Image
-                  src={"/new-logo-dark.png"}
-                  alt="logo"
-                  width={600}
-                  height={200}
-                />
-              ) : (
-                <Image
-                  src={"/new-logo-light.jpg"}
-                  alt="logo"
-                  width={600}
-                  height={200}
-                />
-              )}
-            </>
+            <Image
+              src="/new-logo-light.jpg"
+              alt="Warrington's"
+              width={190}
+              height={64}
+              className="h-10 w-auto object-contain"
+              priority
+            />
           )}
         </Link>
       </div>

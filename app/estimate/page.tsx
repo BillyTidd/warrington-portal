@@ -26,6 +26,7 @@ import {
   Paperclip,
   FileText as FileTextIcon,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -116,6 +117,23 @@ interface CostEstimate {
   };
 }
 
+interface WorkerTypeApiRecord {
+  value?: unknown;
+  name?: unknown;
+  icon?: unknown;
+}
+
+interface WorkerTypeOption {
+  value: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+interface VehicleOption {
+  value: string;
+  label: string;
+}
+
 const MAX_DOCUMENT_SIZE = 25 * 1024 * 1024;
 const MAX_DOCUMENTS_PER_ESTIMATE = 10;
 
@@ -158,7 +176,7 @@ function getFileIdentifier(file: File) {
 
 
 // Icon mapping for dynamic worker types
-const iconMap: { [key: string]: any } = {
+const iconMap: Record<string, LucideIcon> = {
   Crown,
   Wrench,
   HardHat,
@@ -173,8 +191,10 @@ export default function EstimatePage() {
   const [showLoginDialog, setShowLoginDialog] = useState(false);
 
   // Dynamic data state
-  const [workerTypeOptions, setWorkerTypeOptions] = useState<any[]>([]);
-  const [vehicleOptions, setVehicleOptions] = useState<any[]>([]);
+  const [workerTypeOptions, setWorkerTypeOptions] =
+    useState<WorkerTypeOption[]>([]);
+  const [vehicleOptions, setVehicleOptions] =
+    useState<VehicleOption[]>([]);
   const [loadingDynamicData, setLoadingDynamicData] = useState(true);
 
   const [formData, setFormData] = useState<EstimateData>({
@@ -227,29 +247,97 @@ export default function EstimatePage() {
     return day === 0 || day === 6;
   })();
 
-  // Fetch dynamic worker types and vehicles
+  // Customers must see only the worker types and rates configured for
+  // their own account. Other signed-in roles and the public preview use
+  // the global worker-type list.
   useEffect(() => {
     const fetchDynamicData = async () => {
-      try {
-        // Fetch worker types
-        const workerTypesRes = await fetch("/api/worker-types");
-        if (workerTypesRes.ok) {
-          const workerTypesData = await workerTypesRes.json();
-          const mappedWorkerTypes = workerTypesData.map((wt: any) => ({
-            value: wt.value,
-            label: wt.name,
-            icon: iconMap[wt.icon] || HardHat,
-          }));
-          setWorkerTypeOptions(mappedWorkerTypes);
+      if (status === "loading") {
+        return;
+      }
 
-          // Set default worker type
-          if (mappedWorkerTypes.length > 0) {
-            setFormData((prev) => ({
-              ...prev,
-              workerTypes: [mappedWorkerTypes[0].value],
-            }));
-          }
+      setLoadingDynamicData(true);
+
+      try {
+        const workerTypesUrl =
+          status === "authenticated" &&
+          session?.user?.role === "customer" &&
+          session.user.id
+            ? `/api/v1/customers/${session.user.id}/worker-types`
+            : "/api/worker-types";
+
+        const workerTypesRes = await fetch(workerTypesUrl, {
+          cache: "no-store",
+        });
+
+        const workerTypesData = await workerTypesRes.json();
+
+        if (!workerTypesRes.ok) {
+          throw new Error(
+            workerTypesData.message ||
+              "Unable to load worker types"
+          );
         }
+
+        const workerTypeRecords = (
+          Array.isArray(workerTypesData)
+            ? workerTypesData
+            : []
+        ) as WorkerTypeApiRecord[];
+
+        const mappedWorkerTypes = workerTypeRecords
+          .map((workerType) => {
+            const value = String(
+              workerType.value || ""
+            ).trim();
+
+            const label = String(
+              workerType.name || value
+            ).trim();
+
+            const iconName = String(
+              workerType.icon || ""
+            );
+
+            return {
+              value,
+              label,
+              icon: iconMap[iconName] || HardHat,
+            };
+          })
+          .filter((workerType) => workerType.value);
+
+        setWorkerTypeOptions(mappedWorkerTypes);
+
+        setFormData((previous) => {
+          const allowedValues = new Set(
+            mappedWorkerTypes.map(
+              (workerType) => workerType.value
+            )
+          );
+
+          const defaultWorkerType =
+            mappedWorkerTypes[0]?.value || "";
+
+          const selectedWorkerTypes = Array.from(
+            {
+              length: previous.numberOfWorkers,
+            },
+            (_, index) => {
+              const currentValue =
+                previous.workerTypes[index];
+
+              return allowedValues.has(currentValue)
+                ? currentValue
+                : defaultWorkerType;
+            }
+          );
+
+          return {
+            ...previous,
+            workerTypes: selectedWorkerTypes,
+          };
+        });
 
         // Fetch vehicles
         const vehiclesRes = await fetch("/api/vehicles");
@@ -271,14 +359,24 @@ export default function EstimatePage() {
         }
       } catch (error) {
         console.error("Error fetching dynamic data:", error);
-        toast.error("Failed to load worker types and vehicles");
+        setWorkerTypeOptions([]);
+
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Failed to load worker types and vehicles"
+        );
       } finally {
         setLoadingDynamicData(false);
       }
     };
 
     fetchDynamicData();
-  }, []);
+  }, [
+    session?.user?.id,
+    session?.user?.role,
+    status,
+  ]);
 
 
 
@@ -412,6 +510,25 @@ export default function EstimatePage() {
     }
     if (!formData.numberOfHours || formData.numberOfHours < 1) {
       errors.push("Number of hours is required");
+    }
+
+    if (workerTypeOptions.length === 0) {
+      errors.push(
+        "No worker types are available for your account. Please contact Warrington's."
+      );
+    } else if (
+      formData.workerTypes.length <
+        formData.numberOfWorkers ||
+      formData.workerTypes.some(
+        (workerType) =>
+          !workerTypeOptions.some(
+            (option) => option.value === workerType
+          )
+      )
+    ) {
+      errors.push(
+        "Select an available worker type for every worker"
+      );
     }
     if (!formData.jobDate) {
       errors.push("Job date is required");
@@ -1200,7 +1317,11 @@ export default function EstimatePage() {
                         </span>
                         <Select
                           value={
-                            formData.workerTypes[index] || "general-fitter"
+                            formData.workerTypes[index] || undefined
+                          }
+                          disabled={
+                            loadingDynamicData ||
+                            workerTypeOptions.length === 0
                           }
                           onValueChange={(value) =>
                             handleWorkerTypeChange(index, value)
@@ -1213,7 +1334,13 @@ export default function EstimatePage() {
                                 : "bg-white border-slate-300 text-slate-900"
                             }`}
                           >
-                            <SelectValue />
+                            <SelectValue
+                              placeholder={
+                                loadingDynamicData
+                                  ? "Loading worker types..."
+                                  : "Select a worker type"
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent>
                             {workerTypeOptions.map((option) => (
@@ -1232,6 +1359,16 @@ export default function EstimatePage() {
                       </div>
                     )
                   )}
+
+                  {!loadingDynamicData &&
+                    workerTypeOptions.length === 0 && (
+                      <p className="text-sm text-red-600">
+                        No worker types are currently available
+                        for your account. Please contact
+                        Warrington&apos;s before requesting an
+                        estimate.
+                      </p>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1634,7 +1771,11 @@ export default function EstimatePage() {
 
               <Button
                 onClick={calculateEstimate}
-                disabled={isCalculating}
+                disabled={
+                  isCalculating ||
+                  loadingDynamicData ||
+                  workerTypeOptions.length === 0
+                }
                 className="w-full"
                 size="lg"
               >

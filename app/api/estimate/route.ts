@@ -1,5 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { ObjectId } from "mongodb";
+
+import { authOptions } from "@/lib/auth";
+import { ensureCustomerWorkerTypes } from "@/lib/customer-worker-types";
 import clientPromise from "@/lib/mongodb";
 
 interface EstimateRequest {
@@ -223,8 +227,7 @@ function estimateDistanceByPostcode(postcode: string): number {
 
 export async function POST(request: NextRequest) {
   try {
-    // Get session without authOptions - use the default NextAuth configuration
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
 
     console.log("Session in API:", session); // Debug log
 
@@ -341,14 +344,61 @@ export async function POST(request: NextRequest) {
     // Calculate travel hours (rounded up to nearest whole hour)
     const durationHours = Math.ceil(duration / 60);
 
-    // Fetch worker types from database
+    // Fetch the authenticated customer's own worker types and rates. This is
+    // also enforced here on the server so a customer cannot submit a global
+    // or another customer's worker-type code manually.
     const client = await clientPromise;
     const db = client.db();
 
-    const workerTypesFromDb = await db
-      .collection("worker-types")
-      .find({})
-      .toArray();
+    let workerTypesFromDb;
+
+    if (session.user.role === "customer") {
+      if (
+        !session.user.id ||
+        !ObjectId.isValid(session.user.id)
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Your customer account could not be identified. Please log in again.",
+          },
+          { status: 403 }
+        );
+      }
+
+      const customerAccountId = new ObjectId(
+        session.user.id
+      );
+
+      await ensureCustomerWorkerTypes(
+        db,
+        customerAccountId
+      );
+
+      workerTypesFromDb = await db
+        .collection("customer_worker_types")
+        .find({
+          customer_account_id: customerAccountId,
+        })
+        .sort({ name: 1 })
+        .toArray();
+    } else {
+      workerTypesFromDb = await db
+        .collection("worker-types")
+        .find({})
+        .sort({ name: 1 })
+        .toArray();
+    }
+
+    if (workerTypesFromDb.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            "No worker types are available for this account. Please contact Warrington's.",
+        },
+        { status: 400 }
+      );
+    }
 
     const vehiclesFromDb = await db.collection("vehicles").find({}).toArray();
 
@@ -356,28 +406,55 @@ export async function POST(request: NextRequest) {
     const WORKER_RATES: {
       [key: string]: { dayRate: number; overtimeRate: number; label: string };
     } = {};
-    workerTypesFromDb.forEach((wt: any) => {
+    workerTypesFromDb.forEach((wt) => {
       WORKER_RATES[wt.value] = {
-        dayRate: wt.dayRate,
-        overtimeRate: wt.overtimeRate,
+        dayRate: Number(wt.dayRate) || 0,
+        overtimeRate: Number(wt.overtimeRate) || 0,
         label: wt.name,
       };
     });
 
     // Create vehicle rates map from database
     const VEHICLE_RATES: { [key: string]: number } = {};
-    vehiclesFromDb.forEach((v: any) => {
+    vehiclesFromDb.forEach((v) => {
       const vehicleKey = v.name.toLowerCase().replace(/\s+/g, "-");
       VEHICLE_RATES[vehicleKey] = v.pricePerMile;
     });
 
     // Ensure we have worker types for each worker
-    const finalWorkerTypes = [...workerTypes];
-    const defaultWorkerType = workerTypesFromDb[0]?.value || "general-fitter";
+    const defaultWorkerType = String(
+      workerTypesFromDb[0].value
+    );
+
+    const finalWorkerTypes = (
+      Array.isArray(workerTypes) ? workerTypes : []
+    )
+      .slice(0, numberOfWorkers)
+      .map((workerType) =>
+        String(workerType || "").trim()
+      )
+      .map((workerType) =>
+        workerType || defaultWorkerType
+      );
+
     while (finalWorkerTypes.length < numberOfWorkers) {
       finalWorkerTypes.push(defaultWorkerType);
     }
-    finalWorkerTypes.splice(numberOfWorkers); // Remove excess
+
+    const unavailableWorkerType =
+      finalWorkerTypes.find(
+        (workerType) => !WORKER_RATES[workerType]
+      );
+
+    if (unavailableWorkerType) {
+      return NextResponse.json(
+        {
+          error:
+            "One or more selected worker types are not available for your account. Refresh the page and select an available worker type.",
+        },
+        { status: 400 }
+      );
+    }
 
     // Add travel hours to total hours for labor calculation — London uses a flat
     // travel rate and doesn't bill travel time, so only add it for other teams
@@ -391,10 +468,6 @@ export async function POST(request: NextRequest) {
 
     finalWorkerTypes.forEach((workerType) => {
       const rates = WORKER_RATES[workerType];
-      if (!rates) {
-        console.log(`Worker type not found: ${workerType}`);
-        return;
-      }
 
       const overtimeHours = Math.max(totalHoursWithTravel - 10, 0);
       const regularCost = rates.dayRate; // Full day rate for up to 10 hours

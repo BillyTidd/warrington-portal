@@ -38,6 +38,7 @@ import {
   Pen,
   Plus,
   Trash,
+  UsersRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Layout } from "@/components/Layout";
@@ -349,16 +350,29 @@ export default function ClientsPage() {
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           {client.customerAccountId && (
-                            <DropdownMenuItem
-                              onClick={() =>
-                                router.push(
-                                  `/admin/customers/${client.customerAccountId}/worker-types`
-                                )
-                              }
-                            >
-                              <BadgePoundSterling className="mr-2 h-4 w-4" />
-                              Worker Types &amp; Rates
-                            </DropdownMenuItem>
+                            <>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  router.push(
+                                    `/admin/customers/${client.customerAccountId}/managers`
+                                  )
+                                }
+                              >
+                                <UsersRound className="mr-2 h-4 w-4" />
+                                Manage Managers
+                              </DropdownMenuItem>
+
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  router.push(
+                                    `/admin/customers/${client.customerAccountId}/worker-types`
+                                  )
+                                }
+                              >
+                                <BadgePoundSterling className="mr-2 h-4 w-4" />
+                                Worker Types &amp; Rates
+                              </DropdownMenuItem>
+                            </>
                           )}
                           <DropdownMenuItem
                             onClick={() => {

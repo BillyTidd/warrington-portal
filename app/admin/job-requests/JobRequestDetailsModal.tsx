@@ -23,6 +23,8 @@ import {
   Hash,
   Navigation,
   Paperclip,
+  Loader2,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -39,10 +41,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Link from "next/link";
+import { toast } from "sonner";
 import type { BookingRequest, EstimatedCost } from "@/types/booking";
 import type { Session } from "next-auth";
+import type { JobDocument } from "@/types/job-document";
 
 interface JobRequestDetailsModalProps {
   isOpen: boolean;
@@ -56,6 +70,7 @@ interface JobRequestDetailsModalProps {
     adminNotes: string,
     estimatedCost?: EstimatedCost
   ) => Promise<void>;
+  onDocumentDeleted: (documentId: string) => void;
   isUpdating: boolean;
 }
 
@@ -102,6 +117,7 @@ export function JobRequestDetailsModal({
   isAdmin,
   session,
   onUpdateStatus,
+  onDocumentDeleted,
   isUpdating,
 }: JobRequestDetailsModalProps) {
   const [adminNotes, setAdminNotes] = useState("");
@@ -112,6 +128,10 @@ export function JobRequestDetailsModal({
   const [originalLaborCost, setOriginalLaborCost] = useState<string>("");
   const [originalMaterialCost, setOriginalMaterialCost] = useState<string>("");
   const [originalTravelCost, setOriginalTravelCost] = useState<string>("");
+  const [documentToDelete, setDocumentToDelete] =
+    useState<JobDocument | null>(null);
+  const [isDeletingDocument, setIsDeletingDocument] =
+    useState(false);
 
   useEffect(() => {
     if (request) {
@@ -130,6 +150,7 @@ export function JobRequestDetailsModal({
       setOriginalLaborCost(labor);
       setOriginalMaterialCost(material);
       setOriginalTravelCost(travel);
+      setDocumentToDelete(null);
     }
   }, [request]);
 
@@ -168,12 +189,54 @@ export function JobRequestDetailsModal({
     );
   };
 
+  const handleDeleteDocument = async () => {
+    if (!documentToDelete || !isAdmin) {
+      return;
+    }
+
+    setIsDeletingDocument(true);
+
+    try {
+      const response = await fetch(
+        `/api/job-documents/${encodeURIComponent(
+          documentToDelete._id
+        )}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Unable to remove document"
+        );
+      }
+
+      onDocumentDeleted(documentToDelete._id);
+      setDocumentToDelete(null);
+      toast.success("Document removed successfully");
+    } catch (error) {
+      console.error("Document deletion failed:", error);
+
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to remove document"
+      );
+    } finally {
+      setIsDeletingDocument(false);
+    }
+  };
+
   if (!request) return null;
 
   const isPending = request.status === "pending";
   const isConverted = request.status === "converted";
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0">
         {/* Fixed Header */}
@@ -289,16 +352,33 @@ export function JobRequestDetailsModal({
                 </p>
               </div>
 
-              <a
-                href={document.downloadPath}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Button variant="outline" size="sm">
-                  <ExternalLink className="mr-1 h-4 w-4" />
-                  Open
-                </Button>
-              </a>
+              <div className="flex items-center gap-2">
+                <a
+                  href={document.downloadPath}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button variant="outline" size="sm">
+                    <ExternalLink className="mr-1 h-4 w-4" />
+                    Open
+                  </Button>
+                </a>
+
+                {isAdmin && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950"
+                    onClick={() =>
+                      setDocumentToDelete(document)
+                    }
+                  >
+                    <Trash2 className="mr-1 h-4 w-4" />
+                    Remove
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -930,5 +1010,56 @@ export function JobRequestDetailsModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog
+      open={Boolean(documentToDelete)}
+      onOpenChange={(open) => {
+        if (!open && !isDeletingDocument) {
+          setDocumentToDelete(null);
+        }
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            Remove this document permanently?
+          </AlertDialogTitle>
+
+          <AlertDialogDescription>
+            {documentToDelete?.originalName || "This document"} will be
+            removed from the estimate and from private file storage. This
+            action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isDeletingDocument}>
+            Cancel
+          </AlertDialogCancel>
+
+          <AlertDialogAction
+            className="bg-red-600 hover:bg-red-700"
+            disabled={isDeletingDocument}
+            onClick={(event) => {
+              event.preventDefault();
+              handleDeleteDocument();
+            }}
+          >
+            {isDeletingDocument ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Removing...
+              </>
+            ) : (
+              <>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Remove Document
+              </>
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

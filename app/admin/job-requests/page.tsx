@@ -141,6 +141,31 @@ export default function JobRequestsPage() {
     setIsDialogOpen(true);
   };
 
+  const handleDocumentDeleted = (documentId: string) => {
+    const withoutDocument = (request: BookingRequest) => ({
+      ...request,
+      documents: request.documents?.filter(
+        (document) => document._id !== documentId
+      ),
+    });
+
+    setRequests((currentRequests) =>
+      currentRequests.map((request) =>
+        request.documents?.some(
+          (document) => document._id === documentId
+        )
+          ? withoutDocument(request)
+          : request
+      )
+    );
+
+    setSelectedRequest((currentRequest) =>
+      currentRequest
+        ? withoutDocument(currentRequest)
+        : null
+    );
+  };
+
   const handleUpdateStatus = async (
     status: "approved" | "rejected",
     requestId: string,
@@ -346,6 +371,7 @@ export default function JobRequestsPage() {
           isAdmin={isAdmin}
           session={session}
           onUpdateStatus={handleUpdateStatus}
+          onDocumentDeleted={handleDocumentDeleted}
           // onUpdateDetails={handleUpdateDetails}
           isUpdating={isUpdating}
         />

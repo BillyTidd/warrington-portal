@@ -46,14 +46,17 @@ export async function PATCH(
       );
     }
 
-    if (
-      session.user.role !== "customer" ||
-      session.user.id !== params.customerAccountId
-    ) {
+    const isAdmin = session.user.role === "admin";
+
+    const isCustomerOwner =
+      session.user.role === "customer" &&
+      session.user.id === params.customerAccountId;
+
+    if (!isAdmin && !isCustomerOwner) {
       return NextResponse.json(
         {
           message:
-            "You can update only your own manager records",
+            "You do not have permission to update managers for this account",
         },
         { status: 403 }
       );
@@ -201,6 +204,8 @@ export async function PATCH(
               managerStatus === "inactive"
                 ? existingManager.deactivatedAt || now
                 : null,
+            updatedBy: session.user.id,
+            updatedByRole: session.user.role,
             updatedAt: now,
           },
         },
