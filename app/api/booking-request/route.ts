@@ -306,6 +306,36 @@ export async function POST(request: NextRequest) {
       };
     }
 
+    // London estimates have no vehicle or travel charge. Normalize the values
+    // again on the server so stale or manually modified browser data cannot
+    // reintroduce the previous London charges.
+    if (jobEstimateToSave.team === "london") {
+      jobEstimateToSave = {
+        ...jobEstimateToSave,
+        vehicleType: "",
+      };
+    }
+
+    const estimatedCostToSave =
+      jobEstimateToSave.team === "london"
+        ? {
+            ...estimatedCost,
+            travelCost: 0,
+            totalCost:
+              (Number(estimatedCost.laborCost) || 0) +
+              (Number(estimatedCost.materialCost) || 0),
+            breakdown: {
+              ...estimatedCost.breakdown,
+              travel: {
+                ...estimatedCost.breakdown?.travel,
+                vehicleType: "",
+                rate: 0,
+                cost: 0,
+              },
+            },
+          }
+        : estimatedCost;
+
 
 
 
@@ -430,7 +460,7 @@ export async function POST(request: NextRequest) {
       customerCompany: customerCompany || null,
       customerId: session.user.id,
       jobEstimate: jobEstimateToSave,
-      estimatedCost,
+      estimatedCost: estimatedCostToSave,
       status: "pending",
       createdAt: now,
       updatedAt: now,

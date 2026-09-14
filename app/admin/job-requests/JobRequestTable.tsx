@@ -342,7 +342,8 @@ export function JobRequestTable({
                           )}
                         </div>
                       )}
-                      {request.jobEstimate.vehicleType && (
+                      {request.jobEstimate.team !== "london" &&
+                        request.jobEstimate.vehicleType && (
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           <Truck className="h-3 w-3" />
                           {request.jobEstimate.vehicleType
@@ -350,7 +351,8 @@ export function JobRequestTable({
                             .replace(/\b\w/g, (l) => l.toUpperCase())}
                         </div>
                       )}
-                      {request.estimatedCost.breakdown?.travel && (
+                      {request.jobEstimate.team !== "london" &&
+                        request.estimatedCost.breakdown?.travel && (
                         <div className="text-xs text-muted-foreground">
                           {request.estimatedCost.breakdown.travel.distance}{" "}
                           miles
@@ -361,15 +363,23 @@ export function JobRequestTable({
                   <TableCell>
                     <div className="space-y-1">
                       <div className="font-bold text-lg text-green-600">
-                        £{request.estimatedCost.totalCost.toFixed(2)}
+                        £
+                        {(request.jobEstimate.team === "london"
+                          ? request.estimatedCost.laborCost +
+                            (request.estimatedCost.materialCost || 0)
+                          : request.estimatedCost.totalCost
+                        ).toFixed(2)}
                       </div>
                       <div className="text-xs text-muted-foreground space-y-0.5">
                         <div>
                           Labor: £{request.estimatedCost.laborCost.toFixed(2)}
                         </div>
-                        <div>
-                          Travel: £{request.estimatedCost.travelCost.toFixed(2)}
-                        </div>
+                        {request.jobEstimate.team !== "london" && (
+                          <div>
+                            Travel: £
+                            {request.estimatedCost.travelCost.toFixed(2)}
+                          </div>
+                        )}
                         {request.estimatedCost.materialCost !== undefined && (
                           <div>
                             Materials: £

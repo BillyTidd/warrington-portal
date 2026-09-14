@@ -349,11 +349,15 @@ export default function EstimatePage() {
           }));
           setVehicleOptions(mappedVehicles);
 
-          // Set default vehicle
+          // Select a vehicle only for non-London jobs. London jobs do not
+          // have a vehicle or travel charge.
           if (mappedVehicles.length > 0) {
             setFormData((prev) => ({
               ...prev,
-              vehicleType: mappedVehicles[0].value,
+              vehicleType:
+                prev.team === "london"
+                  ? ""
+                  : prev.vehicleType || mappedVehicles[0].value,
             }));
           }
         }
@@ -1216,13 +1220,24 @@ export default function EstimatePage() {
                     </Label>
                     <Select
                       value={formData.team}
-                      onValueChange={(value) =>
+                      onValueChange={(value) => {
                         setFormData((prev) => ({
                           ...prev,
                           team: value,
                           londonStartingPoint: "",
-                        }))
-                      }
+                          vehicleType:
+                            value === "london"
+                              ? ""
+                              : prev.vehicleType ||
+                                vehicleOptions[0]?.value ||
+                                "",
+                        }));
+
+                        // The previous estimate is no longer valid after the
+                        // customer changes teams.
+                        setEstimate(null);
+                        setShowEstimate(false);
+                      }}
                     >
                       <SelectTrigger
                         className={`mt-1 ${
@@ -1434,47 +1449,48 @@ export default function EstimatePage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label
-                      htmlFor="vehicleType"
-                      className={`${
-                        theme === "dark" ? "text-slate-200" : "text-slate-700"
-                      } ${isLondon ? "opacity-50" : ""}`}
-                    >
-                      Vehicle Type
-                      {isLondon && (
-                        <span className="ml-2 text-xs font-normal text-slate-400">
-                          (£30 flat — London)
-                        </span>
-                      )}
-                    </Label>
-                    <Select
-                      value={formData.vehicleType}
-                      onValueChange={(value) =>
-                        setFormData((prev) => ({ ...prev, vehicleType: value }))
-                      }
-                      disabled={isLondon}
-                    >
-                      <SelectTrigger
-                        className={`mt-1 ${
+                {!isLondon && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label
+                        htmlFor="vehicleType"
+                        className={
                           theme === "dark"
-                            ? "bg-slate-700 border-slate-600 text-white"
-                            : "bg-white border-slate-300 text-slate-900"
-                        } ${isLondon ? "opacity-50 cursor-not-allowed" : ""}`}
+                            ? "text-slate-200"
+                            : "text-slate-700"
+                        }
                       >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {vehicleOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                        Vehicle Type
+                      </Label>
+                      <Select
+                        value={formData.vehicleType}
+                        onValueChange={(value) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            vehicleType: value,
+                          }))
+                        }
+                      >
+                        <SelectTrigger
+                          className={`mt-1 ${
+                            theme === "dark"
+                              ? "bg-slate-700 border-slate-600 text-white"
+                              : "bg-white border-slate-300 text-slate-900"
+                          }`}
+                        >
+                          <SelectValue placeholder="Select a vehicle type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {vehicleOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* London Starting Point */}
                 {isLondon && (
@@ -2170,41 +2186,32 @@ export default function EstimatePage() {
                       </span>
                     </div>
 
-                    <div
-                      className={`flex justify-between items-center p-3 rounded-lg border ${
-                        theme === "dark"
-                          ? "bg-slate-700/30 border-slate-600"
-                          : "bg-white border-slate-200"
-                      }`}
-                    >
-                      <div className="flex items-center">
-                        <Truck className="h-4 w-4 mr-2 text-orange-600" />
-                        <span
-                          className={
-                            theme === "dark"
-                              ? "text-slate-200"
-                              : "text-slate-700"
-                          }
-                        >
-                          {formData.team === "london" ? (
-                            <>
-                              Travel Cost{" "}
-                              <span className="text-xs text-slate-400">
-                                (London flat rate)
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              Travel Cost ({estimate.breakdown.travel.distance}{" "}
-                              miles @ £{estimate.breakdown.travel.rate}/mile)
-                            </>
-                          )}
+                    {!isLondon && (
+                      <div
+                        className={`flex justify-between items-center p-3 rounded-lg border ${
+                          theme === "dark"
+                            ? "bg-slate-700/30 border-slate-600"
+                            : "bg-white border-slate-200"
+                        }`}
+                      >
+                        <div className="flex items-center">
+                          <Truck className="h-4 w-4 mr-2 text-orange-600" />
+                          <span
+                            className={
+                              theme === "dark"
+                                ? "text-slate-200"
+                                : "text-slate-700"
+                            }
+                          >
+                            Travel Cost ({estimate.breakdown.travel.distance}{" "}
+                            miles @ £{estimate.breakdown.travel.rate}/mile)
+                          </span>
+                        </div>
+                        <span className="font-semibold text-lg">
+                          £{estimate.travelCost.toFixed(2)}
                         </span>
                       </div>
-                      <span className="font-semibold text-lg">
-                        £{estimate.travelCost.toFixed(2)}
-                      </span>
-                    </div>
+                    )}
 
                     {!isLondon && (
                       <div

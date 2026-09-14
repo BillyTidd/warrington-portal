@@ -327,9 +327,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Calculate travel only when additional postcodes exist.
-    // A London job without additional stops uses the existing
-    // flat London travel charge.
+    // Calculate route details only when additional postcodes exist. The route
+    // can still be useful operationally, but London jobs are not charged for it.
     const { distance, duration } =
       validPostcodes.length > 0
         ? await calculateRoundTrip(
@@ -456,8 +455,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Add travel hours to total hours for labor calculation — London uses a flat
-    // travel rate and doesn't bill travel time, so only add it for other teams
+    // London does not bill travel time, so only add it for other teams.
     const totalHoursWithTravel = isLondonTeam
       ? numberOfHours
       : numberOfHours + durationHours;
@@ -495,13 +493,16 @@ export async function POST(request: NextRequest) {
     const adjustedLaborCost =
       totalLaborCost * multiplier * combinedShiftMultiplier;
 
-    // Calculate travel cost — flat £50 for London, distance-based otherwise
+    // London has no vehicle or travel charge. Other teams remain distance-based.
+    const effectiveVehicleType = isLondonTeam ? "" : vehicleType;
     const vehicleRate = isLondonTeam
-      ? 30
-      : VEHICLE_RATES[vehicleType as keyof typeof VEHICLE_RATES] ||
+      ? 0
+      : VEHICLE_RATES[
+          effectiveVehicleType as keyof typeof VEHICLE_RATES
+        ] ||
         VEHICLE_RATES["medium-van"] ||
         0;
-    const travelCost = isLondonTeam ? 50 : distance * vehicleRate;
+    const travelCost = isLondonTeam ? 0 : distance * vehicleRate;
 
     // Calculate total (NO MATERIALS - removed as requested)
     const totalCost = adjustedLaborCost + travelCost;
@@ -516,7 +517,7 @@ export async function POST(request: NextRequest) {
           distance,
           duration,
           durationHours,
-          vehicleType,
+          vehicleType: effectiveVehicleType,
           rate: vehicleRate,
           cost: travelCost,
           fromAddress,

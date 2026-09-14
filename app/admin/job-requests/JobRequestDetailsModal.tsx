@@ -132,6 +132,8 @@ export function JobRequestDetailsModal({
     useState<JobDocument | null>(null);
   const [isDeletingDocument, setIsDeletingDocument] =
     useState(false);
+  const isLondonRequest =
+    request?.jobEstimate?.team === "london";
 
   useEffect(() => {
     if (request) {
@@ -139,7 +141,10 @@ export function JobRequestDetailsModal({
       const material = request.estimatedCost.materialCost
         ? request.estimatedCost.materialCost.toFixed(2)
         : "0.00";
-      const travel = request.estimatedCost.travelCost.toFixed(2);
+      const travel =
+        request.jobEstimate?.team === "london"
+          ? "0.00"
+          : request.estimatedCost.travelCost.toFixed(2);
 
       setAdminNotes(request.adminNotes || "");
       setLaborCost(labor);
@@ -157,13 +162,15 @@ export function JobRequestDetailsModal({
   const totalCost =
     (Number.parseFloat(laborCost) || 0) +
     (Number.parseFloat(materialCost) || 0) +
-    (Number.parseFloat(travelCost) || 0);
+    (isLondonRequest
+      ? 0
+      : Number.parseFloat(travelCost) || 0);
 
   // Check if prices have been changed
   const pricesChanged =
     laborCost !== originalLaborCost ||
     materialCost !== originalMaterialCost ||
-    travelCost !== originalTravelCost;
+    (!isLondonRequest && travelCost !== originalTravelCost);
 
   const handleStatusAction = async (status: "approved" | "rejected") => {
     if (!request || !isAdmin) return;
@@ -175,7 +182,9 @@ export function JobRequestDetailsModal({
       updatedEstimatedCost = {
         laborCost: Number.parseFloat(laborCost) || 0,
         materialCost: Number.parseFloat(materialCost) || 0,
-        travelCost: Number.parseFloat(travelCost) || 0,
+        travelCost: isLondonRequest
+          ? 0
+          : Number.parseFloat(travelCost) || 0,
         totalCost: totalCost,
         breakdown: request.estimatedCost.breakdown,
       };
@@ -676,7 +685,8 @@ export function JobRequestDetailsModal({
                     </div>
                   )}
               </div>
-              {request.jobEstimate.vehicleType && (
+              {request.jobEstimate.team !== "london" &&
+                request.jobEstimate.vehicleType && (
                 <div>
                   <Label className="text-sm font-medium">
                     Vehicle Required
@@ -811,7 +821,13 @@ export function JobRequestDetailsModal({
                   <p className="text-sm text-blue-800 mb-4 font-medium">
                     You can adjust the costs before approving this request:
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div
+                    className={`grid grid-cols-1 gap-4 ${
+                      isLondonRequest
+                        ? "sm:grid-cols-2"
+                        : "sm:grid-cols-3"
+                    }`}
+                  >
                     <div>
                       <Label
                         htmlFor="laborCost"
@@ -852,30 +868,38 @@ export function JobRequestDetailsModal({
                         />
                       </div>
                     </div>
-                    <div>
-                      <Label
-                        htmlFor="travelCost"
-                        className="text-sm font-medium dark:text-black"
-                      >
-                        Travel Cost
-                      </Label>
-                      <div className="relative mt-1">
-                        <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-gray-500 dark:text-black" />
-                        <Input
-                          id="travelCost"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={travelCost}
-                          onChange={(e) => setTravelCost(e.target.value)}
-                          className="pl-10 bg-background text-foreground border-input dark:text-black"
-                        />
+                    {!isLondonRequest && (
+                      <div>
+                        <Label
+                          htmlFor="travelCost"
+                          className="text-sm font-medium dark:text-black"
+                        >
+                          Travel Cost
+                        </Label>
+                        <div className="relative mt-1">
+                          <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-gray-500 dark:text-black" />
+                          <Input
+                            id="travelCost"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={travelCost}
+                            onChange={(e) => setTravelCost(e.target.value)}
+                            className="pl-10 bg-background text-foreground border-input dark:text-black"
+                          />
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div
+                  className={`grid grid-cols-1 gap-4 ${
+                    isLondonRequest
+                      ? "sm:grid-cols-2"
+                      : "sm:grid-cols-3"
+                  }`}
+                >
                   <div className="text-center p-4 bg-muted/50 rounded-lg">
                     <p className="text-sm text-muted-foreground">Labor Cost</p>
                     <p className="text-xl font-bold">
@@ -890,12 +914,16 @@ export function JobRequestDetailsModal({
                       £{Number.parseFloat(materialCost).toFixed(2)}
                     </p>
                   </div>
-                  <div className="text-center p-4 bg-muted/50 rounded-lg">
-                    <p className="text-sm text-muted-foreground">Travel Cost</p>
-                    <p className="text-xl font-bold">
-                      £{Number.parseFloat(travelCost).toFixed(2)}
-                    </p>
-                  </div>
+                  {!isLondonRequest && (
+                    <div className="text-center p-4 bg-muted/50 rounded-lg">
+                      <p className="text-sm text-muted-foreground">
+                        Travel Cost
+                      </p>
+                      <p className="text-xl font-bold">
+                        £{Number.parseFloat(travelCost).toFixed(2)}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 

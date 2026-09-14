@@ -48,6 +48,9 @@ export async function PATCH(
       updatedAt: new Date(),
     };
 
+    const isLondonRequest =
+      bookingRequest.jobEstimate?.team === "london";
+
     // Determine which estimated cost to use
     let finalEstimatedCost: EstimatedCost;
 
@@ -69,6 +72,43 @@ export async function PATCH(
         materialCost: bookingRequest.estimatedCost.materialCost || 0,
       };
       console.log("Using original estimated cost:", finalEstimatedCost);
+    }
+
+    // London jobs must never retain or regain a vehicle/travel charge, even if
+    // an older request or edited payload supplies outdated charge data.
+    if (isLondonRequest) {
+      const laborCost =
+        Number(finalEstimatedCost.laborCost) || 0;
+      const materialCost =
+        Number(finalEstimatedCost.materialCost) || 0;
+      const travelBreakdown =
+        finalEstimatedCost.breakdown?.travel;
+
+      finalEstimatedCost = {
+        ...finalEstimatedCost,
+        laborCost,
+        materialCost,
+        travelCost: 0,
+        totalCost: laborCost + materialCost,
+        breakdown: finalEstimatedCost.breakdown
+          ? {
+              ...finalEstimatedCost.breakdown,
+              ...(travelBreakdown
+                ? {
+                    travel: {
+                      ...travelBreakdown,
+                      vehicleType: "",
+                      rate: 0,
+                      cost: 0,
+                    } as any,
+                  }
+                : {}),
+            }
+          : finalEstimatedCost.breakdown,
+      };
+
+      // Persist the normalized zero-charge values on approval/rejection.
+      updateFields.estimatedCost = finalEstimatedCost;
     }
 
     let jobId = null;
@@ -265,6 +305,9 @@ clientCompany:
           // Transfer full jobEstimate object to preserve all data including postcodes array
           jobEstimate: {
             ...bookingRequest.jobEstimate,
+            vehicleType: isLondonRequest
+              ? ""
+              : bookingRequest.jobEstimate.vehicleType,
             postcodes: postcodes, // Ensure postcodes array is available
           },
 

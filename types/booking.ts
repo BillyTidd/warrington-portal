@@ -14,6 +14,7 @@ export interface JobEstimate {
   jobDescription?: string;
   workerTypes?: WorkerType[]; // Specific types of workers requested
   vehicleType?: string; // e.g., "small-van", "large-van", "truck"
+  team?: "default" | "london" | string;
   manager_id?: string;
   manager?: string;
   managerDetails?: ManagerSnapshot;

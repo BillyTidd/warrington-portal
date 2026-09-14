@@ -67,7 +67,9 @@ export async function POST(request: Request) {
       // Job Requirements
       number_of_workers: estimateData.numberOfWorkers,
       number_of_hours: estimateData.numberOfHours,
-      vehicle_type: estimateData.vehicleType,
+      ...(estimateData.team !== "london"
+        ? { vehicle_type: estimateData.vehicleType }
+        : {}),
 
       // Postcodes
       postcodes_list: postcodesList || "Not provided",
@@ -77,7 +79,9 @@ export async function POST(request: Request) {
       // Cost Breakdown
       labor_breakdown: laborBreakdown,
       labor_cost: `£${estimate.laborCost.toFixed(2)}`,
-      travel_cost: `£${estimate.travelCost.toFixed(2)}`,
+      ...(estimateData.team !== "london"
+        ? { travel_cost: `£${estimate.travelCost.toFixed(2)}` }
+        : {}),
       total_cost: `£${estimate.totalCost.toFixed(2)}`,
 
       // Travel Details
