@@ -344,7 +344,9 @@ clientCompany:
 
         await db.collection("job_documents").updateMany(
           {
-            bookingRequestId,
+            bookingRequestId: {
+              $in: [bookingRequestId, params.id],
+            },
           },
           {
             $set: {

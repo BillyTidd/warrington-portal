@@ -221,20 +221,26 @@ setClients(clientsData.customers || []);
   const handleAddProgress = async (progressData: Partial<any>) => {
     setIsSubmittingProgress(true);
     try {
+      const submittedAmount = Number(progressData.amount || 0);
+
       // Prepare the data for the API
       const apiData = {
         details: progressData.description,
         cost:
           progressData.workType === "extra"
-            ? progressData.overtimeHours * workerHourlyRate
-            : progressData.amount
-            ? Number.parseFloat(progressData.amount.toString())
+            ? submittedAmount
+            : submittedAmount
+            ? submittedAmount
             : undefined,
         workType: progressData.workType,
 costTreatment: isAdmin
   ? progressData.costTreatment
   : undefined,
         overtimeHours: progressData.overtimeHours,
+        overtimeCost:
+          progressData.workType === "extra"
+            ? submittedAmount
+            : undefined,
       };
 
       const response = await fetch(`/api/jobs/${params.id}/progress`, {

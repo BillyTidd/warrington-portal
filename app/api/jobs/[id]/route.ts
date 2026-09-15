@@ -110,9 +110,16 @@ export async function GET(
         { clientId: session.user.id },
       ];
     } else if (session.user.role === "employee") {
+      const workerIds: Array<string | ObjectId> = [session.user.id];
+
+      if (ObjectId.isValid(session.user.id)) {
+        workerIds.push(new ObjectId(session.user.id));
+      }
+
       query.$or = [
-        { "workers.userId": session.user.id },
-        { userId: session.user.id },
+        { "workers.userId": { $in: workerIds } },
+        { userId: { $in: workerIds } },
+        { workerId: { $in: workerIds } },
       ];
     } else if (session.user.role !== "admin") {
       return NextResponse.json(
@@ -149,10 +156,35 @@ export async function GET(
         job.client = { name: job.clientName || "Unknown Client" };
       }
     }
+    const documentFilters: Record<string, any>[] = [
+      {
+        jobId: {
+          $in: [job._id, job._id.toString()],
+        },
+      },
+    ];
+
+    if (job.bookingRequestId) {
+      const bookingRequestId = job.bookingRequestId.toString();
+      const bookingRequestIds: Array<string | ObjectId> = [
+        bookingRequestId,
+      ];
+
+      if (ObjectId.isValid(bookingRequestId)) {
+        bookingRequestIds.push(new ObjectId(bookingRequestId));
+      }
+
+      // Compatibility for estimates converted before jobId was consistently
+      // copied onto every job_documents record.
+      documentFilters.push({
+        bookingRequestId: { $in: bookingRequestIds },
+      });
+    }
+
     const documents = await db
       .collection("job_documents")
       .find({
-        jobId: job._id,
+        $or: documentFilters,
       })
       .sort({
         createdAt: 1,

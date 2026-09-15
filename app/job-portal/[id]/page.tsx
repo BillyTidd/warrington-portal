@@ -318,6 +318,8 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const handleAddProgress = async (progressData: Partial<any>) => {
     setIsSubmittingProgress(true);
     try {
+      const submittedAmount = Number(progressData.amount || 0);
+
       // Prepare the data for the API
       const apiData = {
         details: progressData.description,
@@ -327,18 +329,16 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   : undefined,
         cost:
           progressData.workType === "extra"
-            ? progressData.overtimeHours * workerHourlyRate
+            ? submittedAmount
             : progressData.workType === "vehicle"
               ? progressData.vehicleUsage?.totalCost
-              : progressData.amount
-                ? Number.parseFloat(progressData.amount.toString())
+              : submittedAmount
+                ? submittedAmount
                 : undefined,
         overtimeHours: progressData.overtimeHours,
         overtimeCost:
-          progressData.workType === "extra" &&
-          progressData.overtimeHours &&
-          workerHourlyRate
-            ? progressData.overtimeHours * workerHourlyRate
+          progressData.workType === "extra"
+            ? submittedAmount
             : undefined,
         vehicleUsage: progressData.vehicleUsage,
         jobStatus: "pending", // All new progress starts as pending
@@ -1074,77 +1074,6 @@ const profitMargin =
       )
     : job.workerPaymentRate || 0;
 
-  if (isWorker) {
-    return (
-      <Layout>
-        <div className="lg:col-span-1 space-y-6">
-          {canUpdateJob && (
-            <>
-              {showProgressForm ? (
-                <JobProgressForm
-                  onSubmit={handleAddProgress}
-                  onCancel={() => setShowProgressForm(false)}
-                  isAdmin={isAdmin}
-                  isSubmitting={isSubmittingProgress}
-                  workerHourlyRate={workerHourlyRate}
-                  currencySymbol="£"
-                  job={job}
-                />
-              ) : (
-                <div>
-                  <Card className="border-none shadow-lg">
-                    <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40">
-                      <CardTitle>Progress Tracking</CardTitle>
-                      <CardDescription>
-                        Keep track of your work on this job
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-6">
-                      <div className="text-center py-6">
-                        <div className="bg-muted/30 rounded-full p-4 w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                          <ClipboardList className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                        <h3 className="text-lg font-medium mb-2">
-                          Track Your Progress
-                        </h3>
-                        <p className="text-muted-foreground mb-4">
-                          Record updates, costs, and activities as you work on
-                          this job.
-                        </p>
-                        <Button onClick={() => setShowProgressForm(true)}>
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add Expense
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              <ProgressSummary
-                progressLogs={job.progressLogs}
-                totalCost={getWorkerVisibleApprovedCosts()} // Worker's own submitted amounts, never admin-edited
-                currencySymbol="£"
-              />
-            </>
-          )}
-        </div>
-
-        {/* Right column - Progress timeline */}
-        <div className="lg:col-span-2">
-          <ProgressTimeline
-            progressLogs={job.progressLogs}
-            canUpdateJob={canUpdateJob}
-            handleDeleteProgress={handleDeleteProgress}
-            handleEditProgress={handleEditProgress}
-            setShowProgressForm={setShowProgressForm}
-            currencySymbol="£"
-          />
-        </div>
-      </Layout>
-    );
-  }
-
   return (
     <Layout>
       <div className="container mx-auto py-8 px-4">
@@ -1326,7 +1255,11 @@ const profitMargin =
 
                     <ProgressSummary
                       progressLogs={job.progressLogs}
-                      totalCost={approvedCosts} // Only show approved costs
+                      totalCost={
+                        isWorker
+                          ? getWorkerVisibleApprovedCosts()
+                          : approvedCosts
+                      }
                       currencySymbol="£"
                     />
                   </>

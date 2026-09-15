@@ -106,21 +106,49 @@ export async function GET(
     if (
       !hasAccess &&
       session.user.role === "employee" &&
-      document.jobId
+      (document.jobId || document.bookingRequestId)
     ) {
       const jobObjectId = asObjectId(document.jobId);
+      const workerIds: Array<string | ObjectId> = [
+        session.user.id,
+      ];
 
-      if (jobObjectId) {
-        const assignedJob = await db.collection("jobs").findOne({
-          _id: jobObjectId,
-          $or: [
-            { "workers.userId": session.user.id },
-            { userId: session.user.id },
-          ],
-        });
-
-        hasAccess = Boolean(assignedJob);
+      if (ObjectId.isValid(session.user.id)) {
+        workerIds.push(new ObjectId(session.user.id));
       }
+
+      const assignmentFilter = {
+        $or: [
+          { "workers.userId": { $in: workerIds } },
+          { userId: { $in: workerIds } },
+          { workerId: { $in: workerIds } },
+        ],
+      };
+
+      let assignedJob = jobObjectId
+        ? await db.collection("jobs").findOne({
+          _id: jobObjectId,
+          ...assignmentFilter,
+        })
+        : null;
+
+      if (!assignedJob && document.bookingRequestId) {
+        const bookingRequestId = document.bookingRequestId.toString();
+        const bookingRequestIds: Array<string | ObjectId> = [
+          bookingRequestId,
+        ];
+
+        if (ObjectId.isValid(bookingRequestId)) {
+          bookingRequestIds.push(new ObjectId(bookingRequestId));
+        }
+
+        assignedJob = await db.collection("jobs").findOne({
+          bookingRequestId: { $in: bookingRequestIds },
+          ...assignmentFilter,
+        });
+      }
+
+      hasAccess = Boolean(assignedJob);
     }
 
     if (!hasAccess) {

@@ -264,8 +264,10 @@ export function JobProgressForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // If extra hours are selected but no hourly rate is set
-    if (workType === "extra" && !hourlyRate) {
+    // Workers need an assigned hourly rate so their overtime can be calculated.
+    // An Admin does not represent an assigned worker, so allow the Admin to
+    // enter the total overtime cost manually instead.
+    if (workType === "extra" && !hourlyRate && !isAdmin) {
       toast.error("Cannot calculate extra hours cost. No hourly rate is set.");
       return;
     }
@@ -284,10 +286,20 @@ export function JobProgressForm({
 
     const numericAmount = Number.parseFloat(progressAmount || "0");
 
-if (isAdmin && numericAmount > 0 && !costTreatment) {
-  toast.error("Please select Billable Cost or Absorbed Cost");
-  return;
-}
+    if (
+      workType === "extra" &&
+      isAdmin &&
+      !hourlyRate &&
+      (!Number.isFinite(numericAmount) || numericAmount <= 0)
+    ) {
+      toast.error("Please enter the total overtime cost");
+      return;
+    }
+
+    if (isAdmin && numericAmount > 0 && !costTreatment) {
+      toast.error("Please select Billable Cost or Absorbed Cost");
+      return;
+    }
 
     let description = progressDescription?.trim();
     if (!description) {
@@ -427,9 +439,15 @@ if (isAdmin && numericAmount > 0 && !costTreatment) {
                   className="pl-8"
                 />
               </div>
-              {hourlyRate === 0 && (
+              {hourlyRate === 0 && !isAdmin && (
                 <p className="text-sm text-yellow-500 mt-1">
                   No hourly rate set. Please contact admin.
+                </p>
+              )}
+              {hourlyRate === 0 && isAdmin && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  No worker hourly rate is linked to the Admin account. Enter
+                  the total overtime cost below.
                 </p>
               )}
               {hourlyRate > 0 && overtimeHours !== undefined && (
@@ -655,7 +673,11 @@ if (isAdmin && numericAmount > 0 && !costTreatment) {
           )}
 
           <div>
-            <Label htmlFor="cost">Total Cost</Label>
+            <Label htmlFor="cost">
+              {workType === "extra" && isAdmin && hourlyRate === 0
+                ? "Total Overtime Cost"
+                : "Total Cost"}
+            </Label>
             <div className="relative mt-1">
               <PoundSterling className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
               <Input
