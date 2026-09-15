@@ -45,6 +45,39 @@ const getAccountingTreatment = (
   return null;
 };
 
+const toPositiveNumber = (value: unknown): number => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) && numericValue > 0
+    ? numericValue
+    : 0;
+};
+
+const getAssignedWorkers = (job: any) => {
+  if (Array.isArray(job.workers) && job.workers.length > 0) {
+    return job.workers
+      .filter((worker: any) => worker?.userId)
+      .map((worker: any) => ({
+        userId: worker.userId.toString(),
+        workerName: worker.workerName || "Assigned Worker",
+        hourlyRate: toPositiveNumber(worker.hourlyRate),
+      }));
+  }
+
+  const legacyWorkerId = job.userId || job.workerId;
+
+  if (!legacyWorkerId) {
+    return [];
+  }
+
+  return [
+    {
+      userId: legacyWorkerId.toString(),
+      workerName: job.workerName || "Assigned Worker",
+      hourlyRate: toPositiveNumber(job.workerHourlyRate),
+    },
+  ];
+};
+
 
 export async function POST(
   request: NextRequest,
@@ -82,6 +115,8 @@ export async function POST(
       statusChange,
       newStatus,
       costTreatment,
+      overtimeWorkerId,
+      overtimeHourlyRate,
     } = await request.json();
 
     // 4. Connect to MongoDB and load the job
@@ -123,14 +158,94 @@ export async function POST(
       );
     }
 
-    // 7. Calculate the actual cost without double-counting
+    let resolvedCost = cost;
+    let resolvedOvertimeHours = overtimeHours;
+    let resolvedOvertimeCost = overtimeCost;
+    let resolvedOvertimeWorkerId: string | null = null;
+    let resolvedOvertimeWorkerName: string | null = null;
+    let resolvedOvertimeHourlyRate: number | null = null;
+
+    // 7. Overtime is always calculated from hours and an hourly rate.
+    // Admins must select one of the workers assigned to this job. If no worker
+    // is assigned, or the selected worker has no saved rate, the Admin may
+    // provide the hourly rate for this overtime entry.
+    if (!statusChange && workType === "extra") {
+      const numericHours = Number(overtimeHours);
+
+      if (!Number.isFinite(numericHours) || numericHours <= 0) {
+        return NextResponse.json(
+          { message: "Enter a valid number of extra hours" },
+          { status: 400 }
+        );
+      }
+
+      const assignedWorkers = getAssignedWorkers(job);
+      let selectedWorker: any = null;
+      let effectiveHourlyRate = 0;
+
+      if (isAdmin) {
+        if (assignedWorkers.length > 0) {
+          const requestedWorkerId = overtimeWorkerId?.toString() || "";
+
+          selectedWorker = assignedWorkers.find(
+            (worker: any) => worker.userId === requestedWorkerId
+          );
+
+          if (!selectedWorker) {
+            return NextResponse.json(
+              {
+                message:
+                  "Select a worker who is assigned to this job for the overtime entry",
+              },
+              { status: 400 }
+            );
+          }
+
+          effectiveHourlyRate =
+            selectedWorker.hourlyRate ||
+            toPositiveNumber(overtimeHourlyRate);
+        } else {
+          effectiveHourlyRate = toPositiveNumber(overtimeHourlyRate);
+        }
+      } else {
+        selectedWorker = assignedWorkers.find(
+          (worker: any) =>
+            worker.userId === session.user.id?.toString()
+        );
+        effectiveHourlyRate = toPositiveNumber(selectedWorker?.hourlyRate);
+      }
+
+      if (effectiveHourlyRate <= 0) {
+        return NextResponse.json(
+          {
+            message: isAdmin
+              ? "Enter a valid hourly rate for this overtime entry"
+              : "No hourly rate is set. Please contact an administrator.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const calculatedOvertimeCost = Number(
+        (numericHours * effectiveHourlyRate).toFixed(2)
+      );
+
+      resolvedCost = calculatedOvertimeCost;
+      resolvedOvertimeHours = numericHours;
+      resolvedOvertimeCost = calculatedOvertimeCost;
+      resolvedOvertimeWorkerId = selectedWorker?.userId || null;
+      resolvedOvertimeWorkerName = selectedWorker?.workerName || null;
+      resolvedOvertimeHourlyRate = effectiveHourlyRate;
+    }
+
+    // 8. Calculate the actual cost without double-counting
     const originalCost = getProgressCost({
-      cost,
-      overtimeCost,
+      cost: resolvedCost,
+      overtimeCost: resolvedOvertimeCost,
       vehicleUsage,
     });
 
-    // 8. When an Admin adds a cost, the Admin must select its treatment
+    // 9. When an Admin adds a cost, the Admin must select its treatment
     if (
       !statusChange &&
       isAdmin &&
@@ -146,7 +261,7 @@ export async function POST(
       );
     }
 
-    // 9. Build the new progress entry
+    // 10. Build the new progress entry
     const progressLog = {
       _id: new ObjectId().toString(),
       timestamp: new Date(),
@@ -154,9 +269,12 @@ export async function POST(
       updatedByName: session.user.name,
       details,
       workType,
-      cost,
-      overtimeHours,
-      overtimeCost,
+      cost: resolvedCost,
+      overtimeHours: resolvedOvertimeHours,
+      overtimeCost: resolvedOvertimeCost,
+      overtimeWorkerId: resolvedOvertimeWorkerId,
+      overtimeWorkerName: resolvedOvertimeWorkerName,
+      overtimeHourlyRate: resolvedOvertimeHourlyRate,
       vehicleUsage,
       originalCost,
       statusChange,
@@ -175,7 +293,7 @@ export async function POST(
             : null,
     };
 
-    // 10. Add the entry to the job
+    // 11. Add the entry to the job
     const result = await db.collection("jobs").updateOne(
       {
         _id: new ObjectId(jobId),
@@ -202,7 +320,7 @@ export async function POST(
       );
     }
 
-    // 11. Return the updated job
+    // 12. Return the updated job
     const updatedJob = await db
       .collection("jobs")
       .findOne({

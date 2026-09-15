@@ -241,6 +241,9 @@ costTreatment: isAdmin
           progressData.workType === "extra"
             ? submittedAmount
             : undefined,
+        overtimeWorkerId: progressData.overtimeWorkerId,
+        overtimeWorkerName: progressData.overtimeWorkerName,
+        overtimeHourlyRate: progressData.overtimeHourlyRate,
       };
 
       const response = await fetch(`/api/jobs/${params.id}/progress`, {
@@ -629,6 +632,8 @@ costTreatment: isAdmin
                         isSubmitting={isSubmittingProgress}
                         workerHourlyRate={workerHourlyRate}
                         currencySymbol="£"
+                        job={job}
+                        currentUserId={session?.user?.id}
                       />
                     ) : (
                       <div>

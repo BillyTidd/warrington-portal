@@ -340,6 +340,9 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
           progressData.workType === "extra"
             ? submittedAmount
             : undefined,
+        overtimeWorkerId: progressData.overtimeWorkerId,
+        overtimeWorkerName: progressData.overtimeWorkerName,
+        overtimeHourlyRate: progressData.overtimeHourlyRate,
         vehicleUsage: progressData.vehicleUsage,
         jobStatus: "pending", // All new progress starts as pending
       };
@@ -1221,6 +1224,7 @@ const profitMargin =
                         workerHourlyRate={workerHourlyRate}
                         currencySymbol="£"
                         job={job}
+                        currentUserId={session?.user?.id}
                       />
                     ) : (
                       <div>

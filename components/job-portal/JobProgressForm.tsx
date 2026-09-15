@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
@@ -31,6 +31,11 @@ import type { Vehicle, VehicleUsage } from "@/types/vehicle";
 // Fixed company address - used as the default "from" location for vehicle usage
 const COMPANY_ADDRESS =
   "Unit 7, Matts Lodge Farm, Grooms Lane, Northampton, NN6 8NN";
+
+const toPositiveNumber = (value: unknown) => {
+  const parsedValue = Number(value);
+  return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 0;
+};
 
 interface JobProgressFormProps {
   isSubmitting: boolean;
@@ -91,6 +96,9 @@ export function JobProgressForm({
   const [overtimeHours, setOvertimeHours] = useState<number | undefined>(
     undefined
   );
+  const [selectedOvertimeWorkerId, setSelectedOvertimeWorkerId] =
+    useState("");
+  const [manualHourlyRate, setManualHourlyRate] = useState("");
 
   // Vehicle-related state
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -104,15 +112,58 @@ export function JobProgressForm({
   const [vehicleUsage, setVehicleUsage] = useState<VehicleUsage | null>(null);
   const [isCalculatingDistance, setIsCalculatingDistance] = useState(false);
 
-  // Determine hourly rate - use prop if provided, otherwise try to get from job data
-  let hourlyRate = workerHourlyRate || 0;
+  // The job's worker list is the source of truth for Admin-entered overtime.
+  // Legacy single-worker jobs are also supported.
+  const assignedWorkers = useMemo(() => {
+    if (Array.isArray(job?.workers) && job.workers.length > 0) {
+      return job.workers
+        .filter((worker: any) => worker?.userId)
+        .map((worker: any) => ({
+          userId: worker.userId.toString(),
+          workerName: worker.workerName || "Assigned Worker",
+          hourlyRate: toPositiveNumber(worker.hourlyRate),
+        }));
+    }
 
-  if (!hourlyRate && job && currentUserId) {
-    const currentWorker = job.workers?.find(
-      (worker: any) => worker.userId === currentUserId
-    );
-    hourlyRate = currentWorker?.hourlyRate || 0;
-  }
+    const legacyWorkerId = job?.userId || job?.workerId;
+
+    if (legacyWorkerId) {
+      return [
+        {
+          userId: legacyWorkerId.toString(),
+          workerName: job?.workerName || "Assigned Worker",
+          hourlyRate: toPositiveNumber(job?.workerHourlyRate),
+        },
+      ];
+    }
+
+    return [];
+  }, [job]);
+
+  const currentWorker = currentUserId
+    ? assignedWorkers.find(
+        (worker: any) => worker.userId === currentUserId.toString()
+      )
+    : undefined;
+
+  const selectedOvertimeWorker = isAdmin
+    ? assignedWorkers.find(
+        (worker: any) => worker.userId === selectedOvertimeWorkerId
+      )
+    : currentWorker;
+
+  const savedHourlyRate = isAdmin
+    ? toPositiveNumber(selectedOvertimeWorker?.hourlyRate)
+    : toPositiveNumber(
+        workerHourlyRate || currentWorker?.hourlyRate || job?.workerHourlyRate
+      );
+  const enteredHourlyRate = toPositiveNumber(manualHourlyRate);
+  const hourlyRate = savedHourlyRate || (isAdmin ? enteredHourlyRate : 0);
+  const needsManualHourlyRate =
+    isAdmin &&
+    workType === "extra" &&
+    (assignedWorkers.length === 0 ||
+      (!!selectedOvertimeWorker && savedHourlyRate === 0));
 
   // Fetch vehicles on component mount
   useEffect(() => {
@@ -135,12 +186,41 @@ export function JobProgressForm({
   useEffect(() => {
     setProgressAmount(""); // Always reset amount when work type changes
     setOvertimeHours(undefined); // Reset overtime hours
+    setSelectedOvertimeWorkerId(""); // Reset the Admin's overtime worker
+    setManualHourlyRate(""); // Reset any manually entered hourly rate
     setSelectedVehicle(null); // Reset selected vehicle
     setCalculationMethod("miles"); // Reset to default calculation method
     setManualMiles(""); // Reset manual miles
     setToPostcode(""); // Reset postcode
     setVehicleUsage(null); // Reset vehicle usage details
   }, [workType, setProgressAmount]);
+
+  // When there is only one assigned worker, preselect that worker for the
+  // Admin while still showing the worker selector in the form.
+  useEffect(() => {
+    if (!isAdmin || workType !== "extra") {
+      return;
+    }
+
+    if (assignedWorkers.length === 1 && !selectedOvertimeWorkerId) {
+      setSelectedOvertimeWorkerId(assignedWorkers[0].userId);
+      return;
+    }
+
+    if (
+      selectedOvertimeWorkerId &&
+      !assignedWorkers.some(
+        (worker: any) => worker.userId === selectedOvertimeWorkerId
+      )
+    ) {
+      setSelectedOvertimeWorkerId("");
+    }
+  }, [
+    assignedWorkers,
+    isAdmin,
+    selectedOvertimeWorkerId,
+    workType,
+  ]);
 
   // Reset vehicle-related fields when vehicle changes
   useEffect(() => {
@@ -163,8 +243,8 @@ export function JobProgressForm({
     if (workType === "extra" && overtimeHours !== undefined && hourlyRate > 0) {
       const cost = overtimeHours * hourlyRate;
       setProgressAmount(cost.toFixed(2));
-    } else if (workType === "extra" && overtimeHours === undefined) {
-      setProgressAmount(""); // Clear amount if hours are cleared
+    } else if (workType === "extra") {
+      setProgressAmount("");
     }
   }, [workType, overtimeHours, hourlyRate, setProgressAmount]);
 
@@ -264,18 +344,33 @@ export function JobProgressForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Workers need an assigned hourly rate so their overtime can be calculated.
-    // An Admin does not represent an assigned worker, so allow the Admin to
-    // enter the total overtime cost manually instead.
-    if (workType === "extra" && !hourlyRate && !isAdmin) {
-      toast.error("Cannot calculate extra hours cost. No hourly rate is set.");
-      return;
-    }
+    if (workType === "extra") {
+      if (
+        isAdmin &&
+        assignedWorkers.length > 0 &&
+        !selectedOvertimeWorker
+      ) {
+        toast.error("Please select an assigned worker");
+        return;
+      }
 
-    // If extra hours are selected but no hours are entered
-    if (workType === "extra" && !overtimeHours) {
-      toast.error("Please enter the number of extra hours");
-      return;
+      if (
+        overtimeHours === undefined ||
+        !Number.isFinite(overtimeHours) ||
+        overtimeHours <= 0
+      ) {
+        toast.error("Please enter the number of extra hours");
+        return;
+      }
+
+      if (hourlyRate <= 0) {
+        toast.error(
+          isAdmin
+            ? "Please enter an hourly rate for this overtime"
+            : "Cannot calculate extra hours cost. No hourly rate is set."
+        );
+        return;
+      }
     }
 
     // If vehicle usage is selected but no vehicle or calculation is done
@@ -284,17 +379,10 @@ export function JobProgressForm({
       return;
     }
 
-    const numericAmount = Number.parseFloat(progressAmount || "0");
-
-    if (
-      workType === "extra" &&
-      isAdmin &&
-      !hourlyRate &&
-      (!Number.isFinite(numericAmount) || numericAmount <= 0)
-    ) {
-      toast.error("Please enter the total overtime cost");
-      return;
-    }
+    const numericAmount =
+      workType === "extra" && overtimeHours
+        ? Number((overtimeHours * hourlyRate).toFixed(2))
+        : Number.parseFloat(progressAmount || "0");
 
     if (isAdmin && numericAmount > 0 && !costTreatment) {
       toast.error("Please select Billable Cost or Absorbed Cost");
@@ -304,7 +392,9 @@ export function JobProgressForm({
     let description = progressDescription?.trim();
     if (!description) {
       if (workType === "extra") {
-        description = `Extra work of ${overtimeHours} hour(s)`;
+        description = selectedOvertimeWorker?.workerName
+          ? `Overtime for ${selectedOvertimeWorker.workerName}: ${overtimeHours} hour(s)`
+          : `Overtime: ${overtimeHours} hour(s)`;
       } else if (workType === "vehicle") {
         if (calculationMethod === "miles") {
           description = `Vehicle usage - ${manualMiles} miles`;
@@ -319,11 +409,17 @@ export function JobProgressForm({
     // Prepare data to submit
     const progressData = {
       description: description,
-      amount: progressAmount ? Number.parseFloat(progressAmount) : 0,
+      amount: Number.isFinite(numericAmount) ? numericAmount : 0,
       status,
       workType,
       costTreatment: isAdmin ? costTreatment : undefined,
       overtimeHours: workType === "extra" ? overtimeHours : undefined,
+      overtimeWorkerId:
+        workType === "extra" ? selectedOvertimeWorker?.userId : undefined,
+      overtimeWorkerName:
+        workType === "extra" ? selectedOvertimeWorker?.workerName : undefined,
+      overtimeHourlyRate:
+        workType === "extra" ? hourlyRate : undefined,
       vehicleUsage: workType === "vehicle" ? vehicleUsage : undefined,
     };
 
@@ -341,6 +437,8 @@ export function JobProgressForm({
     setWorkType("regular");
     setCostTreatment(undefined);
     setOvertimeHours(undefined);
+    setSelectedOvertimeWorkerId("");
+    setManualHourlyRate("");
     setStatus("In Progress");
     setSelectedVehicle(null);
     setCalculationMethod("miles");
@@ -419,45 +517,121 @@ export function JobProgressForm({
 
 
           {workType === "extra" && (
-            <div>
-              <Label htmlFor="overtimeHours">Extra Hours</Label>
-              <div className="relative mt-1">
-                <Clock className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
-                <Input
-                  id="overtimeHours"
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={overtimeHours || ""}
-                  onChange={(e) => {
-                    const value = e.target.value
-                      ? Number.parseFloat(e.target.value)
-                      : undefined;
-                    setOvertimeHours(value);
-                  }}
-                  placeholder="Enter extra hours"
-                  className="pl-8"
-                />
+            <div className="space-y-4">
+              {isAdmin &&
+                (assignedWorkers.length > 0 ? (
+                  <div>
+                    <Label htmlFor="overtimeWorker">Assigned Worker</Label>
+                    <Select
+                      value={selectedOvertimeWorkerId}
+                      onValueChange={(workerId) => {
+                        setSelectedOvertimeWorkerId(workerId);
+                        setManualHourlyRate("");
+                      }}
+                    >
+                      <SelectTrigger id="overtimeWorker" className="mt-1">
+                        <SelectValue placeholder="Select an assigned worker" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {assignedWorkers.map((worker: any) => (
+                          <SelectItem key={worker.userId} value={worker.userId}>
+                            {worker.workerName}
+                            {worker.hourlyRate > 0
+                              ? ` — ${currencySymbol}${worker.hourlyRate.toFixed(
+                                  2
+                                )}/hour`
+                              : " — hourly rate not set"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!selectedOvertimeWorker && (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Only workers assigned to this job are available.
+                      </p>
+                    )}
+                    {selectedOvertimeWorker && savedHourlyRate > 0 && (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Using {selectedOvertimeWorker.workerName}&apos;s saved
+                        rate of {currencySymbol}
+                        {savedHourlyRate.toFixed(2)} per hour.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                    No worker has been assigned to this job. Enter the hourly
+                    rate below to calculate the overtime cost.
+                  </div>
+                ))}
+
+              {needsManualHourlyRate && (
+                <div>
+                  <Label htmlFor="manualHourlyRate">
+                    {selectedOvertimeWorker
+                      ? `Hourly Rate for ${selectedOvertimeWorker.workerName}`
+                      : "Hourly Rate"}
+                  </Label>
+                  <div className="relative mt-1">
+                    <PoundSterling className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                    <Input
+                      id="manualHourlyRate"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={manualHourlyRate}
+                      onChange={(event) =>
+                        setManualHourlyRate(event.target.value)
+                      }
+                      placeholder="Enter hourly rate"
+                      className="pl-8"
+                    />
+                  </div>
+                  {selectedOvertimeWorker && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      This worker does not have an hourly rate saved on this
+                      job, so a rate is required for this overtime entry.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor="overtimeHours">Extra Hours</Label>
+                <div className="relative mt-1">
+                  <Clock className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                  <Input
+                    id="overtimeHours"
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={overtimeHours || ""}
+                    onChange={(e) => {
+                      const value = e.target.value
+                        ? Number.parseFloat(e.target.value)
+                        : undefined;
+                      setOvertimeHours(value);
+                    }}
+                    placeholder="Enter extra hours"
+                    className="pl-8"
+                  />
+                </div>
+                {hourlyRate === 0 && !isAdmin && (
+                  <p className="mt-1 text-sm text-yellow-500">
+                    No hourly rate set. Please contact admin.
+                  </p>
+                )}
+                {hourlyRate > 0 &&
+                  overtimeHours !== undefined &&
+                  overtimeHours > 0 && (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Cost: {currencySymbol}
+                      {(overtimeHours * hourlyRate).toFixed(2)} ({overtimeHours}{" "}
+                      hours × {currencySymbol}
+                      {hourlyRate.toFixed(2)}/hour)
+                    </p>
+                  )}
               </div>
-              {hourlyRate === 0 && !isAdmin && (
-                <p className="text-sm text-yellow-500 mt-1">
-                  No hourly rate set. Please contact admin.
-                </p>
-              )}
-              {hourlyRate === 0 && isAdmin && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  No worker hourly rate is linked to the Admin account. Enter
-                  the total overtime cost below.
-                </p>
-              )}
-              {hourlyRate > 0 && overtimeHours !== undefined && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  Cost: {currencySymbol}
-                  {(overtimeHours * hourlyRate).toFixed(2)} ({overtimeHours}{" "}
-                  hours × {currencySymbol}
-                  {hourlyRate.toFixed(2)}/hour)
-                </p>
-              )}
             </div>
           )}
 
@@ -674,7 +848,7 @@ export function JobProgressForm({
 
           <div>
             <Label htmlFor="cost">
-              {workType === "extra" && isAdmin && hourlyRate === 0
+              {workType === "extra"
                 ? "Total Overtime Cost"
                 : "Total Cost"}
             </Label>
@@ -687,17 +861,19 @@ export function JobProgressForm({
                 step="0.01"
                 value={progressAmount}
                 onChange={(e) => setProgressAmount(e.target.value)}
-                placeholder={`Enter cost in ${currencySymbol}`}
-                className="pl-8"
-                disabled={
-                  (workType === "extra" && hourlyRate > 0) ||
-                  workType === "vehicle"
+                placeholder={
+                  workType === "extra"
+                    ? "Calculated from hours and hourly rate"
+                    : `Enter cost in ${currencySymbol}`
                 }
+                className="pl-8"
+                disabled={workType === "extra" || workType === "vehicle"}
               />
             </div>
-            {workType === "extra" && hourlyRate > 0 && (
+            {workType === "extra" && (
               <p className="text-xs text-muted-foreground mt-1">
-                Cost is automatically calculated from extra hours
+                Cost is automatically calculated from extra hours and the
+                hourly rate
               </p>
             )}
             {workType === "vehicle" && (

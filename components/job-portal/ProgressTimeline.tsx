@@ -322,13 +322,21 @@ const renderCostBadge = (
                             : "Extra Hours"}
                         </div>
 
+                        {log.overtimeWorkerName && (
+                          <div className="mb-1 text-xs text-blue-600 dark:text-blue-400">
+                            Worker: {log.overtimeWorkerName}
+                          </div>
+                        )}
+
                         {/* Show detailed breakdown for admins and the user who logged the hours */}
                         {(isAdmin || log.updatedBy === currentUserId) && (
                           <div className="flex justify-between text-xs text-blue-600 dark:text-blue-400">
                             <span>Hours: {log.overtimeHours}</span>
                             <span>
                               Rate: {currencySymbol}
-                              {log.overtimeCost && log.overtimeHours
+                              {Number(log.overtimeHourlyRate) > 0
+                                ? Number(log.overtimeHourlyRate).toFixed(2)
+                                : log.overtimeCost && log.overtimeHours
                                 ? (
                                     log.overtimeCost / log.overtimeHours
                                   ).toFixed(2)
