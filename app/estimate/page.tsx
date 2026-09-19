@@ -1249,7 +1249,7 @@ export default function EstimatePage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="default">Default</SelectItem>
+                        <SelectItem value="default">National</SelectItem>
                         <SelectItem value="london">London</SelectItem>
                       </SelectContent>
                     </Select>
@@ -1897,6 +1897,24 @@ export default function EstimatePage() {
                       Job Summary
                     </h4>
                     <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="flex justify-between">
+                        <span
+                          className={
+                            theme === "dark"
+                              ? "text-slate-300"
+                              : "text-slate-600"
+                          }
+                        >
+                          Team:
+                        </span>
+                        <span
+                          className={`font-medium ${
+                            theme === "dark" ? "text-white" : "text-slate-900"
+                          }`}
+                        >
+                          {isLondon ? "London Team" : "National Team"}
+                        </span>
+                      </div>
                       <div className="flex justify-between">
                         <span
                           className={

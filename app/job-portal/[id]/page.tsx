@@ -1574,8 +1574,8 @@ const profitMargin =
                         >
                           <Navigation className="h-3 w-3" />
                           {job.jobEstimate.team === "london"
-                            ? "London"
-                            : "Default"}
+                            ? "London Team"
+                            : "National Team"}
                         </Badge>
                       </div>
                     )}

@@ -12,6 +12,8 @@ export interface JobEstimate {
   postcode?: string; // Optional postcode
   jobType?: string; // e.g., "Installation", "Repair", "Maintenance"
   jobDescription?: string;
+  jobReference?: string;
+  postcodes?: string[];
   workerTypes?: WorkerType[]; // Specific types of workers requested
   vehicleType?: string; // e.g., "small-van", "large-van", "truck"
   team?: "default" | "london" | string;
@@ -63,7 +65,8 @@ export interface BookingRequest {
   reviewedBy?: string; // User ID of the admin who reviewed it
   reviewedByName?: string; // Name of the admin who reviewed it
   convertedToJobId?: string; // ID of the job created from this request
-  documents?: JobDocument[];convertedAt?: Date; // Timestamp when it was converted
+  documents?: JobDocument[];
+  convertedAt?: Date; // Timestamp when it was converted
   createdAt: Date;
   updatedAt: Date;
 }

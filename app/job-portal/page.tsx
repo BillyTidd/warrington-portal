@@ -685,7 +685,7 @@ useEffect(() => {
   return (
     <Layout>
       <div className="container mx-auto py-4 sm:py-10 px-2 sm:px-4">
-        <div className="dark:bg-gray-950 rounded-lg shadow-xl overflow-x-auto">
+        <div className="overflow-hidden rounded-lg shadow-xl dark:bg-gray-950">
           <JobHeader
             currentDate={currentDate}
             onNavigate={handleNavigate}

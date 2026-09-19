@@ -62,6 +62,23 @@ function formatStartDate(value: unknown): string {
   }
 }
 
+function getJobReference(job: any): string {
+  return (
+    job.jobReference ||
+    job.jobEstimate?.jobReference ||
+    job._id ||
+    "Not available"
+  );
+}
+
+function getWorkerNames(job: Job): string {
+  if (job.workers && job.workers.length > 0) {
+    return job.workers.map((worker) => worker.workerName).join(", ");
+  }
+
+  return job.workerName || "Unassigned";
+}
+
 export function JobList({
   jobs,
   isLoading,
@@ -125,7 +142,87 @@ export function JobList({
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+    <div className="overflow-hidden rounded-lg border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+      <div className="space-y-3 p-3 md:hidden">
+        {jobs.map((job) => (
+          <article
+            key={job._id}
+            className="rounded-xl border bg-background p-4 shadow-sm"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-semibold">
+                  {job.jobName || "Untitled Job"}
+                </p>
+                <p className="mt-0.5 break-all text-xs text-muted-foreground">
+                  Job #{getJobReference(job)}
+                </p>
+              </div>
+              <StatusBadge status={job.status || "pending"} />
+            </div>
+
+            <dl className="mt-4 space-y-2.5 text-sm">
+              <div className="flex items-start justify-between gap-4">
+                <dt className="text-muted-foreground">
+                  {isCustomer ? "Manager" : "Client"}
+                </dt>
+                <dd className="text-right font-medium">
+                  {isCustomer ? getManagerName(job) : job.clientName || "Not assigned"}
+                </dd>
+              </div>
+              <div className="flex items-start justify-between gap-4">
+                <dt className="text-muted-foreground">Workers</dt>
+                <dd className="max-w-[65%] text-right font-medium">
+                  {getWorkerNames(job)}
+                </dd>
+              </div>
+              <div className="flex items-start justify-between gap-4">
+                <dt className="text-muted-foreground">Start Date</dt>
+                <dd className="text-right font-medium">
+                  {formatStartDate(job.assignDate)}
+                </dd>
+              </div>
+              {isCustomer && (
+                <div className="flex items-start justify-between gap-4 border-t pt-2.5">
+                  <dt className="font-medium">Price</dt>
+                  <dd className="text-right text-base font-bold">
+                    £{getJobPrice(job).toFixed(2)}
+                  </dd>
+                </div>
+              )}
+            </dl>
+
+            <div className="mt-4 grid gap-2">
+              <Button
+                className="min-h-11 w-full"
+                onClick={() => router.push(`/job-portal/${job._id}`)}
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                View Details
+              </Button>
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  className="min-h-11 w-full text-red-600 hover:text-red-700"
+                  onClick={() => onDeleteJob(job)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Job
+                </Button>
+              )}
+            </div>
+          </article>
+        ))}
+
+        {isCustomer && (
+          <div className="flex items-center justify-between rounded-xl border bg-muted/40 px-4 py-3">
+            <span className="font-semibold">Page Total</span>
+            <span className="text-lg font-bold">£{pageTotal.toFixed(2)}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
       <Table>
         <TableHeader className="bg-gray-50 dark:bg-gray-900">
           <TableRow>
@@ -224,6 +321,7 @@ export function JobList({
           </TableFooter>
         )}
       </Table>
+      </div>
     </div>
   );
 }

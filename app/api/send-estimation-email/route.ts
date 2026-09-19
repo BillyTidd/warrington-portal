@@ -67,6 +67,10 @@ export async function POST(request: Request) {
       // Job Requirements
       number_of_workers: estimateData.numberOfWorkers,
       number_of_hours: estimateData.numberOfHours,
+      team:
+        estimateData.team === "london"
+          ? "London Team"
+          : "National Team",
       ...(estimateData.team !== "london"
         ? { vehicle_type: estimateData.vehicleType }
         : {}),

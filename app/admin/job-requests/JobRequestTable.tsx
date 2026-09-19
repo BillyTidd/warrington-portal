@@ -42,7 +42,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import Link from "next/link";
-import { BookingRequest, EstimatedCost } from "@/types/booking";
+import { BookingRequest } from "@/types/booking";
 
 interface JobRequestTableProps {
   requests: BookingRequest[];
@@ -96,6 +96,20 @@ const getStatusBadge = (status: string) => {
   return <StatusBadge status={status} />;
 };
 
+const getEstimateTotal = (request: BookingRequest) =>
+  request.jobEstimate.team === "london"
+    ? request.estimatedCost.laborCost +
+      (request.estimatedCost.materialCost || 0)
+    : request.estimatedCost.totalCost;
+
+const getManagerName = (request: BookingRequest) =>
+  request.jobEstimate.managerDetails?.fullName ||
+  request.jobEstimate.manager ||
+  request.customerName;
+
+const getRequestReference = (request: BookingRequest) =>
+  request.jobEstimate.jobReference || request._id?.toString() || "Not available";
+
 const getSortIcon = (
   field: string,
   sortBy: string,
@@ -144,7 +158,6 @@ const getPageNumbers = (currentPage: number, totalPages: number) => {
 export function JobRequestTable({
   requests,
   isLoading,
-  isAdmin,
   isCustomer,
   totalItems,
   totalPages,
@@ -204,7 +217,96 @@ export function JobRequestTable({
     <>
       {/* Table View */}
       <Card className="shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="space-y-3 p-3 md:hidden">
+          {requests.map((request) => (
+            <article
+              key={request._id?.toString()}
+              className="rounded-xl border bg-background p-4 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">
+                    {request.jobEstimate.jobType || "Job Request"}
+                  </p>
+                  <p className="mt-0.5 break-all text-xs text-muted-foreground">
+                    Reference: {getRequestReference(request)}
+                  </p>
+                </div>
+                {getStatusBadge(request.status)}
+              </div>
+
+              <dl className="mt-4 space-y-2.5 text-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <dt className="text-muted-foreground">
+                    {isCustomer ? "Manager" : "Customer"}
+                  </dt>
+                  <dd className="max-w-[65%] text-right font-medium">
+                    {isCustomer ? getManagerName(request) : request.customerName}
+                  </dd>
+                </div>
+                <div className="flex items-start justify-between gap-4">
+                  <dt className="text-muted-foreground">Job Date</dt>
+                  <dd className="text-right font-medium">
+                    {format(new Date(request.jobEstimate.jobDate), "MMM d, yyyy")}
+                  </dd>
+                </div>
+                <div className="flex items-start justify-between gap-4">
+                  <dt className="text-muted-foreground">Location</dt>
+                  <dd className="max-w-[65%] text-right font-medium">
+                    {request.jobEstimate.jobLocation || "TBC"}
+                  </dd>
+                </div>
+                <div className="flex items-start justify-between gap-4">
+                  <dt className="text-muted-foreground">Team</dt>
+                  <dd className="text-right font-medium">
+                    {request.jobEstimate.team === "london"
+                      ? "London Team"
+                      : "National Team"}
+                  </dd>
+                </div>
+                <div className="flex items-start justify-between gap-4">
+                  <dt className="text-muted-foreground">Workers</dt>
+                  <dd className="text-right font-medium">
+                    {request.jobEstimate.numberOfWorkers} × {request.jobEstimate.numberOfHours}h
+                  </dd>
+                </div>
+                <div className="flex items-start justify-between gap-4">
+                  <dt className="text-muted-foreground">Submitted</dt>
+                  <dd className="text-right font-medium">
+                    {format(new Date(request.createdAt), "MMM d, yyyy")}
+                  </dd>
+                </div>
+                <div className="flex items-start justify-between gap-4 border-t pt-2.5">
+                  <dt className="font-medium">Estimate</dt>
+                  <dd className="text-right text-base font-bold text-green-600">
+                    £{getEstimateTotal(request).toFixed(2)}
+                  </dd>
+                </div>
+              </dl>
+
+              <div className="mt-4 grid gap-2">
+                <Button
+                  className="min-h-11 w-full"
+                  onClick={() => onViewRequest(request)}
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  View Details
+                </Button>
+                {request.status === "converted" &&
+                  request.convertedToJobId && (
+                    <Button asChild variant="outline" className="min-h-11 w-full">
+                      <Link href={`/job-portal/${request.convertedToJobId}`}>
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        View Job
+                      </Link>
+                    </Button>
+                  )}
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -263,7 +365,10 @@ export function JobRequestTable({
             </TableHeader>
             <TableBody>
               {requests.map((request) => (
-                <TableRow className="hover:bg-muted/50">
+                <TableRow
+                  key={request._id?.toString()}
+                  className="hover:bg-muted/50"
+                >
                   <TableCell>
                     <div className="space-y-1">
                       <div className="font-medium">
@@ -319,6 +424,11 @@ export function JobRequestTable({
                   </TableCell>
                   <TableCell>
                     <div className="space-y-2">
+                      <Badge variant="outline" className="text-xs">
+                        {request.jobEstimate.team === "london"
+                          ? "London Team"
+                          : "National Team"}
+                      </Badge>
                       <div className="text-sm">
                         {request.jobEstimate.numberOfWorkers} workers ×{" "}
                         {request.jobEstimate.numberOfHours} hours
@@ -364,11 +474,7 @@ export function JobRequestTable({
                     <div className="space-y-1">
                       <div className="font-bold text-lg text-green-600">
                         £
-                        {(request.jobEstimate.team === "london"
-                          ? request.estimatedCost.laborCost +
-                            (request.estimatedCost.materialCost || 0)
-                          : request.estimatedCost.totalCost
-                        ).toFixed(2)}
+                        {getEstimateTotal(request).toFixed(2)}
                       </div>
                       <div className="text-xs text-muted-foreground space-y-0.5">
                         <div>

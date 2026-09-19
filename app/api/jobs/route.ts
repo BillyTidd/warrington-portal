@@ -6,6 +6,7 @@ import clientPromise from "@/lib/mongodb";
 import { authOptions } from "@/lib/auth";
 import { startOfMonth, endOfMonth } from "date-fns";
 import { ObjectId } from "mongodb";
+import { sendWorkerAssignmentSms } from "@/lib/worker-assignment-sms";
 
 export async function GET(request: Request) {
   try {
@@ -480,6 +481,23 @@ export async function POST(req: Request) {
       .findOne({
         _id: result.insertedId,
       });
+
+    if (newJob && workers.length > 0) {
+      try {
+        await sendWorkerAssignmentSms({
+          db,
+          job: newJob,
+          workerIds: workers
+            .map((worker: any) => worker?.userId?.toString())
+            .filter(Boolean),
+          sentBy: session.user.id,
+          sentByName: session.user.name,
+        });
+      } catch (error) {
+        // The saved job remains valid if Twilio is temporarily unavailable.
+        console.error("Unable to send new-job assignment SMS:", error);
+      }
+    }
 
     return NextResponse.json(newJob, {
       status: 201,

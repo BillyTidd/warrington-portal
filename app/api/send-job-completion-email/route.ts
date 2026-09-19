@@ -103,7 +103,10 @@ export async function POST(request: Request) {
       job_reference: job.jobEstimate?.jobReference || "N/A",
 
       // Team & Workers
-      team: job.jobEstimate?.team === "london" ? "London" : "Default",
+      team:
+        job.jobEstimate?.team === "london"
+          ? "London Team"
+          : "National Team",
       shift:
         job.jobEstimate?.jobShift === "night" ? "Night Shift" : "Day Shift",
       workers: workersList,

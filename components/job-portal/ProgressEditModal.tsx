@@ -54,10 +54,9 @@ export function ProgressEditModal({
   useEffect(() => {
     if (progressLog && isOpen) {
       const logCost =
-        progressLog.overtimeCost ||
-        progressLog.vehicleUsage?.totalCost ||
-        progressLog.cost ||
-        0;
+        progressLog.workType === "vehicle" && progressLog.vehicleUsage
+          ? Math.round(Number(progressLog.vehicleUsage.distance) * 45) / 100
+          : progressLog.overtimeCost || progressLog.cost || 0;
       setCost(logCost.toString());
       setJobStatus(progressLog.jobStatus || "pending");
       if (progressLog.costTreatment) {
@@ -80,7 +79,10 @@ export function ProgressEditModal({
 
     setIsUpdating(true);
     try {
-      const costValue = Number.parseFloat(cost) || 0;
+      const costValue =
+        progressLog.workType === "vehicle" && progressLog.vehicleUsage
+          ? Math.round(Number(progressLog.vehicleUsage.distance) * 45) / 100
+          : Number.parseFloat(cost) || 0;
       if (jobStatus === "approved" && costValue > 0 && !costTreatment) {
   toast.error(
     "Select Billable Cost or Absorbed Cost before approving this entry"
@@ -97,6 +99,12 @@ export function ProgressEditModal({
       } else if (progressLog.workType === "vehicle" && progressLog.vehicleUsage) {
         updates.vehicleUsage = {
           ...progressLog.vehicleUsage,
+          vehicleId: "mileage",
+          vehicleName: "Mileage",
+          vehicleType: "Mileage",
+          pricePerMile: 0.45,
+          fromPostcode: "",
+          toPostcode: "",
           totalCost: costValue,
         };
       } else {
@@ -150,8 +158,15 @@ export function ProgressEditModal({
                 onChange={(e) => setCost(e.target.value)}
                 className="pl-8"
                 placeholder="0.00"
+                disabled={progressLog.workType === "vehicle"}
               />
             </div>
+            {progressLog.workType === "vehicle" && (
+              <p className="text-xs text-muted-foreground">
+                Mileage is fixed at {currencySymbol}0.45 per mile and cannot be manually
+                overridden.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

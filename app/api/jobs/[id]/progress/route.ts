@@ -9,6 +9,7 @@ import { authOptions } from "@/lib/auth";
 
 
 type CostTreatment = "billable" | "absorbed";
+const MILEAGE_RATE_PENCE = 45;
 
 const isValidCostTreatment = (
   value: unknown
@@ -164,6 +165,7 @@ export async function POST(
     let resolvedOvertimeWorkerId: string | null = null;
     let resolvedOvertimeWorkerName: string | null = null;
     let resolvedOvertimeHourlyRate: number | null = null;
+    let resolvedVehicleUsage = vehicleUsage;
 
     // 7. Overtime is always calculated from hours and an hourly rate.
     // Admins must select one of the workers assigned to this job. If no worker
@@ -238,11 +240,40 @@ export async function POST(
       resolvedOvertimeHourlyRate = effectiveHourlyRate;
     }
 
+    // Mileage is calculated on the server so a browser cannot submit a
+    // different vehicle rate or a manipulated total.
+    if (!statusChange && workType === "vehicle") {
+      const numericMiles = Number(vehicleUsage?.distance);
+
+      if (!Number.isFinite(numericMiles) || numericMiles <= 0) {
+        return NextResponse.json(
+          { message: "Enter a valid number of miles" },
+          { status: 400 }
+        );
+      }
+
+      const roundedMiles = Math.round(numericMiles * 100) / 100;
+      const calculatedMileageCost =
+        Math.round(roundedMiles * MILEAGE_RATE_PENCE) / 100;
+
+      resolvedCost = calculatedMileageCost;
+      resolvedVehicleUsage = {
+        vehicleId: "mileage",
+        vehicleName: "Mileage",
+        vehicleType: "Mileage",
+        pricePerMile: MILEAGE_RATE_PENCE / 100,
+        fromPostcode: "",
+        toPostcode: "",
+        distance: roundedMiles,
+        totalCost: calculatedMileageCost,
+      };
+    }
+
     // 8. Calculate the actual cost without double-counting
     const originalCost = getProgressCost({
       cost: resolvedCost,
       overtimeCost: resolvedOvertimeCost,
-      vehicleUsage,
+      vehicleUsage: resolvedVehicleUsage,
     });
 
     // 9. When an Admin adds a cost, the Admin must select its treatment
@@ -275,7 +306,7 @@ export async function POST(
       overtimeWorkerId: resolvedOvertimeWorkerId,
       overtimeWorkerName: resolvedOvertimeWorkerName,
       overtimeHourlyRate: resolvedOvertimeHourlyRate,
-      vehicleUsage,
+      vehicleUsage: resolvedVehicleUsage,
       originalCost,
       statusChange,
       newStatus: statusChange ? newStatus : null,
@@ -447,7 +478,7 @@ export async function PATCH(
 
     // 9. Create a temporary version containing the proposed changes
     // This is used to calculate the accounting difference safely.
-    const proposedLog = {
+    const proposedLog: any = {
       ...existingLog,
       ...(cost !== undefined ? { cost } : {}),
       ...(jobStatus !== undefined
@@ -470,6 +501,34 @@ export async function PATCH(
         ? { costTreatment }
         : {}),
     };
+
+    if (proposedLog.workType === "vehicle") {
+      const numericMiles = Number(proposedLog.vehicleUsage?.distance);
+
+      if (!Number.isFinite(numericMiles) || numericMiles <= 0) {
+        return NextResponse.json(
+          { message: "The mileage entry does not contain valid miles" },
+          { status: 400 }
+        );
+      }
+
+      const roundedMiles = Math.round(numericMiles * 100) / 100;
+      const calculatedMileageCost =
+        Math.round(roundedMiles * MILEAGE_RATE_PENCE) / 100;
+
+      proposedLog.cost = calculatedMileageCost;
+      proposedLog.vehicleUsage = {
+        ...proposedLog.vehicleUsage,
+        vehicleId: "mileage",
+        vehicleName: "Mileage",
+        vehicleType: "Mileage",
+        pricePerMile: MILEAGE_RATE_PENCE / 100,
+        fromPostcode: "",
+        toPostcode: "",
+        distance: roundedMiles,
+        totalCost: calculatedMileageCost,
+      };
+    }
 
     // 10. Calculate the previous and proposed amounts
     const previousCost =
@@ -537,8 +596,8 @@ export async function PATCH(
       updatedAt: new Date(),
     };
 
-    if (cost !== undefined) {
-      updateFields["progressLogs.$.cost"] = cost;
+    if (cost !== undefined || proposedLog.workType === "vehicle") {
+      updateFields["progressLogs.$.cost"] = proposedLog.cost;
     }
 
     if (jobStatus !== undefined) {
@@ -568,10 +627,10 @@ export async function PATCH(
       ] = overtimeCost;
     }
 
-    if (vehicleUsage !== undefined) {
+    if (vehicleUsage !== undefined || proposedLog.workType === "vehicle") {
       updateFields[
         "progressLogs.$.vehicleUsage"
-      ] = vehicleUsage;
+      ] = proposedLog.vehicleUsage;
     }
 
     if (costTreatment !== undefined) {

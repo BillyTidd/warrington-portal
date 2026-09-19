@@ -244,6 +244,10 @@ costTreatment: isAdmin
         overtimeWorkerId: progressData.overtimeWorkerId,
         overtimeWorkerName: progressData.overtimeWorkerName,
         overtimeHourlyRate: progressData.overtimeHourlyRate,
+        vehicleUsage:
+          progressData.workType === "vehicle"
+            ? progressData.vehicleUsage
+            : undefined,
       };
 
       const response = await fetch(`/api/jobs/${params.id}/progress`, {

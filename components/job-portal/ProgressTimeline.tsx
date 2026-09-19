@@ -356,6 +356,24 @@ const renderCostBadge = (
                       </div>
                     )}
 
+                    {log.vehicleUsage && !isClient && (
+                      <div className="mt-2 rounded-md bg-green-50 p-2 text-green-800 dark:bg-green-900/20 dark:text-green-300">
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="font-medium">Mileage</span>
+                          <span>
+                            {Number(log.vehicleUsage.distance || 0).toFixed(2)} miles
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between gap-3 text-xs">
+                          <span>{currencySymbol}0.45 per mile</span>
+                          <span className="font-medium">
+                            Total: {currencySymbol}
+                            {Number(log.vehicleUsage.totalCost || 0).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex flex-wrap gap-2 mt-2">
                       {log.statusChange && (
                         <Badge
@@ -385,7 +403,8 @@ const renderCostBadge = (
   log.overtimeCost,
   log.jobStatus,
   log.workType,
-  log.originalCost
+  log.originalCost,
+  log.costTreatment
 )}
                           {!log.vehicleUsage &&
                             !log.overtimeCost &&
@@ -393,7 +412,8 @@ const renderCostBadge = (
   log.cost,
   log.jobStatus,
   log.workType,
-  log.originalCost
+  log.originalCost,
+  log.costTreatment
 )}
                         </>
                       )}

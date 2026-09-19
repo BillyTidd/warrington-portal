@@ -519,15 +519,15 @@ export function JobRequestDetailsModal({
 
                   {/* Team & Shift */}
                   <div className="flex flex-wrap gap-2 pt-1">
-                    {request.jobEstimate.team === "london" && (
-                      <Badge
-                        variant="secondary"
-                        className="flex items-center gap-1"
-                      >
-                        <Navigation className="h-3 w-3" />
-                        London Team
-                      </Badge>
-                    )}
+                    <Badge
+                      variant="secondary"
+                      className="flex items-center gap-1"
+                    >
+                      <Navigation className="h-3 w-3" />
+                      {request.jobEstimate.team === "london"
+                        ? "London Team"
+                        : "National Team"}
+                    </Badge>
                     {request.jobEstimate.jobShift === "night" ? (
                       <Badge
                         variant="outline"

@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth/next";
 import clientPromise from "@/lib/mongodb";
 import { authOptions } from "@/lib/auth";
 import { ObjectId } from "mongodb";
+import { sendWorkerAssignmentSms } from "@/lib/worker-assignment-sms";
 
 function normalizedClientPrice(job: any) {
   const rawPrice =
@@ -252,6 +253,19 @@ export async function PUT(
 
     const isAdmin = session.user.role === "admin";
 
+    const previouslyAssignedWorkerIds = new Set<string>(
+      (Array.isArray(existingJob.workers)
+        ? existingJob.workers
+        : existingJob.userId
+          ? [{ userId: existingJob.userId }]
+          : []
+      )
+        .map((worker: any) => worker?.userId?.toString())
+        .filter(Boolean)
+    );
+
+    let newlyAssignedWorkerIds: string[] = [];
+
     const isAssigned = existingJob.workers
       ? existingJob.workers.some(
           (worker: any) =>
@@ -416,6 +430,13 @@ export async function PUT(
         ];
       }
 
+      newlyAssignedWorkerIds = workers
+        .map((worker: any) => worker?.userId?.toString())
+        .filter(
+          (workerId: string | undefined): workerId is string =>
+            Boolean(workerId) && !previouslyAssignedWorkerIds.has(workerId!)
+        );
+
       const {
         _id,
         customer_account_id,
@@ -510,6 +531,21 @@ export async function PUT(
       .findOne({
         _id: new ObjectId(id),
       });
+
+    if (isAdmin && updatedJob && newlyAssignedWorkerIds.length > 0) {
+      try {
+        await sendWorkerAssignmentSms({
+          db,
+          job: updatedJob,
+          workerIds: newlyAssignedWorkerIds,
+          sentBy: session.user.id,
+          sentByName: session.user.name,
+        });
+      } catch (error) {
+        // Do not undo a valid assignment because the SMS provider is down.
+        console.error("Unable to send worker assignment SMS:", error);
+      }
+    }
 
     return NextResponse.json(updatedJob);
   } catch (error) {
