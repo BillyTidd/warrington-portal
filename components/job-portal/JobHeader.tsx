@@ -3,18 +3,27 @@
 import type React from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Plus, RefreshCw } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  FileDown,
+  Loader2,
+  Plus,
+  RefreshCw,
+} from "lucide-react";
 import type { Job } from "@/types/job";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
-import { FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { generateJobsPDF } from "@/lib/pdf-generator-jobs";
+import {
+  buildJobsPdfFilename,
+  generateJobsPDF,
+} from "@/lib/pdf-generator-jobs";
 
 interface JobHeaderProps {
   currentDate: Date;
   onNavigate: (direction: "prev" | "next") => void;
-  onNewJob: () => void;
+  onNewJob?: () => void;
   canCreateJob?: boolean;
   jobs: Job[];
   children?: React.ReactNode;
@@ -48,65 +57,57 @@ function DirectReportButton({
       return;
     }
 
+    const generatedAt = new Date();
     setIsGenerating(true);
     try {
-      // Create a filename with current date
-      const today = new Date();
-      const formattedDate = today.toISOString().split("T")[0];
-      const filename = `jobs-report-${formattedDate}.pdf`;
+      const filename = buildJobsPdfFilename(jobs, session || {}, generatedAt);
+      const doc = await generateJobsPDF(
+        jobs,
+        session || {},
+        generatedAt,
+        generatedAt
+      );
 
-      // Generate the PDF with all displayed jobs
-      const startDate = new Date(today);
-      startDate.setDate(startDate.getDate() - 30); // Default to last 30 days if needed
-
-      const endDate = new Date(today);
-      endDate.setDate(endDate.getDate() + 1); // Include today
-
-      const doc = await generateJobsPDF(jobs, session, startDate, endDate);
-
-      // Download the PDF
       doc.save(filename);
-      toast.success("PDF downloaded successfully");
+      toast.success("PDF report downloaded");
 
-      // Now save to database
       setIsUploading(true);
 
-      // Convert the PDF to a blob
-      const pdfBlob = doc.output("blob");
+      try {
+        const formData = new FormData();
+        formData.append("pdf", doc.output("blob"), filename);
+        formData.append("reportType", "jobs-summary");
+        formData.append("jobCount", jobs.length.toString());
+        formData.append(
+          "reportName",
+          `Portal Jobs Report - ${format(generatedAt, "dd MMM yyyy")}`
+        );
+        formData.append(
+          "jobIds",
+          jobs.map((job) => job._id).filter(Boolean).join(",")
+        );
 
-      // Create FormData to send the PDF to the server
-      const formData = new FormData();
-      formData.append("pdf", pdfBlob);
-      formData.append("reportType", "jobs-summary");
-      formData.append("jobCount", jobs.length.toString());
-      formData.append("reportName", `Jobs Summary Report - ${formattedDate}`);
+        const response = await fetch("/api/upload-pdf", {
+          method: "POST",
+          body: formData,
+        });
 
-      // Add job IDs as a comma-separated string for reference
-      const jobIds = jobs.map((job) => job._id).join(",");
-      formData.append("jobIds", jobIds);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null);
+          throw new Error(errorData?.message || "Failed to save report");
+        }
 
-      // Upload to server which will handle database storage
-      const response = await fetch("/api/upload-pdf", {
-        method: "POST",
-        body: formData,
-      });
+        const result = await response.json();
+        if (!result.success) throw new Error("Failed to save report");
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("API error response:", errorData);
-        throw new Error(errorData.message || "Failed to upload PDF");
-      }
-
-      const result = await response.json();
-
-      if (result.success) {
-        toast.success("Report saved to database successfully");
-      } else {
-        throw new Error("Failed to save report to database");
+        toast.success("A portal copy of the report was saved");
+      } catch (uploadError) {
+        console.warn("PDF downloaded but could not be saved:", uploadError);
+        toast.warning("PDF downloaded, but the portal copy could not be saved");
       }
     } catch (error) {
       console.error("Error generating jobs report:", error);
-      toast.error("Failed to generate report. Please try again.");
+      toast.error("Unable to generate the PDF. Please try again.");
     } finally {
       setIsGenerating(false);
       setIsUploading(false);
@@ -119,7 +120,7 @@ function DirectReportButton({
       disabled={isGenerating || isUploading || jobs.length === 0}
       variant={variant}
       size={size}
-      className="relative overflow-hidden group"
+      className="relative overflow-hidden border-amber-500 bg-amber-500 text-black hover:bg-amber-400"
     >
       <span className="absolute inset-0 bg-blue-100 dark:bg-blue-900/20 opacity-0 group-hover:opacity-10 transition-opacity"></span>
       {isGenerating ? (
@@ -129,8 +130,8 @@ function DirectReportButton({
         </>
       ) : (
         <>
-          <FileText className="mr-2 h-4 w-4" />
-          Generate Report ({jobs.length})
+          <FileDown className="mr-2 h-4 w-4" />
+          Generate PDF ({jobs.length})
         </>
       )}
     </Button>
@@ -141,12 +142,11 @@ export function JobHeader({
   currentDate,
   onNavigate,
   onNewJob,
-  canCreateJob = false,
+  canCreateJob = true,
   jobs,
   children,
   onRefresh,
 }: JobHeaderProps) {
-  const { data: session } = useSession();
   const currentMonth = format(currentDate, "MMMM yyyy");
 
   return (
@@ -170,20 +170,18 @@ export function JobHeader({
             </Button>
           )}
 
-          {canCreateJob && (
-  <Button
-    onClick={onNewJob}
-    size="sm"
-    className="flex items-center gap-1"
-  >
-    <Plus className="h-4 w-4" />
-    New Job
-  </Button>
-)}
-
-          {session?.user?.role && session.user.role !== "customer" && (
-            <DirectReportButton jobs={jobs} />
+          {canCreateJob && onNewJob && (
+            <Button
+              onClick={onNewJob}
+              size="sm"
+              className="flex items-center gap-1"
+            >
+              <Plus className="h-4 w-4" />
+              New Job
+            </Button>
           )}
+
+          <DirectReportButton jobs={jobs} />
         </div>
       </div>
 
