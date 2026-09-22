@@ -22,6 +22,7 @@ import {
   ClipboardList,
   TruckIcon,
   BadgePoundSterling,
+  FolderKanban,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import Image from "next/image";
@@ -61,6 +62,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
           icon: ClipboardList,
         },
         { href: "/job-portal", label: "Job Portal", icon: Package },
+        {
+          href: "/job-folders",
+          label: "Job Folders",
+          icon: FolderKanban,
+        },
         // { href: "/job-portal/reports", label: "Job Reports", icon: FileText },
         { href: "/estimate", label: "New Estimate", icon: FileText },
       ];
@@ -87,6 +93,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
         ? [{ href: "/task-reports", label: "Tasks Reports", icon: FileText }]
         : []),
       { href: "/job-portal", label: "Job Portal", icon: Package },
+      ...(userRole === "admin"
+        ? [
+            {
+              href: "/job-folders",
+              label: "Job Folders",
+              icon: FolderKanban,
+            },
+          ]
+        : []),
       ...(userRole === "admin"
         ? [
             {

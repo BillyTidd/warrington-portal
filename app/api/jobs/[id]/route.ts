@@ -6,6 +6,10 @@ import clientPromise from "@/lib/mongodb";
 import { authOptions } from "@/lib/auth";
 import { ObjectId } from "mongodb";
 import { sendWorkerAssignmentSms } from "@/lib/worker-assignment-sms";
+import {
+  resolveJobCustomerAccountId,
+  syncAutomaticJobFolders,
+} from "@/lib/job-folders";
 
 function normalizedClientPrice(job: any) {
   const rawPrice =
@@ -252,6 +256,9 @@ export async function PUT(
     }
 
     const isAdmin = session.user.role === "admin";
+    const previousCustomerAccountId = isAdmin
+      ? await resolveJobCustomerAccountId(db, existingJob)
+      : null;
 
     const previouslyAssignedWorkerIds = new Set<string>(
       (Array.isArray(existingJob.workers)
@@ -457,6 +464,9 @@ export async function PUT(
         documents,
         userId,
         workerName,
+        folderId,
+        folderName,
+        folderAssignment,
         ...allowedJobData
       } = jobData;
 
@@ -531,6 +541,40 @@ export async function PUT(
       .findOne({
         _id: new ObjectId(id),
       });
+
+    if (isAdmin && updatedJob) {
+      try {
+        const updatedCustomerAccountId =
+          await resolveJobCustomerAccountId(db, updatedJob);
+        const customerAccountIds = new Map<string, ObjectId>();
+
+        if (previousCustomerAccountId) {
+          customerAccountIds.set(
+            previousCustomerAccountId.toString(),
+            previousCustomerAccountId
+          );
+        }
+
+        if (updatedCustomerAccountId) {
+          customerAccountIds.set(
+            updatedCustomerAccountId.toString(),
+            updatedCustomerAccountId
+          );
+        }
+
+        for (const customerAccountId of Array.from(
+          customerAccountIds.values()
+        )) {
+          await syncAutomaticJobFolders(db, customerAccountId);
+        }
+      } catch (folderError) {
+        // The job update remains valid; opening Job Folders retries the sync.
+        console.error(
+          "Unable to synchronize automatic job folders:",
+          folderError
+        );
+      }
+    }
 
     if (isAdmin && updatedJob && newlyAssignedWorkerIds.length > 0) {
       try {

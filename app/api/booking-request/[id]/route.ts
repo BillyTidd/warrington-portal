@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import type { BookingRequest, EstimatedCost } from "@/types/booking";
+import { syncAutomaticJobFolders } from "@/lib/job-folders";
 
 export async function PATCH(
   request: NextRequest,
@@ -340,6 +341,17 @@ clientCompany:
         };
         const jobResult = await db.collection("jobs").insertOne(jobData);
         jobId = jobResult.insertedId.toString();
+
+        try {
+          await syncAutomaticJobFolders(db, customer._id);
+        } catch (folderError) {
+          // Do not undo a valid estimate conversion if folder synchronization
+          // is temporarily unavailable. The Job Folders page retries it.
+          console.error(
+            "Unable to synchronize automatic job folders:",
+            folderError
+          );
+        }
 
 
         await db.collection("job_documents").updateMany(

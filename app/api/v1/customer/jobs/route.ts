@@ -49,6 +49,27 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get("endDate");
     const viewMode =
       searchParams.get("viewMode") || "list";
+    const requestedSortBy =
+      searchParams.get("sortBy") || "assignDate";
+    const sortDirection =
+      searchParams.get("sortOrder") === "asc" ? 1 : -1;
+
+    const allowedSortFields: Record<string, string> = {
+      jobName: "jobName",
+      managerName: "managerName",
+      clientName: "clientName",
+      workers: "workers.workerName",
+      assignDate: "assignDate",
+      status: "status",
+      clientPrice: "clientPrice",
+    };
+
+    const sortField =
+      allowedSortFields[requestedSortBy] || "assignDate";
+    const sortObject: Record<string, 1 | -1> = {
+      [sortField]: sortDirection,
+      _id: sortDirection,
+    };
 
     const customerAccountObjectId = new ObjectId(
       session.user.id
@@ -172,18 +193,12 @@ export async function GET(request: NextRequest) {
         ? await db
             .collection("jobs")
             .find(query)
-            .sort({
-              assignDate: -1,
-              createdAt: -1,
-            })
+            .sort(sortObject)
             .toArray()
         : await db
             .collection("jobs")
             .find(query)
-            .sort({
-              assignDate: -1,
-              createdAt: -1,
-            })
+            .sort(sortObject)
             .skip(skip)
             .limit(limit)
             .toArray();

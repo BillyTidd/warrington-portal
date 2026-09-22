@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { startOfMonth, endOfMonth } from "date-fns";
 import { ObjectId } from "mongodb";
 import { sendWorkerAssignmentSms } from "@/lib/worker-assignment-sms";
+import { syncAutomaticJobFolders } from "@/lib/job-folders";
 
 export async function GET(request: Request) {
   try {
@@ -28,6 +29,26 @@ export async function GET(request: Request) {
     const status = url.searchParams.get("status");
     const searchTerm = url.searchParams.get("search");
     const viewMode = url.searchParams.get("viewMode") || "list";
+    const requestedSortBy = url.searchParams.get("sortBy") || "assignDate";
+    const sortDirection =
+      url.searchParams.get("sortOrder") === "asc" ? 1 : -1;
+
+    const allowedSortFields: Record<string, string> = {
+      jobName: "jobName",
+      managerName: "managerName",
+      clientName: "clientName",
+      workers: "workers.workerName",
+      assignDate: "assignDate",
+      status: "status",
+      clientPrice: "clientPrice",
+    };
+
+    const sortField =
+      allowedSortFields[requestedSortBy] || "assignDate";
+    const sortObject: Record<string, 1 | -1> = {
+      [sortField]: sortDirection,
+      _id: sortDirection,
+    };
 
     console.log("API Query Parameters:", {
       page,
@@ -38,6 +59,8 @@ export async function GET(request: Request) {
       status,
       searchTerm,
       viewMode,
+      sortBy: requestedSortBy,
+      sortOrder: sortDirection === 1 ? "asc" : "desc",
     });
 
     const client = await clientPromise;
@@ -175,14 +198,14 @@ export async function GET(request: Request) {
         ? await db
             .collection("jobs")
             .find(query)
-            .sort({ createdAt: -1 })
+            .sort(sortObject)
             .skip(skip)
             .limit(limit)
             .toArray()
         : await db
             .collection("jobs")
             .find(query)
-            .sort({ createdAt: -1 })
+            .sort(sortObject)
             .toArray();
 
     // Fetch client details for each job if needed
@@ -429,6 +452,9 @@ export async function POST(req: Request) {
       documents,
       userId,
       workerName,
+      folderId,
+      folderName,
+      folderAssignment,
       ...allowedJobData
     } = jobData;
 
@@ -475,6 +501,14 @@ export async function POST(req: Request) {
     const result = await db
       .collection("jobs")
       .insertOne(jobToInsert);
+
+    try {
+      await syncAutomaticJobFolders(db, customerAccountObjectId);
+    } catch (folderError) {
+      // The job is still valid if folder synchronization is temporarily
+      // unavailable. Opening Job Folders safely retries the synchronization.
+      console.error("Unable to synchronize automatic job folders:", folderError);
+    }
 
     const newJob = await db
       .collection("jobs")

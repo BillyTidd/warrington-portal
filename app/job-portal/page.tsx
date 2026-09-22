@@ -26,7 +26,11 @@ import { ViewToggle } from "@/components/job-portal/ViewToggle";
 import { Layout } from "@/components/Layout";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import type { Job } from "@/types/job";
+import type {
+  Job,
+  JobSortDirection,
+  JobSortField,
+} from "@/types/job";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -98,6 +102,9 @@ export default function JobPortalPage() {
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [sortBy, setSortBy] = useState<JobSortField>("assignDate");
+  const [sortDirection, setSortDirection] =
+    useState<JobSortDirection>("desc");
 
   // JobFilters state
   const [searchInputValue, setSearchInputValue] = useState(""); // Immediate input value
@@ -208,6 +215,11 @@ export default function JobPortalPage() {
       // Add view mode
       params.append("viewMode", viewMode);
 
+      // Sorting is handled by the API so it applies to the complete result
+      // set, not only to the jobs visible on the current page.
+      params.append("sortBy", sortBy);
+      params.append("sortOrder", sortDirection);
+
       // Add filters
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== "") {
@@ -280,6 +292,8 @@ const response = await fetch(
     filters,
     shouldFetch,
     session?.user?.role,
+    sortBy,
+    sortDirection,
   ]);
 
   // Only run the effect when shouldFetch is true
@@ -310,7 +324,14 @@ const response = await fetch(
     if (!initialRenderRef.current) {
       setShouldFetch(true);
     }
-  }, [currentDate, currentPage, entriesPerPage, filters]);
+  }, [
+    currentDate,
+    currentPage,
+    entriesPerPage,
+    filters,
+    sortBy,
+    sortDirection,
+  ]);
 
   // Initial data fetch
   useEffect(() => {
@@ -459,6 +480,19 @@ useEffect(() => {
       // Reset page when switching views
       setCurrentPage(1);
     }
+  };
+
+  const handleSort = (field: JobSortField) => {
+    if (field === sortBy) {
+      setSortDirection((current) =>
+        current === "asc" ? "desc" : "asc"
+      );
+    } else {
+      setSortBy(field);
+      setSortDirection("asc");
+    }
+
+    setCurrentPage(1);
   };
 
   // Render the JobFilters component
@@ -716,6 +750,9 @@ useEffect(() => {
               <JobList
                 jobs={jobs}
                 isLoading={isLoading}
+                sortBy={sortBy}
+                sortDirection={sortDirection}
+                onSort={handleSort}
                 onDeleteJob={(job) => {
                   setCurrentJob(job);
                   setIsDeleteDialogOpen(true);

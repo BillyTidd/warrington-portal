@@ -1,12 +1,32 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { format, parseISO } from "date-fns";
-import { Edit, Eye, Trash2, Users } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Edit,
+  Eye,
+  Trash2,
+  Users,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
-import type { Job } from "@/types/job";
+import type {
+  Job,
+  JobSortDirection,
+  JobSortField,
+} from "@/types/job";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Table,
@@ -28,6 +48,9 @@ interface JobListProps {
   jobs: Job[];
   isLoading: boolean;
   onDeleteJob: (job: Job) => void;
+  sortBy: JobSortField;
+  sortDirection: JobSortDirection;
+  onSort: (field: JobSortField) => void;
 }
 
 function getJobPrice(job: any): number {
@@ -83,6 +106,9 @@ export function JobList({
   jobs,
   isLoading,
   onDeleteJob,
+  sortBy,
+  sortDirection,
+  onSort,
 }: JobListProps) {
   const { data: session } = useSession();
   const router = useRouter();
@@ -92,6 +118,42 @@ export function JobList({
   const pageTotal = jobs.reduce(
     (total, job) => total + getJobPrice(job),
     0
+  );
+
+  const SortIcon = ({ field }: { field: JobSortField }) => {
+    if (sortBy !== field) {
+      return <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />;
+    }
+
+    return sortDirection === "asc" ? (
+      <ArrowUp className="h-3.5 w-3.5" />
+    ) : (
+      <ArrowDown className="h-3.5 w-3.5" />
+    );
+  };
+
+  const SortableHead = ({
+    field,
+    children,
+    align = "left",
+  }: {
+    field: JobSortField;
+    children: ReactNode;
+    align?: "left" | "right";
+  }) => (
+    <TableHead className={align === "right" ? "text-right" : ""}>
+      <button
+        type="button"
+        className={`inline-flex items-center gap-1.5 rounded px-1 py-1 font-medium hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring ${
+          align === "right" ? "ml-auto" : ""
+        }`}
+        onClick={() => onSort(field)}
+        aria-label={`Sort by ${String(children)}`}
+      >
+        {children}
+        <SortIcon field={field} />
+      </button>
+    </TableHead>
   );
 
   const getWorkerDisplay = (job: Job) => {
@@ -144,6 +206,47 @@ export function JobList({
   return (
     <div className="overflow-hidden rounded-lg border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
       <div className="space-y-3 p-3 md:hidden">
+        <div className="grid grid-cols-[1fr_auto] gap-2 rounded-xl border bg-muted/30 p-3">
+          <Select
+            value={sortBy}
+            onValueChange={(value) => onSort(value as JobSortField)}
+          >
+            <SelectTrigger aria-label="Sort jobs by">
+              <SelectValue placeholder="Sort jobs" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="jobName">Job name</SelectItem>
+              <SelectItem value={isCustomer ? "managerName" : "clientName"}>
+                {isCustomer ? "Manager" : "Client"}
+              </SelectItem>
+              <SelectItem value="workers">Workers</SelectItem>
+              <SelectItem value="assignDate">Start date</SelectItem>
+              <SelectItem value="status">Status</SelectItem>
+              {isCustomer && (
+                <SelectItem value="clientPrice">Price</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => onSort(sortBy)}
+            title={
+              sortDirection === "asc"
+                ? "Currently ascending; change to descending"
+                : "Currently descending; change to ascending"
+            }
+          >
+            {sortDirection === "asc" ? (
+              <ArrowUp className="h-4 w-4" />
+            ) : (
+              <ArrowDown className="h-4 w-4" />
+            )}
+            <span className="sr-only">Change sort direction</span>
+          </Button>
+        </div>
+
         {jobs.map((job) => (
           <article
             key={job._id}
@@ -226,12 +329,20 @@ export function JobList({
       <Table>
         <TableHeader className="bg-gray-50 dark:bg-gray-900">
           <TableRow>
-            <TableHead>Job Name</TableHead>
-            <TableHead>{isCustomer ? "Manager" : "Client"}</TableHead>
-            <TableHead>Workers</TableHead>
-            <TableHead>Start Date</TableHead>
-            <TableHead>Status</TableHead>
-            {isCustomer && <TableHead className="text-right">Price</TableHead>}
+            <SortableHead field="jobName">Job Name</SortableHead>
+            <SortableHead
+              field={isCustomer ? "managerName" : "clientName"}
+            >
+              {isCustomer ? "Manager" : "Client"}
+            </SortableHead>
+            <SortableHead field="workers">Workers</SortableHead>
+            <SortableHead field="assignDate">Start Date</SortableHead>
+            <SortableHead field="status">Status</SortableHead>
+            {isCustomer && (
+              <SortableHead field="clientPrice" align="right">
+                Price
+              </SortableHead>
+            )}
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>

@@ -73,4 +73,18 @@ export interface Job {
   managerName?: string | null;
   managerEmail?: string | null;
   managerPhone?: string | null;
+  folderId?: string | null;
+  folderName?: string | null;
+  folderAssignment?: "automatic" | "manual" | null;
 }
+
+export type JobSortField =
+  | "jobName"
+  | "managerName"
+  | "clientName"
+  | "workers"
+  | "assignDate"
+  | "status"
+  | "clientPrice";
+
+export type JobSortDirection = "asc" | "desc";
