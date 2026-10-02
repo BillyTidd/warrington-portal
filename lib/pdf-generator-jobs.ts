@@ -35,6 +35,11 @@ interface ReportIdentity {
   addressLines: string[];
 }
 
+interface JobsPdfOptions {
+  periodLabel?: string;
+  customerLabel?: string;
+}
+
 const COMPANY = {
   legalName: "Warrington Installations Limited",
   displayName: "WARRINGTON INSTALLS",
@@ -190,17 +195,20 @@ function getReportIdentity(
     const clientNames = Array.from(
       new Set(jobs.map((job) => job.clientCompany || job.clientName).filter(Boolean))
     );
+    const isSingleClient = clientNames.length === 1;
 
     return {
       name:
-        clientNames.length === 1
+        isSingleClient
           ? String(clientNames[0])
           : clientNames.length > 1
             ? `${clientNames.length} client accounts`
             : "Internal operations",
-      email: firstJob?.clientEmail || "",
-      phone: firstJob?.clientPhone || "",
-      addressLines: splitAddress(firstJob?.client?.address),
+      email: isSingleClient ? firstJob?.clientEmail || "" : "",
+      phone: isSingleClient ? firstJob?.clientPhone || "" : "",
+      addressLines: isSingleClient
+        ? splitAddress(firstJob?.client?.address)
+        : [],
     };
   }
 
@@ -354,7 +362,8 @@ function drawFirstPageHeader(
   period: { start: Date; end: Date },
   jobs: ReportJob[],
   totalValue: number,
-  role: ReportRole
+  role: ReportRole,
+  options?: JobsPdfOptions
 ): number {
   const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -411,7 +420,7 @@ function drawFirstPageHeader(
   doc.setFontSize(9);
   doc.text(role === "customer" ? "PREPARED FOR" : "REPORT FOR", PAGE_MARGIN, 92);
   doc.setFontSize(10.5);
-  doc.text(identity.name, PAGE_MARGIN, 99);
+  doc.text(options?.customerLabel || identity.name, PAGE_MARGIN, 99);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
   let identityY = 104;
@@ -429,12 +438,13 @@ function drawFirstPageHeader(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.8);
   const periodText =
-    period.start.toDateString() === period.end.toDateString()
+    options?.periodLabel ||
+    (period.start.toDateString() === period.end.toDateString()
       ? format(period.start, "dd MMMM yyyy")
       : `${format(period.start, "dd MMM yyyy")} - ${format(
           period.end,
           "dd MMM yyyy"
-        )}`;
+        )}`);
   doc.text(periodText, detailsX, 99, { align: "right" });
   doc.setTextColor(...COLOURS.muted);
   doc.text("Portal jobs included in this PDF", detailsX, 104, {
@@ -679,7 +689,8 @@ export const generateJobsPDF = async (
   jobs: Job[],
   session: ReportSession | null,
   startDate: Date,
-  endDate: Date
+  endDate: Date,
+  options?: JobsPdfOptions
 ): Promise<jsPDF> => {
   const reportJobs = (jobs || []) as ReportJob[];
 
@@ -728,7 +739,8 @@ export const generateJobsPDF = async (
     period,
     reportJobs,
     totalValue,
-    role
+    role,
+    options
   );
 
   autoTable(doc, {
