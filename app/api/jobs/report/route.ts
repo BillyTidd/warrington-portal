@@ -5,15 +5,17 @@ import { getServerSession } from "next-auth/next";
 import { type Document, ObjectId } from "mongodb";
 
 import { authOptions } from "@/lib/auth";
+import { buildCustomerJobsQuery } from "@/lib/job-folders";
+import {
+  assignedWorkerJobsQuery,
+  idString,
+  REPORT_FOLDER_ID_PATTERN,
+  selectedClientScope,
+} from "@/lib/job-report-access";
 import clientPromise from "@/lib/mongodb";
 
 const MAX_REPORT_JOBS = 5000;
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-function idString(value: unknown): string {
-  if (!value) return "";
-  return typeof value === "string" ? value : String(value);
-}
 
 function numberValue(value: unknown): number {
   const parsed = Number(value);
@@ -32,32 +34,6 @@ function jobDateKey(job: Document): string | null {
   const parsed = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed.toISOString().slice(0, 10);
-}
-
-function pushIdVariants(
-  target: Document[],
-  field: string,
-  value: unknown
-): void {
-  const stringValue = idString(value);
-  if (!stringValue) return;
-
-  target.push({ [field]: stringValue });
-  if (ObjectId.isValid(stringValue)) {
-    target.push({ [field]: new ObjectId(stringValue) });
-  }
-}
-
-function customerOwnershipCondition(customerAccountId: string): Document {
-  const alternatives: Document[] = [];
-
-  pushIdVariants(alternatives, "customer_account_id", customerAccountId);
-  pushIdVariants(alternatives, "customerAccountId", customerAccountId);
-
-  // Legacy jobs sometimes stored the authenticated customer id in clientId.
-  pushIdVariants(alternatives, "clientId", customerAccountId);
-
-  return { $or: alternatives };
 }
 
 function calculateClientPrice(job: Document): number {
@@ -193,6 +169,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate") || "";
     const endDate = searchParams.get("endDate") || "";
     const selectedClientId = searchParams.get("clientId") || "";
+    const selectedFolderId = searchParams.get("folderId") || "";
 
     if (Boolean(startDate) !== Boolean(endDate)) {
       return NextResponse.json(
@@ -219,44 +196,86 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (selectedFolderId && !REPORT_FOLDER_ID_PATTERN.test(selectedFolderId)) {
+      return NextResponse.json(
+        { message: "Select a valid job folder." },
+        { status: 400 }
+      );
+    }
+
     const mongoClient = await clientPromise;
     const db = mongoClient.db();
     const conditions: Document[] = [];
 
     if (role === "customer") {
-      conditions.push(customerOwnershipCondition(session.user.id));
+      if (!REPORT_FOLDER_ID_PATTERN.test(session.user.id)) {
+        return NextResponse.json(
+          { message: "Invalid customer account." },
+          { status: 400 }
+        );
+      }
+      conditions.push(
+        await buildCustomerJobsQuery(db, new ObjectId(session.user.id))
+      );
     } else if (role === "employee") {
-      conditions.push({ "workers.userId": session.user.id });
+      conditions.push(assignedWorkerJobsQuery(session.user.id));
     }
 
+    let selectedClientAccountId: ObjectId | null = null;
     if (selectedClientId) {
-      const clientAlternatives: Document[] = [];
-      pushIdVariants(clientAlternatives, "clientId", selectedClientId);
+      const selection = await selectedClientScope(db, selectedClientId);
+      if (!selection) {
+        return NextResponse.json(
+          { message: "Customer not found." },
+          { status: 404 }
+        );
+      }
+      conditions.push(selection.jobsQuery);
+      selectedClientAccountId = selection.customerAccountId;
+    }
 
-      if (ObjectId.isValid(selectedClientId)) {
-        const selectedClient = await db.collection("clients").findOne({
-          _id: new ObjectId(selectedClientId),
-        });
+    let folder: Document | null = null;
+    if (selectedFolderId) {
+      folder = await db.collection("job_folders").findOne({
+        _id: new ObjectId(selectedFolderId),
+      });
+      if (!folder) {
+        return NextResponse.json(
+          { message: "Job folder not found. Please refresh the folder list." },
+          { status: 404 }
+        );
+      }
 
-        const linkedAccountId =
-          selectedClient?.customer_account_id ||
-          selectedClient?.customerAccountId;
+      if (
+        (role === "customer" &&
+          idString(folder.customerAccountId) !== session.user.id) ||
+        (role === "admin" &&
+          selectedClientId &&
+          idString(folder.customerAccountId) !==
+            idString(selectedClientAccountId))
+      ) {
+        return NextResponse.json(
+          { message: "You cannot generate a report for this folder." },
+          { status: 403 }
+        );
+      }
 
-        if (linkedAccountId) {
-          pushIdVariants(
-            clientAlternatives,
-            "customer_account_id",
-            linkedAccountId
-          );
-          pushIdVariants(
-            clientAlternatives,
-            "customerAccountId",
-            linkedAccountId
+      const folderIds: Array<string | ObjectId> = [selectedFolderId];
+      folderIds.push(new ObjectId(selectedFolderId));
+      conditions.push({ folderId: { $in: folderIds } });
+
+      if (role === "employee") {
+        const assignedFolderJob = await db.collection("jobs").findOne(
+          { $and: conditions },
+          { projection: { _id: 1 } }
+        );
+        if (!assignedFolderJob) {
+          return NextResponse.json(
+            { message: "You are not assigned to any job in this folder." },
+            { status: 403 }
           );
         }
       }
-
-      conditions.push({ $or: clientAlternatives });
     }
 
     const query = conditions.length > 0 ? { $and: conditions } : {};
@@ -270,7 +289,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           message:
-            "This report contains more than 5,000 jobs. Please select a smaller date range or a specific customer.",
+            "This report contains more than 5,000 jobs. Please select a smaller date range, customer or folder.",
         },
         { status: 413 }
       );
@@ -298,6 +317,12 @@ export async function GET(request: NextRequest) {
           startDate: startDate || null,
           endDate: endDate || null,
           clientId: selectedClientId || null,
+          folder: folder
+            ? {
+                _id: idString(folder._id),
+                name: String(folder.name || "Untitled folder"),
+              }
+            : null,
         },
       },
       {

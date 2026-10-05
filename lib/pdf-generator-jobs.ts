@@ -38,6 +38,7 @@ interface ReportIdentity {
 interface JobsPdfOptions {
   periodLabel?: string;
   customerLabel?: string;
+  folderLabel?: string;
 }
 
 const COMPANY = {
@@ -451,8 +452,21 @@ function drawFirstPageHeader(
     align: "right",
   });
 
+  if (options?.folderLabel) {
+    doc.setTextColor(...COLOURS.ink);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.text("JOB FOLDER", detailsX, 111, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.text(options.folderLabel, detailsX, 116, {
+      align: "right",
+      maxWidth: 80,
+    });
+  }
+
   const completedJobs = jobs.filter((job) => job.status === "completed").length;
-  const cardY = 121;
+  const cardY = options?.folderLabel ? 133 : 121;
   const gap = 4;
   const cardWidth = (pageWidth - PAGE_MARGIN * 2 - gap * 2) / 3;
   const cards = [
@@ -472,7 +486,7 @@ function drawFirstPageHeader(
     drawLabelValue(doc, card.label, card.value, x + 5, cardY + 7);
   });
 
-  return 151;
+  return cardY + 30;
 }
 
 function drawContinuationHeader(
@@ -576,7 +590,9 @@ function buildTableRows(
     ]);
   });
 
-  return rows;
+  return rows.length
+    ? rows
+    : [[{ content: "No jobs match the selected report period.", colSpan: 2 }]];
 }
 
 function drawTotals(
@@ -694,7 +710,7 @@ export const generateJobsPDF = async (
 ): Promise<jsPDF> => {
   const reportJobs = (jobs || []) as ReportJob[];
 
-  if (reportJobs.length === 0) {
+  if (reportJobs.length === 0 && !options?.folderLabel) {
     throw new Error("At least one job is required to generate a PDF report");
   }
 

@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FileDown, Loader2 } from "lucide-react";
+import { FileDown, FolderOpen, Loader2 } from "lucide-react";
+import JSZip from "jszip";
 import type { Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -44,6 +46,14 @@ interface ReportClient {
 interface ReportApiResponse {
   jobs?: Job[];
   message?: string;
+  report?: { folder?: { _id: string; name: string } | null };
+}
+
+interface ReportFolder {
+  _id: string;
+  name: string;
+  customerAccountId: string;
+  customerName: string;
 }
 
 const PERIOD_OPTIONS: Array<{
@@ -87,10 +97,25 @@ function reportFilename(
   jobs: Job[],
   session: Session | null,
   fileLabel: string,
-  generatedAt: Date
+  generatedAt: Date,
+  folder?: ReportFolder
 ): string {
   const baseFilename = buildJobsPdfFilename(jobs, session, generatedAt);
-  return baseFilename.replace(/\.pdf$/i, `-${fileLabel}.pdf`);
+  const folderPart = folder
+    ? `-${folder.name.replace(/[^a-zA-Z0-9]+/g, "-").slice(0, 48)}-${folder._id.slice(-6)}`
+    : "";
+  return baseFilename.replace(/\.pdf$/i, `-${fileLabel}${folderPart}.pdf`);
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 export function JobReportDialog() {
@@ -104,6 +129,10 @@ export function JobReportDialog() {
   const [clientId, setClientId] = useState("all");
   const [clients, setClients] = useState<ReportClient[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(false);
+  const [folders, setFolders] = useState<ReportFolder[]>([]);
+  const [selectedFolderIds, setSelectedFolderIds] = useState<string[]>([]);
+  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
+  const [folderLoadError, setFolderLoadError] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -171,6 +200,62 @@ export function JobReportDialog() {
     };
   }, [open, isAdmin]);
 
+  useEffect(() => {
+    if (!open || !session?.user?.id) return;
+
+    let cancelled = false;
+
+    async function loadFolders() {
+      setIsLoadingFolders(true);
+      setFolderLoadError(false);
+      try {
+        const params = new URLSearchParams();
+        if (isAdmin && clientId !== "all") params.set("clientId", clientId);
+        const response = await fetch(
+          `/api/jobs/report/folders?${params.toString()}`,
+          { cache: "no-store" }
+        );
+        if (!response.ok) throw new Error("Folders could not be loaded");
+
+        const data = await response.json();
+        if (!cancelled) {
+          const nextFolders: ReportFolder[] = Array.isArray(data.folders)
+            ? data.folders
+            : [];
+          setFolders(nextFolders);
+          setSelectedFolderIds((current) =>
+            current.filter((id) =>
+              nextFolders.some((folder) => folder._id === id)
+            )
+          );
+        }
+      } catch (error) {
+        console.error("Error loading report folders:", error);
+        if (!cancelled) {
+          setFolders([]);
+          setSelectedFolderIds([]);
+          setFolderLoadError(true);
+          toast.error("Job folders could not be loaded");
+        }
+      } finally {
+        if (!cancelled) setIsLoadingFolders(false);
+      }
+    }
+
+    loadFolders();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, session?.user?.id, isAdmin, clientId]);
+
+  const toggleFolder = (folderId: string, checked: boolean) => {
+    setSelectedFolderIds((current) =>
+      checked
+        ? Array.from(new Set([...current, folderId]))
+        : current.filter((id) => id !== folderId)
+    );
+  };
+
   const selectedPeriodDescription = useMemo(
     () =>
       PERIOD_OPTIONS.find((option) => option.value === periodType)
@@ -193,94 +278,153 @@ export function JobReportDialog() {
 
     try {
       const period = resolveJobReportPeriod(periodType, periodValues);
-      const params = new URLSearchParams();
-
-      if (period.startDateKey && period.endDateKey) {
-        params.set("startDate", period.startDateKey);
-        params.set("endDate", period.endDateKey);
-      }
-
-      if (isAdmin && clientId !== "all") {
-        params.set("clientId", clientId);
-      }
-
-      const response = await fetch(`/api/jobs/report?${params.toString()}`, {
-        cache: "no-store",
-      });
-      const payload = (await response.json().catch(() => ({}))) as ReportApiResponse;
-
-      if (!response.ok) {
-        throw new Error(payload.message || "Unable to prepare the report");
-      }
-
-      const reportJobs = Array.isArray(payload.jobs) ? payload.jobs : [];
-      if (reportJobs.length === 0) {
-        toast.error("No jobs were found for the selected report options");
-        return;
-      }
-
       const generatedAt = new Date();
       const customerName =
         clientId === "all"
           ? "All customers"
           : clients.find((client) => client._id === clientId)?.name ||
             "Selected customer";
+      const selectedFolders = selectedFolderIds.map((id) =>
+        folders.find((folder) => folder._id === id)
+      );
+      if (selectedFolders.some((folder) => !folder)) {
+        throw new Error("A selected folder is no longer available. Refresh the folder list.");
+      }
 
-      const doc = await generateJobsPDF(
-        reportJobs,
-        session,
-        period.startDate || generatedAt,
-        period.endDate || generatedAt,
-        {
-          periodLabel: period.label,
-          customerLabel:
-            isAdmin && clientId !== "all" ? customerName : undefined,
+      const targets = selectedFolders.length
+        ? (selectedFolders as ReportFolder[])
+        : [null];
+      const generatedReports: Array<{
+        doc: Awaited<ReturnType<typeof generateJobsPDF>>;
+        filename: string;
+        jobIds: string[];
+        count: number;
+        folder: ReportFolder | null;
+      }> = [];
+
+      for (const selectedFolder of targets) {
+        const params = new URLSearchParams();
+        if (period.startDateKey && period.endDateKey) {
+          params.set("startDate", period.startDateKey);
+          params.set("endDate", period.endDateKey);
         }
-      );
-      const filename = reportFilename(
-        reportJobs,
-        session,
-        period.fileLabel,
-        generatedAt
-      );
+        if (isAdmin && clientId !== "all") {
+          params.set("clientId", clientId);
+        }
+        if (selectedFolder) params.set("folderId", selectedFolder._id);
 
-      doc.save(filename);
-      toast.success(`PDF report downloaded with ${reportJobs.length} jobs`);
+        const response = await fetch(`/api/jobs/report?${params.toString()}`, {
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => ({}))) as ReportApiResponse;
+        if (!response.ok) {
+          throw new Error(payload.message || "Unable to prepare the report");
+        }
+
+        const reportJobs = Array.isArray(payload.jobs) ? payload.jobs : [];
+        if (reportJobs.length === 0 && !selectedFolder) {
+          toast.error("No jobs were found for the selected report options");
+          return;
+        }
+
+        const reportFolder = selectedFolder
+          ? {
+              ...selectedFolder,
+              name: payload.report?.folder?.name || selectedFolder.name,
+            }
+          : null;
+        const doc = await generateJobsPDF(
+          reportJobs,
+          session,
+          period.startDate || generatedAt,
+          period.endDate || generatedAt,
+          {
+            periodLabel: period.label,
+            customerLabel: isAdmin
+              ? reportFolder?.customerName ||
+                (clientId !== "all" ? customerName : undefined)
+              : undefined,
+            folderLabel: reportFolder?.name,
+          }
+        );
+
+        generatedReports.push({
+          doc,
+          filename: reportFilename(
+            reportJobs,
+            session,
+            period.fileLabel,
+            generatedAt,
+            reportFolder || undefined
+          ),
+          jobIds: reportJobs.map((job) => job._id).filter(Boolean),
+          count: reportJobs.length,
+          folder: reportFolder,
+        });
+      }
+
+      if (generatedReports.length === 1) {
+        generatedReports[0].doc.save(generatedReports[0].filename);
+      } else {
+        const zip = new JSZip();
+        generatedReports.forEach(({ doc, filename }) => {
+          zip.file(filename, doc.output("arraybuffer"));
+        });
+        const zipFile = await zip.generateAsync({
+          type: "blob",
+          compression: "DEFLATE",
+        });
+        downloadBlob(
+          zipFile,
+          `Warrington-Job-Reports-${period.fileLabel}-${generatedAt.toISOString().slice(0, 10)}.zip`
+        );
+      }
+
+      toast.success(
+        generatedReports.length === 1
+          ? `PDF report downloaded with ${generatedReports[0].count} jobs`
+          : `${generatedReports.length} separate folder reports downloaded in a ZIP`
+      );
       setOpen(false);
 
       // Only administrators save shared portal copies. Customer and worker
       // reports are downloaded privately and may contain account-specific data.
       if (isAdmin) {
         setIsUploading(true);
-        try {
-          const formData = new FormData();
-          formData.append("pdf", doc.output("blob"), filename);
-          formData.append("reportType", "jobs-summary");
-          formData.append("jobCount", String(reportJobs.length));
-          formData.append(
-            "reportName",
-            `Portal Jobs Report - ${period.label} - ${customerName}`
-          );
-          formData.append(
-            "jobIds",
-            reportJobs.map((job) => job._id).filter(Boolean).join(",")
-          );
+        let failedUploads = 0;
+        for (const report of generatedReports) {
+          try {
+            const formData = new FormData();
+            formData.append("pdf", report.doc.output("blob"), report.filename);
+            formData.append("reportType", "jobs-summary");
+            formData.append("jobCount", String(report.count));
+            formData.append(
+              "reportName",
+              `Portal Jobs Report - ${period.label} - ${report.folder?.name || customerName}`
+            );
+            formData.append("jobIds", report.jobIds.join(","));
 
-          const uploadResponse = await fetch("/api/upload-pdf", {
-            method: "POST",
-            body: formData,
-          });
-          const uploadPayload = await uploadResponse.json().catch(() => null);
+            const uploadResponse = await fetch("/api/upload-pdf", {
+              method: "POST",
+              body: formData,
+            });
+            const uploadPayload = await uploadResponse.json().catch(() => null);
 
-          if (!uploadResponse.ok || !uploadPayload?.success) {
-            throw new Error(uploadPayload?.message || "Unable to save report");
+            if (!uploadResponse.ok || !uploadPayload?.success) {
+              throw new Error(uploadPayload?.message || "Unable to save report");
+            }
+          } catch (uploadError) {
+            failedUploads += 1;
+            console.warn("PDF downloaded but could not be saved:", uploadError);
           }
-
-          toast.success("A portal copy of the report was saved");
-        } catch (uploadError) {
-          console.warn("PDF downloaded but could not be saved:", uploadError);
+        }
+        if (failedUploads) {
           toast.warning(
-            "PDF downloaded, but the portal copy could not be saved"
+            `${failedUploads} report${failedUploads === 1 ? "" : "s"} downloaded but could not be saved in the portal`
+          );
+        } else {
+          toast.success(
+            `${generatedReports.length} portal report${generatedReports.length === 1 ? "" : "s"} saved`
           );
         }
       }
@@ -326,7 +470,11 @@ export function JobReportDialog() {
               <Label htmlFor="report-customer">Customer</Label>
               <Select
                 value={clientId}
-                onValueChange={setClientId}
+                onValueChange={(value) => {
+                  setClientId(value);
+                  setSelectedFolderIds([]);
+                  setFolders([]);
+                }}
                 disabled={isLoadingClients}
               >
                 <SelectTrigger id="report-customer">
@@ -350,6 +498,80 @@ export function JobReportDialog() {
               </p>
             </div>
           )}
+
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label>Job folders (optional)</Label>
+              {folders.length > 0 && (
+                <div className="flex items-center gap-3 text-xs">
+                  <button
+                    type="button"
+                    className="text-amber-700 underline underline-offset-2 dark:text-amber-400"
+                    onClick={() =>
+                      setSelectedFolderIds(folders.map((folder) => folder._id))
+                    }
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    className="text-muted-foreground underline underline-offset-2"
+                    onClick={() => setSelectedFolderIds([])}
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="max-h-48 overflow-y-auto rounded-md border p-2">
+              {isLoadingFolders ? (
+                <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading folders...
+                </div>
+              ) : folderLoadError ? (
+                <p className="p-2 text-sm text-red-600">
+                  Folders could not be loaded. Reopen the report window to try again.
+                </p>
+              ) : folders.length === 0 ? (
+                <p className="p-2 text-sm text-muted-foreground">
+                  No job folders are available for this selection.
+                </p>
+              ) : (
+                folders.map((folder) => (
+                  <div
+                    key={folder._id}
+                    className="flex items-center gap-3 rounded px-2 py-2 hover:bg-muted"
+                  >
+                    <Checkbox
+                      id={`report-folder-${folder._id}`}
+                      checked={selectedFolderIds.includes(folder._id)}
+                      onCheckedChange={(checked) =>
+                        toggleFolder(folder._id, checked === true)
+                      }
+                    />
+                    <FolderOpen className="h-4 w-4 shrink-0 text-amber-600" />
+                    <Label
+                      htmlFor={`report-folder-${folder._id}`}
+                      className="min-w-0 flex-1 cursor-pointer font-normal"
+                    >
+                      <span className="block truncate">{folder.name}</span>
+                      {(isAdmin && clientId === "all") ||
+                      session?.user?.role === "employee" ? (
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {folder.customerName}
+                        </span>
+                      ) : null}
+                    </Label>
+                  </div>
+                ))
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              No folder selected: one report for all matching jobs. Select one
+              folder for one PDF, or several folders for a ZIP of separate PDFs.
+            </p>
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="report-period">Report period</Label>
@@ -478,7 +700,7 @@ export function JobReportDialog() {
           <Button
             type="button"
             onClick={handleGenerateReport}
-            disabled={isGenerating || isUploading}
+            disabled={isGenerating || isUploading || isLoadingFolders}
             className="bg-amber-500 text-black hover:bg-amber-400"
           >
             {isGenerating || isUploading ? (
@@ -489,7 +711,9 @@ export function JobReportDialog() {
             ) : (
               <>
                 <FileDown className="mr-2 h-4 w-4" />
-                Generate PDF
+                {selectedFolderIds.length > 1
+                  ? `Generate ${selectedFolderIds.length} PDFs`
+                  : "Generate PDF"}
               </>
             )}
           </Button>
