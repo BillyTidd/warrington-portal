@@ -52,12 +52,13 @@ export async function POST(
 
     if (
       session.user.role !== "admin" &&
-      session.user.role !== "customer"
+      session.user.role !== "customer" &&
+      session.user.role !== "employee"
     ) {
       return NextResponse.json(
         {
           message:
-            "Only administrators and customers can upload job documents",
+            "Your account cannot upload job documents",
         },
         { status: 403 }
       );
@@ -117,6 +118,17 @@ export async function POST(
       );
     }
 
+    if (session.user.role === "employee" && (
+      !Array.isArray(job.workers) || !job.workers.some(
+        (worker: { userId?: unknown }) => String(worker.userId || "") === session.user.id
+      )
+    )) {
+      return NextResponse.json(
+        { message: "You can upload only to jobs assigned to you" },
+        { status: 403 }
+      );
+    }
+
     const objectKeys = documents.map((document) =>
       String(document?.objectKey || "")
     );
@@ -131,8 +143,10 @@ export async function POST(
     const requiredObjectPrefix = `${
       session.user.role === "admin"
         ? "admin-job-documents"
-        : "customer-job-documents"
-    }/${session.user.id}/`;
+        : session.user.role === "employee"
+          ? "worker-job-documents"
+          : "customer-job-documents"
+    }/${session.user.id}/${session.user.role === "employee" ? `${params.id}/` : ""}`;
     const { client: storageClient, bucket } =
       getObjectStorage();
     const verifiedDocuments: PendingJobDocument[] = [];

@@ -24,10 +24,10 @@ export async function DELETE(
       );
     }
 
-    if (session.user.role !== "admin") {
+    if (!["admin", "employee"].includes(session.user.role || "")) {
       return NextResponse.json(
         {
-          message: "Only administrators can remove uploaded documents",
+          message: "You do not have permission to remove uploaded documents",
         },
         { status: 403 },
       );
@@ -53,6 +53,27 @@ export async function DELETE(
         { message: "Document not found" },
         { status: 404 },
       );
+    }
+
+    if (session.user.role === "employee") {
+      if (String(document.uploadedBy || "") !== session.user.id) {
+        return NextResponse.json(
+          { message: "You can remove only documents you uploaded yourself" },
+          { status: 403 }
+        );
+      }
+      const jobId = String(document.jobId || "");
+      const job = ObjectId.isValid(jobId)
+        ? await db.collection("jobs").findOne({ _id: new ObjectId(jobId) })
+        : null;
+      if (!job || !Array.isArray(job.workers) || !job.workers.some(
+        (worker: { userId?: unknown }) => String(worker.userId || "") === session.user.id
+      )) {
+        return NextResponse.json(
+          { message: "You must be assigned to this job to remove its documents" },
+          { status: 403 }
+        );
+      }
     }
 
     if (!document.objectKey) {

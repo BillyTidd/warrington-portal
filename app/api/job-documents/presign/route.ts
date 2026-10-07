@@ -7,6 +7,8 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getServerSession } from "next-auth/next";
 import { NextRequest, NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
+import { ObjectId } from "mongodb";
+import clientPromise from "@/lib/mongodb";
 import { getObjectStorage } from "@/lib/object-storage";
 import { validateJobDocument } from "@/lib/job-document-validation";
 
@@ -20,12 +22,24 @@ export async function POST(request: NextRequest) {
 
     if (
       !session?.user ||
-      !["admin", "customer"].includes(session.user.role || "")
+      !["admin", "customer", "employee"].includes(session.user.role || "")
     ) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const { fileName, mimeType, size } = await request.json();
+    const { fileName, mimeType, size, jobId } = await request.json();
+    if (session.user.role === "employee") {
+      if (typeof jobId !== "string" || !ObjectId.isValid(jobId)) {
+        return NextResponse.json({ message: "Select a valid assigned job" }, { status: 400 });
+      }
+      const mongoClient = await clientPromise;
+      const job = await mongoClient.db().collection("jobs").findOne({ _id: new ObjectId(jobId) });
+      if (!job || !Array.isArray(job.workers) || !job.workers.some(
+        (worker: { userId?: unknown }) => String(worker.userId || "") === session.user.id
+      )) {
+        return NextResponse.json({ message: "You can upload only to jobs assigned to you" }, { status: 403 });
+      }
+    }
     const validationError = validateJobDocument(fileName, mimeType, size);
 
     if (validationError) {
@@ -38,10 +52,13 @@ export async function POST(request: NextRequest) {
     const uploadContext =
       session.user.role === "admin"
         ? "admin-job-documents"
-        : "customer-job-documents";
+        : session.user.role === "employee"
+          ? "worker-job-documents"
+          : "customer-job-documents";
 
     const objectKey =
       `${uploadContext}/${session.user.id}/` +
+      (session.user.role === "employee" ? `${jobId}/` : "") +
       `${randomUUID()}-${safeFilename(fileName)}`;
 
     const { client, bucket } = getObjectStorage();

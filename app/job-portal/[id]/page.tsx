@@ -520,6 +520,7 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                 fileName: file.name,
                 mimeType,
                 size: file.size,
+                jobId: params.id,
               }),
             }
           );
@@ -582,7 +583,9 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
   };
 
   const handleDeleteDocument = async () => {
-    if (!documentToDelete || !isAdmin) {
+    if (!documentToDelete || !(isAdmin || (
+      isWorker && String(documentToDelete.uploadedBy) === session?.user?.id
+    ))) {
       return;
     }
 
@@ -1360,7 +1363,7 @@ const profitMargin =
                                   </Button>
                                 </a>
 
-                                {isAdmin && (
+                                {(isAdmin || (isWorker && String(document.uploadedBy) === session?.user?.id)) && (
                                   <Button
                                     type="button"
                                     variant="outline"
@@ -1425,8 +1428,8 @@ const profitMargin =
                 </CardContent>
               </Card>
 
-              {/* Admin and the owning customer can add R2-backed documents. */}
-              {(isAdmin || isClient) && (
+              {/* Authorized job users can upload documents. */}
+              {(isAdmin || isClient || isWorker) && (
                 <Card className="border-none shadow-lg">
                   <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50 pb-3 dark:from-amber-950/40 dark:to-yellow-950/40">
                     <CardTitle className="flex items-center text-lg">
